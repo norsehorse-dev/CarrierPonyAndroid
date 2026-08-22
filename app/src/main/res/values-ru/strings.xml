@@ -49,6 +49,16 @@
     <string name="chat_empty_title">Сообщений пока нет</string>
     <string name="chat_empty_body">Всё, что вы здесь отправляете, зашифровано сквозным шифрованием.</string>
     <string name="chat_nickname">Псевдоним</string>
+    <string name="chat_disappearing_title">Исчезающие сообщения</string>
+    <string name="chat_disappearing_body">Новые сообщения в этом чате удаляются сами по истечении выбранного времени. Существующие сообщения сохраняют свой таймер.</string>
+    <string name="chat_disappearing_off">Выкл.</string>
+    <string name="chat_disappearing_1h">1 час</string>
+    <string name="chat_disappearing_6h">6 часов</string>
+    <string name="chat_disappearing_1d">1 день</string>
+    <string name="chat_disappearing_1w">1 неделя</string>
+    <string name="chat_disappearing_4w">4 недели</string>
+    <string name="chat_disappearing_active">Исчезает: %1$s</string>
+    <string name="chat_disappearing_on">Вкл.</string>
     <string name="chat_set_nickname">Задать псевдоним</string>
     <string name="chat_edit_nickname">Изменить псевдоним</string>
     <string name="chat_remove_nickname">Убрать псевдоним</string>

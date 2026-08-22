@@ -49,6 +49,16 @@
     <string name="chat_empty_title">Nenhuma mensagem ainda</string>
     <string name="chat_empty_body">Tudo o que você envia aqui é criptografado de ponta a ponta.</string>
     <string name="chat_nickname">Apelido</string>
+    <string name="chat_disappearing_title">Mensagens temporárias</string>
+    <string name="chat_disappearing_body">As novas mensagens desta conversa se apagam sozinhas após o tempo escolhido. As mensagens existentes mantêm o próprio temporizador.</string>
+    <string name="chat_disappearing_off">Desativado</string>
+    <string name="chat_disappearing_1h">1 hora</string>
+    <string name="chat_disappearing_6h">6 horas</string>
+    <string name="chat_disappearing_1d">1 dia</string>
+    <string name="chat_disappearing_1w">1 semana</string>
+    <string name="chat_disappearing_4w">4 semanas</string>
+    <string name="chat_disappearing_active">Temporárias: %1$s</string>
+    <string name="chat_disappearing_on">Ativado</string>
     <string name="chat_set_nickname">Definir apelido</string>
     <string name="chat_edit_nickname">Editar apelido</string>
     <string name="chat_remove_nickname">Remover apelido</string>

@@ -49,6 +49,16 @@
     <string name="chat_empty_title">Aún no hay mensajes</string>
     <string name="chat_empty_body">Todo lo que envíes aquí está cifrado de extremo a extremo.</string>
     <string name="chat_nickname">Apodo</string>
+    <string name="chat_disappearing_title">Mensajes temporales</string>
+    <string name="chat_disappearing_body">Los mensajes nuevos de esta conversación se eliminan solos tras el tiempo que elijas. Los mensajes existentes conservan su propio temporizador.</string>
+    <string name="chat_disappearing_off">Desactivado</string>
+    <string name="chat_disappearing_1h">1 hora</string>
+    <string name="chat_disappearing_6h">6 horas</string>
+    <string name="chat_disappearing_1d">1 día</string>
+    <string name="chat_disappearing_1w">1 semana</string>
+    <string name="chat_disappearing_4w">4 semanas</string>
+    <string name="chat_disappearing_active">Temporales: %1$s</string>
+    <string name="chat_disappearing_on">Activado</string>
     <string name="chat_set_nickname">Poner apodo</string>
     <string name="chat_edit_nickname">Editar apodo</string>
     <string name="chat_remove_nickname">Quitar apodo</string>

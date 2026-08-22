@@ -49,6 +49,16 @@
     <string name="chat_empty_title">メッセージはまだありません</string>
     <string name="chat_empty_body">ここで送るものはすべてエンドツーエンドで暗号化されます。</string>
     <string name="chat_nickname">ニックネーム</string>
+    <string name="chat_disappearing_title">消えるメッセージ</string>
+    <string name="chat_disappearing_body">この会話の新しいメッセージは、選んだ時間が過ぎると自動的に削除されます。既存のメッセージは元のタイマーのままです。</string>
+    <string name="chat_disappearing_off">オフ</string>
+    <string name="chat_disappearing_1h">1時間</string>
+    <string name="chat_disappearing_6h">6時間</string>
+    <string name="chat_disappearing_1d">1日</string>
+    <string name="chat_disappearing_1w">1週間</string>
+    <string name="chat_disappearing_4w">4週間</string>
+    <string name="chat_disappearing_active">消える: %1$s</string>
+    <string name="chat_disappearing_on">オン</string>
     <string name="chat_set_nickname">ニックネームを設定</string>
     <string name="chat_edit_nickname">ニックネームを編集</string>
     <string name="chat_remove_nickname">ニックネームを削除</string>

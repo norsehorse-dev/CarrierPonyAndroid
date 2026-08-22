@@ -49,6 +49,16 @@
     <string name="chat_empty_title">Ancora nessun messaggio</string>
     <string name="chat_empty_body">Tutto ciò che invii qui è cifrato end-to-end.</string>
     <string name="chat_nickname">Soprannome</string>
+    <string name="chat_disappearing_title">Messaggi effimeri</string>
+    <string name="chat_disappearing_body">I nuovi messaggi di questa conversazione si eliminano da soli dopo il tempo scelto. I messaggi esistenti mantengono il proprio timer.</string>
+    <string name="chat_disappearing_off">Disattivato</string>
+    <string name="chat_disappearing_1h">1 ora</string>
+    <string name="chat_disappearing_6h">6 ore</string>
+    <string name="chat_disappearing_1d">1 giorno</string>
+    <string name="chat_disappearing_1w">1 settimana</string>
+    <string name="chat_disappearing_4w">4 settimane</string>
+    <string name="chat_disappearing_active">Effimero: %1$s</string>
+    <string name="chat_disappearing_on">Attivo</string>
     <string name="chat_set_nickname">Imposta soprannome</string>
     <string name="chat_edit_nickname">Modifica soprannome</string>
     <string name="chat_remove_nickname">Rimuovi soprannome</string>

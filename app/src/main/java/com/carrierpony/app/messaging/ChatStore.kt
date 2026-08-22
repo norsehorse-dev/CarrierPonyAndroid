@@ -60,6 +60,13 @@ class ChatStore(
 
     private val factory = EnvelopeFactory(crypto)
     private val fileURL = File(storageDir, "carrierpony-conversations-${identity.hex}.json")
+    private val timersURL = File(storageDir, "carrierpony-timers-${identity.hex}.json")
+
+    // Per-conversation disappearing-message timer, keyed by threadID → TTL in
+    // seconds. Absence means "Off": messages fall back to the standard defaultTTL.
+    // Synced across a user's own devices via a "timer" control message to self.
+    private val _disappearingTimers = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Long>>(emptyMap())
+    val disappearingTimers: kotlinx.coroutines.flow.StateFlow<Map<String, Long>> = _disappearingTimers
 
     private val _conversations = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Conversation>>(emptyMap())
     val conversations: kotlinx.coroutines.flow.StateFlow<Map<String, Conversation>> = _conversations
@@ -80,6 +87,7 @@ class ChatStore(
 
     init {
         load()
+        loadTimers()
     }
 
     // ── Lifecycle ──────────────────────────────────────────────────────
@@ -116,8 +124,10 @@ class ChatStore(
             }
         }
         _conversations.value = emptyMap()
+        _disappearingTimers.value = emptyMap()
         synchronized(seenMessageIDs) { seenMessageIDs.clear() }
         fileURL.delete()
+        timersURL.delete()
     }
 
     fun clearError() {
@@ -277,7 +287,9 @@ class ChatStore(
         }
 
         val threadID = Threading.pairwise(identity.hex, to.fingerprint.hex)
-        val expiresAt = now + (ttl ?: defaultTTL)
+        // An explicit ttl wins; otherwise the conversation's disappearing timer;
+        // otherwise the standard default.
+        val expiresAt = now + (ttl ?: _disappearingTimers.value[threadID] ?: defaultTTL)
         val messageID = UUID.randomUUID().toString().uppercase()
         val outgoing = OutgoingMessage(threadID = threadID, text = text, attachments = attachments, expiresAt = expiresAt)
 
@@ -419,12 +431,81 @@ class ChatStore(
         }
     }
 
+    // ── Disappearing messages ──────────────────────────────────────────
+
+    /** Current disappearing TTL (seconds) for a peer's thread, or null for Off. */
+    fun disappearingTTL(peer: Fingerprint): Long? =
+        _disappearingTimers.value[Threading.pairwise(identity.hex, peer.hex)]
+
+    /** Set (or clear, with null) the disappearing-message timer for a peer's
+     *  thread. Persists locally and syncs the change to the user's own devices.
+     *  Applies to messages sent after this point; existing messages keep the
+     *  expiry they were sent with. */
+    suspend fun setDisappearingTimer(peer: Fingerprint, ttl: Long?) {
+        val threadID = Threading.pairwise(identity.hex, peer.hex)
+        mutex.withLock {
+            _disappearingTimers.value =
+                if (ttl == null || ttl <= 0L) _disappearingTimers.value - threadID
+                else _disappearingTimers.value + (threadID to ttl)
+            persistTimersLocked()
+        }
+        if (multiDevice) {
+            emitControl(op = "timer", targetMessageID = "", threadID = threadID, ttl = ttl ?: 0L)
+        }
+    }
+
+    private fun loadTimers() {
+        val text = try {
+            if (timersURL.exists()) timersURL.readText() else null
+        } catch (e: Exception) {
+            null
+        } ?: return
+        try {
+            val json = JSONObject(text)
+            val map = mutableMapOf<String, Long>()
+            val keys = json.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                map[key] = json.getLong(key)
+            }
+            _disappearingTimers.value = map
+        } catch (e: Exception) {
+            // Malformed timer file: start with no timers rather than crash.
+        }
+    }
+
+    private fun persistTimersLocked() {
+        try {
+            if (_disappearingTimers.value.isEmpty()) {
+                timersURL.delete()
+                return
+            }
+            val json = JSONObject()
+            for ((k, v) in _disappearingTimers.value) json.put(k, v)
+            timersURL.writeText(json.toString())
+        } catch (e: Exception) {
+            // Best-effort: a failed timer write must not break messaging.
+        }
+    }
+
     private fun applyControlLocked(incoming: IncomingMessage) {
         val control = controlPayload(incoming) ?: return
         when (control.op) {
             "read" -> setReadLocked(control.targetMessageID)
             "delete" -> deleteMessageLocked(control.targetMessageID)
+            "timer" -> applyTimerLocked(incoming.manifest.threadID, control.ttl)
         }
+    }
+
+    /** Adopt a disappearing-timer change synced from one of my own devices. A
+     *  TTL of 0 (or null) means the sender turned the timer Off. Does not
+     *  re-broadcast — this is the receiving side of the sync. */
+    private fun applyTimerLocked(threadID: String, ttl: Long?) {
+        val current = _disappearingTimers.value
+        _disappearingTimers.value =
+            if (ttl == null || ttl <= 0L) current - threadID
+            else current + (threadID to ttl)
+        persistTimersLocked()
     }
 
     // ── Profile (display name exchange) ────────────────────────────────
@@ -466,9 +547,9 @@ class ChatStore(
         }
     }
 
-    private suspend fun emitControl(op: String, targetMessageID: String, threadID: String) {
+    private suspend fun emitControl(op: String, targetMessageID: String, threadID: String, ttl: Long? = null) {
         val selfKey = ownPublicKey() ?: return
-        val body = ControlOp(op = op, targetMessageID = targetMessageID, at = now)
+        val body = ControlOp(op = op, targetMessageID = targetMessageID, at = now, ttl = ttl)
         val controlMessage = OutgoingMessage(
             threadID = threadID,
             text = null,
@@ -511,7 +592,8 @@ class ChatStore(
         val op: String,
         val targetMessageID: String,
         val at: Long,
-        val name: String? = null
+        val name: String? = null,
+        val ttl: Long? = null   // op == "timer": disappearing TTL in seconds, 0 = Off
     ) {
         fun encoded(): ByteArray {
             val json = JSONObject()
@@ -519,6 +601,7 @@ class ChatStore(
             json.put("target_message_id", targetMessageID)
             json.put("at", at)
             if (name != null) json.put("name", name)
+            if (ttl != null) json.put("ttl", ttl)
             return json.toString().toByteArray(Charsets.UTF_8)
         }
 
@@ -529,7 +612,8 @@ class ChatStore(
                     op = json.getString("op"),
                     targetMessageID = json.optString("target_message_id"),
                     at = json.optLong("at"),
-                    name = json.optString("name").takeIf { it.isNotEmpty() }
+                    name = json.optString("name").takeIf { it.isNotEmpty() },
+                    ttl = if (json.has("ttl")) json.getLong("ttl") else null
                 )
             } catch (e: Exception) {
                 null
@@ -597,10 +681,18 @@ class ChatStore(
         val cutoff = now
         var updated = _conversations.value
         for ((threadID, conversation) in updated) {
-            val kept = conversation.messages.filter { it.expiresAt > cutoff }
-            if (kept.size != conversation.messages.size) {
-                updated = updated + (threadID to conversation.copy(messages = kept))
+            val expired = conversation.messages.filter { it.expiresAt <= cutoff }
+            if (expired.isEmpty()) continue
+            // A disappearing message must take its attachment files with it, or
+            // the "disappeared" bytes linger on disk.
+            for (message in expired) {
+                for (attachment in message.attachments) {
+                    AttachmentStore.delete(attachment.localPath)
+                }
             }
+            updated = updated + (threadID to conversation.copy(
+                messages = conversation.messages.filter { it.expiresAt > cutoff }
+            ))
         }
         _conversations.value = updated
         persistLocked()

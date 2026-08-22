@@ -120,6 +120,9 @@ fun ConversationScreen(
     var showingMenu by remember { mutableStateOf(false) }
     var showingNicknamePrompt by remember { mutableStateOf(false) }
     var nicknameDraft by remember { mutableStateOf("") }
+    var showingTimerDialog by remember { mutableStateOf(false) }
+    val timers by store.disappearingTimers.collectAsState()
+    val currentTtl = remember(timers, contact.fingerprint) { store.disappearingTTL(contact.fingerprint) }
 
     // Mark read on open and whenever new messages arrive.
     LaunchedEffect(conversation?.threadID, messages.size) {
@@ -165,11 +168,20 @@ fun ConversationScreen(
                         Spacer(Modifier.width(10.dp))
                         Column {
                             Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(
-                                UiFormat.shortFingerprint(contact.fingerprint),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            val activeLabelRes = ttlLabelRes(currentTtl)
+                            if (activeLabelRes != null) {
+                                Text(
+                                    text = stringResource(R.string.chat_disappearing_active, stringResource(activeLabelRes)),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = CPTheme.accent
+                                )
+                            } else {
+                                Text(
+                                    UiFormat.shortFingerprint(contact.fingerprint),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 },
@@ -179,11 +191,18 @@ fun ConversationScreen(
                     }
                 },
                 actions = {
-                    if (onSetNickname != null || onReport != null) {
+                    run {
                         IconButton(onClick = { showingMenu = true }) {
                             Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.common_more), tint = CPTheme.accent)
                         }
                         DropdownMenu(expanded = showingMenu, onDismissRequest = { showingMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.chat_disappearing_title)) },
+                                onClick = {
+                                    showingMenu = false
+                                    showingTimerDialog = true
+                                }
+                            )
                             if (onSetNickname != null) {
                                 DropdownMenuItem(
                                     text = { Text(if (contact.nickname == null) stringResource(R.string.chat_set_nickname) else stringResource(R.string.chat_edit_nickname)) },
@@ -348,6 +367,63 @@ fun ConversationScreen(
             }
         )
     }
+
+    if (showingTimerDialog) {
+        val options = listOf<Pair<Int, Long?>>(
+            R.string.chat_disappearing_off to null,
+            R.string.chat_disappearing_1h to 3600L,
+            R.string.chat_disappearing_6h to 21_600L,
+            R.string.chat_disappearing_1d to 86_400L,
+            R.string.chat_disappearing_1w to 604_800L,
+            R.string.chat_disappearing_4w to 2_419_200L
+        )
+        AlertDialog(
+            onDismissRequest = { showingTimerDialog = false },
+            title = { Text(stringResource(R.string.chat_disappearing_title)) },
+            text = {
+                Column {
+                    Text(
+                        stringResource(R.string.chat_disappearing_body),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    options.forEach { (labelRes, secs) ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                        ) {
+                            androidx.compose.material3.RadioButton(
+                                selected = currentTtl == secs,
+                                onClick = {
+                                    scope.launch { store.setDisappearingTimer(contact.fingerprint, secs) }
+                                    showingTimerDialog = false
+                                }
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(stringResource(labelRes))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showingTimerDialog = false }) { Text(stringResource(R.string.common_done)) }
+            }
+        )
+    }
+}
+
+/** String resource for a disappearing TTL as shown in the header subtitle, or
+ *  null when the timer is Off. A synced value outside the preset list falls back
+ *  to a generic "On". */
+private fun ttlLabelRes(secs: Long?): Int? = when (secs) {
+    null -> null
+    3600L -> R.string.chat_disappearing_1h
+    21_600L -> R.string.chat_disappearing_6h
+    86_400L -> R.string.chat_disappearing_1d
+    604_800L -> R.string.chat_disappearing_1w
+    2_419_200L -> R.string.chat_disappearing_4w
+    else -> R.string.chat_disappearing_on
 }
 
 // ── Attachment loading ─────────────────────────────────────────────────

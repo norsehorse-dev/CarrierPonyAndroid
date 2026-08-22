@@ -49,6 +49,16 @@
     <string name="chat_empty_title">Pas encore de messages</string>
     <string name="chat_empty_body">Tout ce que vous envoyez ici est chiffré de bout en bout.</string>
     <string name="chat_nickname">Surnom</string>
+    <string name="chat_disappearing_title">Messages éphémères</string>
+    <string name="chat_disappearing_body">Les nouveaux messages de cette conversation s\'effacent après le délai choisi. Les messages existants conservent leur propre minuteur.</string>
+    <string name="chat_disappearing_off">Désactivé</string>
+    <string name="chat_disappearing_1h">1 heure</string>
+    <string name="chat_disappearing_6h">6 heures</string>
+    <string name="chat_disappearing_1d">1 jour</string>
+    <string name="chat_disappearing_1w">1 semaine</string>
+    <string name="chat_disappearing_4w">4 semaines</string>
+    <string name="chat_disappearing_active">Éphémère : %1$s</string>
+    <string name="chat_disappearing_on">Activé</string>
     <string name="chat_set_nickname">Définir un surnom</string>
     <string name="chat_edit_nickname">Modifier le surnom</string>
     <string name="chat_remove_nickname">Retirer le surnom</string>

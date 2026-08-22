@@ -49,6 +49,16 @@
     <string name="chat_empty_title">No messages yet</string>
     <string name="chat_empty_body">Everything you send here is end to end encrypted.</string>
     <string name="chat_nickname">Nickname</string>
+    <string name="chat_disappearing_title">Disappearing messages</string>
+    <string name="chat_disappearing_body">New messages in this conversation delete themselves after the time you choose. Existing messages keep their own timer.</string>
+    <string name="chat_disappearing_off">Off</string>
+    <string name="chat_disappearing_1h">1 hour</string>
+    <string name="chat_disappearing_6h">6 hours</string>
+    <string name="chat_disappearing_1d">1 day</string>
+    <string name="chat_disappearing_1w">1 week</string>
+    <string name="chat_disappearing_4w">4 weeks</string>
+    <string name="chat_disappearing_active">Disappearing: %1$s</string>
+    <string name="chat_disappearing_on">On</string>
     <string name="chat_set_nickname">Set Nickname</string>
     <string name="chat_edit_nickname">Edit Nickname</string>
     <string name="chat_remove_nickname">Remove Nickname</string>
