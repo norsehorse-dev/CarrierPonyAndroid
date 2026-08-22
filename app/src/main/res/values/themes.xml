@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- AppCompat parent: required by AppCompatActivity, which carries the
+         per-app locale support behind the language pickers. Visuals are
+         unchanged; Compose paints everything. -->
+    <style name="Theme.CarrierPony" parent="Theme.AppCompat.DayNight.NoActionBar" />
+</resources>

@@ -1,0 +1,29 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# --- v2.0.0 public-release additions ---
+# signing / secrets — never commit
+keystore.properties
+*.jks
+*.keystore
+google-services.json
+# kotlin build cache
+.kotlin/
+# internal transfer + staging (not for the public repo)
+.claude_stage/
+_to_delete/
+updates/
+relaypony-site-fdroid.zip
