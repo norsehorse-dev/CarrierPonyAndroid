@@ -1,0 +1,5 @@
+New: disappearing messages. Set a per-conversation timer, from 1 hour to 4 weeks or off, and new messages delete themselves when it elapses. The setting syncs across your own devices.
+
+This release also brings the Android client to parity with the latest iOS build: remembered remote invites that finish after you close the invite screen, a Report action on the conversation list, clearer errors when a message cannot be opened, and no relay traffic while the app is locked.
+
+First public source release, under Apache-2.0.
