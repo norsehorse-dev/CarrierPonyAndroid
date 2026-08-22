@@ -35,6 +35,7 @@
     <string name="inbox_unpair_q">取消与此联系人的配对？</string>
     <string name="inbox_unpair_body">这会从本设备移除对方的密钥。在重新配对之前，你将无法阅读对方的新消息。</string>
     <string name="inbox_unpair">取消配对</string>
+    <string name="inbox_report">举报</string>
     <string name="inbox_you_prefix">你：</string>
     <string name="inbox_no_messages">暂无消息</string>
     <string name="inbox_attachment_fallback">消息</string>

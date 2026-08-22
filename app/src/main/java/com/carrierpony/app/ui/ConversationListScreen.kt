@@ -78,6 +78,7 @@ fun ConversationListScreen(
     contacts: List<Contact>,
     onOpen: (Fingerprint) -> Unit,
     onUnpair: ((Fingerprint) -> Unit)? = null,
+    onReport: ((Fingerprint) -> Unit)? = null,
     onPair: (() -> Unit)? = null,
     onSettings: (() -> Unit)? = null,
     notificationsOff: Boolean = false,
@@ -86,6 +87,7 @@ fun ConversationListScreen(
 ) {
     val conversations by store.conversations.collectAsState()
     val ordered = conversations.values.sortedByDescending { it.lastMessage?.sentAt ?: 0 }
+    val error by store.lastError.collectAsState()
 
     var showingNewMessage by remember { mutableStateOf(false) }
     var pendingUnpair by remember { mutableStateOf<Fingerprint?>(null) }
@@ -115,6 +117,22 @@ fun ConversationListScreen(
         }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
+            error?.let { msg ->
+                Surface(color = MaterialTheme.colorScheme.errorContainer) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 4.dp, bottom = 4.dp)
+                    ) {
+                        Text(
+                            text = msg,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { store.clearError() }) { Text(stringResource(R.string.common_dismiss)) }
+                    }
+                }
+            }
             if (notificationsOff) {
                 Surface(color = MaterialTheme.colorScheme.secondaryContainer) {
                     Row(
@@ -143,7 +161,8 @@ fun ConversationListScreen(
                                 displayName = displayName(conversation, contacts),
                                 verified = contacts.firstOrNull { it.fingerprint == conversation.peer }?.trust == TrustLevel.VERIFIED,
                                 onClick = { onOpen(conversation.peer) },
-                                onUnpair = onUnpair?.let { { pendingUnpair = conversation.peer } }
+                                onUnpair = onUnpair?.let { { pendingUnpair = conversation.peer } },
+                                onReport = onReport?.let { r -> { r(conversation.peer) } }
                             )
                         }
                     }
@@ -195,7 +214,8 @@ private fun ConversationRow(
     displayName: String,
     verified: Boolean,
     onClick: () -> Unit,
-    onUnpair: (() -> Unit)?
+    onUnpair: (() -> Unit)?,
+    onReport: (() -> Unit)? = null
 ) {
     var showingMenu by remember { mutableStateOf(false) }
 
@@ -205,7 +225,7 @@ private fun ConversationRow(
                 .fillMaxWidth()
                 .combinedClickable(
                     onClick = onClick,
-                    onLongClick = { if (onUnpair != null) showingMenu = true }
+                    onLongClick = { if (onUnpair != null || onReport != null) showingMenu = true }
                 )
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -264,13 +284,24 @@ private fun ConversationRow(
         }
 
         DropdownMenu(expanded = showingMenu, onDismissRequest = { showingMenu = false }) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.inbox_unpair), color = MaterialTheme.colorScheme.error) },
-                onClick = {
-                    showingMenu = false
-                    onUnpair?.invoke()
-                }
-            )
+            if (onReport != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.inbox_report)) },
+                    onClick = {
+                        showingMenu = false
+                        onReport()
+                    }
+                )
+            }
+            if (onUnpair != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.inbox_unpair), color = MaterialTheme.colorScheme.error) },
+                    onClick = {
+                        showingMenu = false
+                        onUnpair.invoke()
+                    }
+                )
+            }
         }
     }
 }

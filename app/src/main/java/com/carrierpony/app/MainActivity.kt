@@ -109,8 +109,13 @@ class MainActivity : AppCompatActivity() {
     // not — and engage the lock when leaving the foreground.
     override fun onStart() {
         super.onStart()
-        app.startMessaging()
-        requestNotificationPermissionOnce()
+        // Mirror iOS: no relay traffic (device registration, polling, push)
+        // while the lock screen is up. unlock() starts messaging once the
+        // session passphrase is available.
+        if (!app.appLock.isLocked.value) {
+            app.startMessaging()
+            requestNotificationPermissionOnce()
+        }
     }
 
     override fun onResume() {
@@ -323,6 +328,7 @@ private fun Root(
                     contacts = contacts,
                     onOpen = { openPeer = it },
                     onUnpair = { app.contactStore.remove(it) },
+                    onReport = { reportPeer = it },
                     onPair = { showingPairing = true },
                     onSettings = { showingSettings = true },
                     notificationsOff = notificationsOff,

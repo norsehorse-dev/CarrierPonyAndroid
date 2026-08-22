@@ -35,6 +35,7 @@
     <string name="inbox_unpair_q">Unpair this contact?</string>
     <string name="inbox_unpair_body">This removes their key from this device. You won\'t be able to read new messages from them until you pair again.</string>
     <string name="inbox_unpair">Unpair</string>
+    <string name="inbox_report">Report</string>
     <string name="inbox_you_prefix">You: </string>
     <string name="inbox_no_messages">No messages yet</string>
     <string name="inbox_attachment_fallback">Message</string>

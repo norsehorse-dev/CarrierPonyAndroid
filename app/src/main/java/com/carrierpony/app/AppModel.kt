@@ -216,6 +216,9 @@ class AppModel(context: Context) {
                 if (identity != null && identity.protected) {
                     appLock.setSessionPassphrase(vault.read(identity.fingerprint.hex))
                 }
+                // Relay traffic was held while locked (see MainActivity.onStart);
+                // start it now that the session passphrase is available.
+                startMessaging()
             }
         }
     }

@@ -35,6 +35,7 @@
     <string name="inbox_unpair_q">Kopplung mit diesem Kontakt aufheben?</string>
     <string name="inbox_unpair_body">Das entfernt den Schlüssel von diesem Gerät. Neue Nachrichten dieser Person kannst du erst wieder lesen, wenn ihr euch neu koppelt.</string>
     <string name="inbox_unpair">Entkoppeln</string>
+    <string name="inbox_report">Melden</string>
     <string name="inbox_you_prefix">Du: </string>
     <string name="inbox_no_messages">Noch keine Nachrichten</string>
     <string name="inbox_attachment_fallback">Nachricht</string>

@@ -35,6 +35,7 @@
     <string name="inbox_unpair_q">¿Desemparejar este contacto?</string>
     <string name="inbox_unpair_body">Esto elimina su clave de este dispositivo. No podrás leer sus nuevos mensajes hasta que vuelvas a emparejar.</string>
     <string name="inbox_unpair">Desemparejar</string>
+    <string name="inbox_report">Denunciar</string>
     <string name="inbox_you_prefix">Tú: </string>
     <string name="inbox_no_messages">Aún no hay mensajes</string>
     <string name="inbox_attachment_fallback">Mensaje</string>

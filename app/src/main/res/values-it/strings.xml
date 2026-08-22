@@ -35,6 +35,7 @@
     <string name="inbox_unpair_q">Dissociare questo contatto?</string>
     <string name="inbox_unpair_body">Questo rimuove la sua chiave da questo dispositivo. Non potrai leggere i suoi nuovi messaggi finché non vi associate di nuovo.</string>
     <string name="inbox_unpair">Dissocia</string>
+    <string name="inbox_report">Segnala</string>
     <string name="inbox_you_prefix">Tu: </string>
     <string name="inbox_no_messages">Ancora nessun messaggio</string>
     <string name="inbox_attachment_fallback">Messaggio</string>

@@ -20,9 +20,11 @@ import com.carrierpony.app.AppConfig
 import com.carrierpony.app.DemoMode
 import com.carrierpony.app.attachments.AttachmentStore
 import com.carrierpony.app.crypto.CryptoEngine
+import com.carrierpony.app.crypto.CryptoException
 import com.carrierpony.app.crypto.Fingerprint
 import com.carrierpony.app.crypto.PublicKey
 import com.carrierpony.app.envelope.CPN1
+import com.carrierpony.app.envelope.CPN1Exception
 import com.carrierpony.app.envelope.Manifest
 import com.carrierpony.app.envelope.Threading
 import com.carrierpony.app.relay.RelayClient
@@ -124,12 +126,13 @@ class ChatStore(
 
     // ── Receive ────────────────────────────────────────────────────────
 
-    /** Envelopes that failed to open get retried on later polls instead of
-     *  being acked (consumed) immediately: the common cause is a message
-     *  racing pairing — the sender's key lands seconds later and the retry
-     *  succeeds. The bound stops poison envelopes from looping forever. */
+    /** Envelopes that failed to open are retried on later polls instead of being
+     *  acked (consumed): the common cause is a message racing pairing — the
+     *  sender's key lands seconds later and the retry succeeds. We never give up
+     *  and ack, because acking tells the relay to delete its only copy; each
+     *  envelope's own expires_at bounds how long it can linger, so nothing
+     *  accumulates forever. The count is kept only for diagnostics. (Matches iOS.) */
     private val failedOpenCounts = mutableMapOf<String, Int>()
-    private val maxOpenAttempts = 10
 
     suspend fun refresh() {
         try {
@@ -151,14 +154,9 @@ class ChatStore(
                         ackIDs.add(item.messageId)
                         failedOpenCounts.remove(item.messageId)
                     } else {
-                        val failures = (failedOpenCounts[item.messageId] ?: 0) + 1
-                        if (failures >= maxOpenAttempts) {
-                            diagnostics("giving up on envelope ${item.messageId} after $failures failed opens", null)
-                            ackIDs.add(item.messageId)
-                            failedOpenCounts.remove(item.messageId)
-                        } else {
-                            failedOpenCounts[item.messageId] = failures
-                        }
+                        // Never ack: a recoverable open failure must not delete
+                        // the relay's only copy. Its expires_at bounds the retries.
+                        failedOpenCounts[item.messageId] = (failedOpenCounts[item.messageId] ?: 0) + 1
                     }
                 }
             }
@@ -186,7 +184,7 @@ class ChatStore(
             val chain = generateSequence<Throwable>(e) { it.cause }
                 .joinToString(" <- ") { "${it.javaClass.simpleName}: ${it.message}" }
             diagnostics("envelope open failed (${envelope.size} bytes): $chain", e)
-            _lastError.value = "Couldn't open an incoming message. Is the sender paired on this device?"
+            _lastError.value = "Couldn't open an incoming message (${describe(e)}). Is the sender paired on this device?"
             return false
         }
         val manifest = incoming.manifest
@@ -729,10 +727,16 @@ class ChatStore(
 
     private val now: Long get() = System.currentTimeMillis() / 1000
 
-    private fun describe(error: Exception): String {
-        if (error is RelayException) {
-            return "relay ${error.status}${error.code?.let { ": $it" } ?: ""}"
-        }
-        return error.message ?: error.javaClass.simpleName
+    // Map the concrete failure to human text. A signature failure and a
+    // decryption failure have completely different causes, so this is the whole
+    // diagnosis, not decoration. (Matches iOS describe().)
+    private fun describe(error: Exception): String = when (error) {
+        is RelayException -> "relay ${error.status}${error.code?.let { ": $it" } ?: ""}"
+        is CryptoException.NoValidSignature -> "sender's key missing or signature invalid"
+        is CryptoException.DecryptionFailed -> "not encrypted to this identity"
+        is CryptoException.NotImplemented -> "unsupported key type"
+        is CPN1Exception.BadMagic -> "not a CarrierPony envelope"
+        is CPN1Exception.Truncated -> "envelope truncated"
+        else -> error.message ?: error.javaClass.simpleName
     }
 }

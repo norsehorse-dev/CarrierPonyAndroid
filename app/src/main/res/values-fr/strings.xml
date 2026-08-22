@@ -35,6 +35,7 @@
     <string name="inbox_unpair_q">Dissocier ce contact ?</string>
     <string name="inbox_unpair_body">Cela supprime sa clé de cet appareil. Vous ne pourrez plus lire ses nouveaux messages tant que vous ne serez pas jumelés à nouveau.</string>
     <string name="inbox_unpair">Dissocier</string>
+    <string name="inbox_report">Signaler</string>
     <string name="inbox_you_prefix">Vous : </string>
     <string name="inbox_no_messages">Pas encore de messages</string>
     <string name="inbox_attachment_fallback">Message</string>

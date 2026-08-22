@@ -35,6 +35,7 @@
     <string name="inbox_unpair_q">この連絡先とのペアリングを解除しますか？</string>
     <string name="inbox_unpair_body">この端末から相手の鍵を削除します。再度ペアリングするまで、相手からの新しいメッセージは読めません。</string>
     <string name="inbox_unpair">ペアリング解除</string>
+    <string name="inbox_report">報告</string>
     <string name="inbox_you_prefix">あなた: </string>
     <string name="inbox_no_messages">メッセージはまだありません</string>
     <string name="inbox_attachment_fallback">メッセージ</string>

@@ -35,6 +35,7 @@
     <string name="inbox_unpair_q">Отвязать этот контакт?</string>
     <string name="inbox_unpair_body">Это удалит его ключ с устройства. Вы не сможете читать его новые сообщения, пока не свяжетесь снова.</string>
     <string name="inbox_unpair">Отвязать</string>
+    <string name="inbox_report">Пожаловаться</string>
     <string name="inbox_you_prefix">Вы: </string>
     <string name="inbox_no_messages">Сообщений пока нет</string>
     <string name="inbox_attachment_fallback">Сообщение</string>
