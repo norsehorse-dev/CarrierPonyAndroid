@@ -163,6 +163,8 @@
     <string name="pair_send_invite_body">Envía esta invitación a la otra persona por un canal de confianza. Funciona como enlace que pega o como código que escanea.</string>
     <string name="pair_share_invite">Compartir invitación</string>
     <string name="pair_waiting_accept">Esperando a que acepte…</string>
+    <string name="pair_close_note">Puedes cerrar esta pantalla. Cuando acepte, aparecerá en tus contactos.</string>
+    <string name="pair_invite_expires">Esta invitación caduca %1$s.</string>
     <string name="pair_paste_or_scan">Pega una invitación que recibiste o escanea el código del remitente.</string>
     <string name="pair_scan_instead">Escanear un código en su lugar</string>
     <string name="pair_demo_needs_identity">Crea primero una identidad y vuelve a probar el código de demostración.</string>

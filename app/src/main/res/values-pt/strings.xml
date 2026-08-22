@@ -163,6 +163,8 @@
     <string name="pair_send_invite_body">Envie este convite para a outra pessoa por um canal confiável. Funciona como link para colar ou como código para escanear.</string>
     <string name="pair_share_invite">Compartilhar convite</string>
     <string name="pair_waiting_accept">Aguardando a pessoa aceitar…</string>
+    <string name="pair_close_note">Você pode fechar esta tela. Quando a pessoa aceitar, ela aparecerá nos seus contatos.</string>
+    <string name="pair_invite_expires">Este convite expira %1$s.</string>
     <string name="pair_paste_or_scan">Cole um convite recebido ou escaneie o código do remetente.</string>
     <string name="pair_scan_instead">Escanear um código em vez disso</string>
     <string name="pair_demo_needs_identity">Crie uma identidade primeiro e depois tente o código de demonstração de novo.</string>

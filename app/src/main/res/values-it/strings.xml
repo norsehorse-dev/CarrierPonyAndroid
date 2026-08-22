@@ -163,6 +163,8 @@
     <string name="pair_send_invite_body">Invia questo invito all\'altra persona su un canale di cui ti fidi. Funziona come link da incollare o come codice da scansionare.</string>
     <string name="pair_share_invite">Condividi invito</string>
     <string name="pair_waiting_accept">In attesa che accetti…</string>
+    <string name="pair_close_note">Puoi chiudere questa schermata. Quando accetta, comparirà nei tuoi contatti.</string>
+    <string name="pair_invite_expires">Questo invito scade %1$s.</string>
     <string name="pair_paste_or_scan">Incolla un invito ricevuto o scansiona il codice del mittente.</string>
     <string name="pair_scan_instead">Scansiona invece un codice</string>
     <string name="pair_demo_needs_identity">Crea prima un\'identità, poi riprova il codice demo.</string>

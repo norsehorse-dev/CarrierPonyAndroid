@@ -163,6 +163,8 @@
     <string name="pair_send_invite_body">Отправьте это приглашение по каналу, которому доверяете. Оно работает и как ссылка для вставки, и как код для сканирования.</string>
     <string name="pair_share_invite">Поделиться приглашением</string>
     <string name="pair_waiting_accept">Ожидаем, когда примут…</string>
+    <string name="pair_close_note">Этот экран можно закрыть. Когда собеседник примет приглашение, он появится в контактах.</string>
+    <string name="pair_invite_expires">Срок действия приглашения истекает %1$s.</string>
     <string name="pair_paste_or_scan">Вставьте полученное приглашение или отсканируйте код отправителя.</string>
     <string name="pair_scan_instead">Или отсканируйте код</string>
     <string name="pair_demo_needs_identity">Сначала создайте личность, затем попробуйте демокод снова.</string>

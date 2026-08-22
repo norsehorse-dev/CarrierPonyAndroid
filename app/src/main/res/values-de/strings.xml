@@ -163,6 +163,8 @@
     <string name="pair_send_invite_body">Sende diese Einladung der anderen Person über einen Kanal, dem du vertraust. Sie funktioniert als Link zum Einfügen oder als Code zum Scannen.</string>
     <string name="pair_share_invite">Einladung teilen</string>
     <string name="pair_waiting_accept">Warten auf Annahme…</string>
+    <string name="pair_close_note">Du kannst diesen Bildschirm schließen. Sobald die Person annimmt, erscheint sie in deinen Kontakten.</string>
+    <string name="pair_invite_expires">Diese Einladung läuft %1$s ab.</string>
     <string name="pair_paste_or_scan">Füge eine erhaltene Einladung ein oder scanne den Code des Absenders.</string>
     <string name="pair_scan_instead">Stattdessen einen Code scannen</string>
     <string name="pair_demo_needs_identity">Erstelle zuerst eine Identität und probiere den Demo-Code dann erneut.</string>

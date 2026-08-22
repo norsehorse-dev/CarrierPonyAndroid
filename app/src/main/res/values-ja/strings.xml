@@ -163,6 +163,8 @@
     <string name="pair_send_invite_body">信頼できる経路でこの招待を相手に送ってください。貼り付けられるリンクとしても、スキャンできるコードとしても使えます。</string>
     <string name="pair_share_invite">招待を共有</string>
     <string name="pair_waiting_accept">相手の承諾を待っています…</string>
+    <string name="pair_close_note">この画面を閉じても大丈夫です。相手が承諾すると連絡先に表示されます。</string>
+    <string name="pair_invite_expires">この招待は%1$sに期限切れになります。</string>
     <string name="pair_paste_or_scan">受け取った招待を貼り付けるか、送信者のコードをスキャンしてください。</string>
     <string name="pair_scan_instead">代わりにコードをスキャン</string>
     <string name="pair_demo_needs_identity">先にアイデンティティを作成してから、もう一度デモコードをお試しください。</string>

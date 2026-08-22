@@ -163,6 +163,8 @@
     <string name="pair_send_invite_body">通过你信任的渠道把这个邀请发给对方。它既是可粘贴的链接，也是可扫描的二维码。</string>
     <string name="pair_share_invite">分享邀请</string>
     <string name="pair_waiting_accept">等待对方接受…</string>
+    <string name="pair_close_note">你可以关闭此界面。对方接受后，会出现在你的联系人中。</string>
+    <string name="pair_invite_expires">此邀请将于%1$s过期。</string>
     <string name="pair_paste_or_scan">粘贴收到的邀请，或扫描发送者的二维码。</string>
     <string name="pair_scan_instead">改为扫描二维码</string>
     <string name="pair_demo_needs_identity">请先创建身份，然后再试演示码。</string>

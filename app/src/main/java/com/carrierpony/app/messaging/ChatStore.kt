@@ -48,6 +48,10 @@ class ChatStore(
     private val multiDevice: Boolean = true,
     private val defaultTTL: Long = 30L * 86_400,
     private val updatePeerName: (Fingerprint, String?) -> Unit = { _, _ -> },
+    // Checked once per refresh, before messages are processed, so a pairing
+    // acceptance discovered this pass adds the contact before their first
+    // messages are filed. Swallows its own errors (see AppModel.sweepPendingInvites).
+    private val pairingSweep: suspend () -> Unit = {},
     storageDir: File,
     private val scope: CoroutineScope
 ) {
@@ -129,6 +133,9 @@ class ChatStore(
 
     suspend fun refresh() {
         try {
+            // Detect any pairing acceptances before filing this pass's messages,
+            // so a brand-new contact's first messages open on the same refresh.
+            pairingSweep()
             val inbox = relay.inbox()
             val ackIDs = mutableListOf<String>()
             mutex.withLock {

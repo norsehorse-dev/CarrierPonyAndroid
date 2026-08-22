@@ -411,6 +411,7 @@ private fun MyCodeView(app: AppModel, onPaired: (Contact) -> Unit) {
 @Composable
 private fun InviteCreateView(app: AppModel, onPaired: (Contact) -> Unit) {
     var inviteText by remember { mutableStateOf<String?>(null) }
+    var expiresAt by remember { mutableStateOf<Long?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var copied by remember { mutableStateOf(false) }
     val clipboard = LocalClipboard.current
@@ -421,8 +422,12 @@ private fun InviteCreateView(app: AppModel, onPaired: (Contact) -> Unit) {
 
     LaunchedEffect(Unit) {
         try {
-            val created: Invite = app.createInvite()
+            // Remembered (not ephemeral): this side keeps polling for the
+            // acceptance even after the screen closes, since a remote invite may
+            // be pasted hours later. The pending list drives that in AppModel.
+            val (created, expiry) = app.createRememberedInvite()
             inviteText = created.encoded()
+            expiresAt = expiry
             while (isActive) {
                 delay(3000)
                 val contact = app.pollInvite(created)
@@ -520,6 +525,25 @@ private fun InviteCreateView(app: AppModel, onPaired: (Contact) -> Unit) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.pair_waiting_accept), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = stringResource(R.string.pair_close_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                expiresAt?.let { exp ->
+                    val relative = android.text.format.DateUtils.getRelativeTimeSpanString(
+                        exp, System.currentTimeMillis(), android.text.format.DateUtils.MINUTE_IN_MILLIS
+                    ).toString()
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(R.string.pair_invite_expires, relative),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }

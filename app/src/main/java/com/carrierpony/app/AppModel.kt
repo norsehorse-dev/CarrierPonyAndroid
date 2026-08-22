@@ -28,8 +28,10 @@ import com.carrierpony.app.messaging.ContactStore
 import com.carrierpony.app.messaging.TrustLevel
 import com.carrierpony.app.pairing.Invite
 import com.carrierpony.app.pairing.PairingSupport
+import com.carrierpony.app.pairing.PendingInvite
 import com.carrierpony.app.push.PushService
 import com.carrierpony.app.relay.RelayClient
+import com.carrierpony.app.relay.RelayException
 import com.carrierpony.core.CPArmor
 import com.carrierpony.core.CPIdentityGenerator
 import kotlinx.coroutines.CoroutineScope
@@ -70,6 +72,14 @@ class AppModel(context: Context) {
 
     private var relay: RelayClient? = null
 
+    // Pairing offers created here that haven't been accepted yet. Persisted per
+    // identity and swept on every inbox refresh, so a remote invite still
+    // completes on this side after its screen — or the app — is closed.
+    private val _pendingInvites = MutableStateFlow<List<PendingInvite>>(emptyList())
+    val pendingInvites: StateFlow<List<PendingInvite>> = _pendingInvites.asStateFlow()
+    private val completedInviteContacts = mutableMapOf<String, Contact>()
+    private var lastPendingSweep = 0L
+
     private val _profileName = MutableStateFlow<String?>(null)
     val profileName: StateFlow<String?> = _profileName.asStateFlow()
 
@@ -99,6 +109,10 @@ class AppModel(context: Context) {
         set(value) {
             defaults.edit().putBoolean("cp.onboarded", value).apply()
             _onboarded.value = value
+            // A freshly created/imported identity finished onboarding after the
+            // Activity's onResume already ran (it returned early with no store).
+            // Bring messaging + push up now so it can receive without a relaunch.
+            if (value && inForeground) startMessaging()
         }
 
     private var inForeground = false
@@ -132,6 +146,7 @@ class AppModel(context: Context) {
                 _identity.value = existing
                 onboardingComplete = true   // existing users have already set up
                 loadProfileName()
+                loadPendingInvites()
                 // A protected identity's session passphrase does not survive
                 // process death. With App Lock ON, unlock() reloads it from
                 // the vault after biometrics; with App Lock OFF there is no
@@ -261,11 +276,17 @@ class AppModel(context: Context) {
         }
         _identity.value = identity
         loadProfileName()
+        loadPendingInvites()
         buildStore(identity)
     }
 
     fun signOut() {
-        _identity.value?.let { vault.delete(it.fingerprint.hex) }
+        _identity.value?.let {
+            vault.delete(it.fingerprint.hex)
+            defaults.edit().remove(pendingInvitesKey(it)).apply()
+        }
+        _pendingInvites.value = emptyList()
+        completedInviteContacts.clear()
         appLock.clearSessionPassphrase()
         onboardingComplete = false   // a signed-out device sets up fresh
         _store.value?.stop()
@@ -292,6 +313,7 @@ class AppModel(context: Context) {
             editor.remove(key)
         }
         editor.apply()
+        appLock.appLockEnabled = false
         appLanguage = "en"
         onboardingComplete = false
         _profileName.value = null
@@ -328,22 +350,118 @@ class AppModel(context: Context) {
         return Invite.create(token = response.token, fingerprint = identity.fingerprint, name = _profileName.value)
     }
 
+    /** Publish a pairing offer and remember it, so acceptance completes on this
+     *  side even after the invite screen closes: the pending list is swept on
+     *  every inbox refresh and at the next launch. Used by the remote invite
+     *  flow; the in-person live code stays ephemeral via createInvite(), since a
+     *  code nobody can scan anymore has nothing left to wait for. Returns the
+     *  shareable invite plus its expiry (epoch millis, or null if the relay
+     *  gave none). */
+    suspend fun createRememberedInvite(): Pair<Invite, Long?> {
+        val identity = _identity.value ?: throw PairingException.NotReady()
+        val relay = this.relay ?: throw PairingException.NotReady()
+        val response = relay.pairOffer(pubkey = identity.armoredPublicKey)
+        val expiresAt: Long? =
+            if (response.expiresIn > 0) System.currentTimeMillis() + response.expiresIn * 1000 else null
+        _pendingInvites.value = _pendingInvites.value + PendingInvite(
+            token = response.token,
+            name = _profileName.value,
+            createdAt = System.currentTimeMillis(),
+            expiresAt = expiresAt
+        )
+        savePendingInvites()
+        return Invite.create(response.token, identity.fingerprint, _profileName.value) to expiresAt
+    }
+
     /** Poll an outstanding invite this identity created. Returns the newly paired
-     *  contact once the peer accepts, or null while still waiting. The
-     *  responder's key has no out-of-band anchor for us, so this side is
-     *  trust-on-first-use: confirm the key is internally consistent, add it as
-     *  unverified, and let the safety number upgrade it later. */
+     *  contact once the peer accepts, or null while still waiting. */
     suspend fun pollInvite(invite: Invite): Contact? {
+        completedInviteContacts[invite.t]?.let { return it }
         val relay = this.relay ?: throw PairingException.NotReady()
         val status = relay.pairStatus(token = invite.t)
-        if (status.state != "accepted") return null
+        if (status.state != "accepted") {
+            if (status.state == "expired") forgetPendingInvite(invite.t)
+            return null
+        }
         val responderFpr = status.responderFpr ?: return null
         val responderPubkey = status.responderPubkey ?: return null
+        return finishAcceptedInvite(invite.t, responderFpr, responderPubkey)
+    }
+
+    /** Complete this (the offerer's) side of an accepted invite exactly once:
+     *  add the responder, drop the pending entry, and send our profile. Keyed by
+     *  token so the on-screen poll loop and the background sweep can't both act
+     *  on the same acceptance. The responder's key has no out-of-band anchor for
+     *  us, so this side is trust-on-first-use: confirm the key is internally
+     *  consistent, add it as unverified, and let the safety number upgrade it. */
+    private suspend fun finishAcceptedInvite(
+        token: String,
+        responderFpr: String,
+        responderPubkey: String
+    ): Contact? {
+        completedInviteContacts[token]?.let { return it }
         val contact = PairingSupport.consistentContact(responderFpr, responderPubkey, TrustLevel.UNVERIFIED)
-            ?: throw PairingException.KeyMismatch()
+            ?: run { forgetPendingInvite(token); throw PairingException.KeyMismatch() }
+        completedInviteContacts[token] = contact
         contactStore.add(contact)
+        forgetPendingInvite(token)
         _store.value?.sendProfile(name = _profileName.value, to = contact)
         return contact
+    }
+
+    /** Check every remembered invite against the relay. Runs from the inbox
+     *  refresh cycle (via ChatStore's pairingSweep hook), before messages are
+     *  processed, so a new contact's first messages open on the same pass that
+     *  discovers their acceptance. Throttled: pending invites can outlive a
+     *  session by days, and each check costs a challenge round trip. */
+    suspend fun sweepPendingInvites() {
+        val identity = _identity.value ?: return
+        if (relay == null || _pendingInvites.value.isEmpty()) return
+        val nowMs = System.currentTimeMillis()
+        if (nowMs - lastPendingSweep < 30_000) return
+        lastPendingSweep = nowMs
+        for (pending in _pendingInvites.value.toList()) {
+            val exp = pending.expiresAt
+            if (exp != null && exp <= System.currentTimeMillis()) {
+                forgetPendingInvite(pending.token)
+                continue
+            }
+            try {
+                pollInvite(pending.invite(identity.fingerprint))
+            } catch (e: RelayException) {
+                // The relay no longer knows the token (expired or consumed).
+                if (e.status in 400..499) forgetPendingInvite(pending.token)
+            } catch (e: PairingException) {
+                // A mismatched key can never become valid for this token.
+                forgetPendingInvite(pending.token)
+            } catch (e: Exception) {
+                // Transient (offline, relay 5xx): keep the invite for next sweep.
+            }
+        }
+    }
+
+    private fun pendingInvitesKey(identity: Identity) = "cp.pendinginvites.${identity.fingerprint.hex}"
+
+    private fun loadPendingInvites() {
+        val identity = _identity.value ?: run { _pendingInvites.value = emptyList(); return }
+        val raw = defaults.getString(pendingInvitesKey(identity), null)
+        _pendingInvites.value = if (raw != null) PendingInvite.listFromJson(raw) else emptyList()
+    }
+
+    private fun savePendingInvites() {
+        val identity = _identity.value ?: return
+        val list = _pendingInvites.value
+        if (list.isEmpty()) {
+            defaults.edit().remove(pendingInvitesKey(identity)).apply()
+        } else {
+            defaults.edit().putString(pendingInvitesKey(identity), PendingInvite.listToJson(list)).apply()
+        }
+    }
+
+    private fun forgetPendingInvite(token: String) {
+        if (_pendingInvites.value.none { it.token == token }) return
+        _pendingInvites.value = _pendingInvites.value.filterNot { it.token == token }
+        savePendingInvites()
     }
 
     /** Accept an invite: fetch the offerer's key and require it to match the
@@ -399,6 +517,7 @@ class AppModel(context: Context) {
             crypto = crypto,
             contacts = { contactStore.contacts },
             updatePeerName = { fingerprint, name -> contactStore.setName(fingerprint, name) },
+            pairingSweep = { sweepPendingInvites() },
             storageDir = appContext.filesDir,
             scope = scope
         )

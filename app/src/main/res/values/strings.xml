@@ -163,6 +163,8 @@
     <string name="pair_send_invite_body">Send this invite to the other person over a channel you trust. It works as a link they paste, or a code they scan.</string>
     <string name="pair_share_invite">Share invite</string>
     <string name="pair_waiting_accept">Waiting for them to accept…</string>
+    <string name="pair_close_note">You can close this screen. When they accept, they\'ll show up in your contacts.</string>
+    <string name="pair_invite_expires">This invite expires %1$s.</string>
     <string name="pair_paste_or_scan">Paste an invite you received, or scan the sender\'s code.</string>
     <string name="pair_scan_instead">Scan a code instead</string>
     <string name="pair_demo_needs_identity">Create an identity first, then try the demo code again.</string>

@@ -163,6 +163,8 @@
     <string name="pair_send_invite_body">Envoyez cette invitation à l\'autre personne par un canal de confiance. Elle fonctionne comme lien à coller ou comme code à scanner.</string>
     <string name="pair_share_invite">Partager l\'invitation</string>
     <string name="pair_waiting_accept">En attente de son acceptation…</string>
+    <string name="pair_close_note">Vous pouvez fermer cet écran. Dès qu\'elle accepte, la personne apparaîtra dans vos contacts.</string>
+    <string name="pair_invite_expires">Cette invitation expire %1$s.</string>
     <string name="pair_paste_or_scan">Collez une invitation reçue ou scannez le code de l\'expéditeur.</string>
     <string name="pair_scan_instead">Scanner un code à la place</string>
     <string name="pair_demo_needs_identity">Créez d\'abord une identité, puis réessayez le code de démonstration.</string>
