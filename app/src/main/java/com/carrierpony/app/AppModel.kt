@@ -168,6 +168,10 @@ class AppModel(context: Context) {
         lanDiscovery.keyProvider = { _store.value?.lanContactKeys() ?: emptyMap() }
         lanDiscovery.onEnvelope = { data -> _store.value?.let { st -> scope.launch { st.ingestLanEnvelope(data) } } }
         lanDiscovery.start()
+        // Bring up WAN direct if it was left enabled: the toggle's onChange is the only
+        // other caller, so without this an app that launches (or updates) with the
+        // switch already on never sets up the transport. Idempotent on each foreground.
+        if (AppConfig.wanDirectEnabled(appContext)) setWanDirectEnabled(true)
     }
 
     fun stopMessaging() {
