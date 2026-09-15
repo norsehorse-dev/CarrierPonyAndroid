@@ -109,6 +109,24 @@ class WanDirectBridge : PonyDirectKeyProvider, PonyDirectSignaling, PonyDirectWa
 
     val connectedCount: Int get() = synchronized(lock) { connected.size }
 
+    /** True when a direct WAN path to this peer is live. */
+    fun canReach(peerHex: String): Boolean {
+        val w = wan ?: return false
+        return w.stateOf(peerHex.lowercase()) == PonyDirectWan.PathState.CONNECTED
+    }
+
+    /** Deliver over the direct path, resolving true only once every chunk is acked
+     *  (or false if there is no path, it is oversized, or the ARQ deadline passes). */
+    suspend fun sendDirect(payload: ByteArray, peerHex: String): Boolean {
+        val w = wan ?: return false
+        return kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+            val queued = w.sendPayload(payload, peerHex.lowercase()) { delivered ->
+                if (cont.isActive) cont.resumeWith(Result.success(delivered))
+            }
+            if (!queued && cont.isActive) cont.resumeWith(Result.success(false))
+        }
+    }
+
     // PonyDirectKeyProvider
     override fun pairKey(peerID: String): ByteArray? =
         synchronized(lock) { keySnapshot[peerID.lowercase()] }

@@ -67,6 +67,7 @@ class ChatStore(
     // Optional best-effort direct transport (LAN). The relay stays authoritative;
     // this only accelerates delivery when the peer is reachable on this network.
     private val lanTransport: Transport? = null,
+    private val wanTransport: Transport? = null,
     // When this returns true AND the LAN delivered, the relay copy is skipped
     // (opt-in "direct only on this network"). Default: never skip.
     private val lanSkipRelay: () -> Boolean = { false }
@@ -792,41 +793,50 @@ class ChatStore(
         sealedPollInbox()
     }
 
-    private suspend fun deliverToPeer(envelope: ByteArray, to: Fingerprint, expiresAt: Long, silent: Boolean): Unit = coroutineScope {
-        // Direct-only mode (opt-in): when the peer is reachable on the LAN, deliver
-        // there and skip the relay entirely. Fall back to the relay only if the LAN
-        // send fails, so a message is never lost. The user accepted the cost (the
-        // peer's other devices and offline delivery won't get it) by enabling it.
-        val lan = lanTransport
-        if (lanSkipRelay() && lan != null && lan.canReach(to)) {
-            val ok = try { lan.send(envelope, to, expiresAt, silent) } catch (e: Exception) { false }
-            if (ok) return@coroutineScope
-            for (transport in transports) {
-                if (transport.canReach(to) && transport.send(envelope, to, expiresAt, silent)) return@coroutineScope
+    private suspend fun deliverToPeer(envelope: ByteArray, to: Fingerprint, expiresAt: Long, silent: Boolean) {
+        // The direct transports (LAN, then WAN) that can reach this peer right now.
+        val directs = listOfNotNull(lanTransport, wanTransport).filter { it.canReach(to) }
+
+        // Direct-only mode (opt-in): deliver over a direct path and skip the relay
+        // entirely. Fall back to the relay only if no direct path actually delivered,
+        // so a message is never lost. The user accepted the cost (the peer's other
+        // devices and offline delivery won't get it) by enabling it.
+        if (lanSkipRelay() && directs.isNotEmpty()) {
+            for (d in directs) {
+                val ok = try { d.send(envelope, to, expiresAt, silent) } catch (e: Exception) { false }
+                if (ok) return
             }
-            return@coroutineScope
+            for (transport in transports) {
+                if (transport.canReach(to) && transport.send(envelope, to, expiresAt, silent)) return
+            }
+            return
         }
+
         // The relay is authoritative (store-and-forward, the peer's other devices,
-        // offline delivery). A direct transport (LAN) runs concurrently as a
-        // best-effort accelerator: both fire, the receiver dedupes by message id,
-        // and a relay failure is tolerated only if the direct path delivered - so
-        // a message still lands when the relay is down but the peer is on this Wi-Fi.
-        val lanDeferred = async {
-            val lan = lanTransport
-            if (lan != null && lan.canReach(to)) {
-                try { lan.send(envelope, to, expiresAt, silent) } catch (e: Exception) { false }
-            } else false
+        // offline delivery). The direct transports run concurrently as best-effort
+        // accelerators on the store scope: all fire, the receiver dedupes by message
+        // id, and a relay failure is tolerated only if a direct path delivered. On
+        // relay success the send returns without waiting on the direct path (a WAN
+        // ARQ can take seconds); it keeps running in the background.
+        val directDeferred = scope.async {
+            for (d in directs) {
+                val ok = try { d.send(envelope, to, expiresAt, silent) } catch (e: Exception) { false }
+                if (ok) return@async true
+            }
+            false
         }
         var relayError: Exception? = null
+        var relayOk = false
         try {
             for (transport in transports) {
-                if (transport.canReach(to) && transport.send(envelope, to, expiresAt, silent)) break
+                if (transport.canReach(to) && transport.send(envelope, to, expiresAt, silent)) { relayOk = true; break }
             }
         } catch (e: Exception) {
             relayError = e
         }
-        val lanOk = lanDeferred.await()
-        if (relayError != null && !lanOk) throw relayError
+        if (relayOk) return
+        val directOk = directDeferred.await()
+        if (relayError != null && !directOk) throw relayError
     }
 
     /** Ingest one sealed envelope received over a direct transport (LAN), running

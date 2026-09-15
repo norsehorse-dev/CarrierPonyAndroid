@@ -13,7 +13,7 @@ import com.carrierpony.app.crypto.Fingerprint
 import com.carrierpony.app.relay.MailboxCrypto
 import com.carrierpony.app.relay.RelayClient
 
-enum class TransportID { RELAY, LAN_DIRECT }
+enum class TransportID { RELAY, LAN_DIRECT, WAN_DIRECT }
 
 data class TransportCapabilities(
     val storeAndForward: Boolean,
@@ -85,4 +85,20 @@ class LanDirectTransport(
 
     override suspend fun send(envelope: ByteArray, to: Fingerprint, expiresAt: Long, silent: Boolean): Boolean =
         discovery.deliver(to.hex, envelope)
+}
+
+/** WAN-direct as a Transport (2.2 M3). Wraps the PonyDirect hole-punch bridge so
+ *  ChatStore treats direct internet delivery like any other transport. The relay
+ *  stays authoritative; this accelerates, and can carry the whole message when the
+ *  relay is unreachable, since send() resolves only on confirmed delivery. */
+class WanDirectTransport(
+    private val bridge: com.carrierpony.app.net.WanDirectBridge,
+) : Transport {
+    override val id = TransportID.WAN_DIRECT
+    override val capabilities = TransportCapabilities(storeAndForward = false, revealsIP = true, worksOffline = false)
+
+    override fun canReach(peer: Fingerprint): Boolean = bridge.canReach(peer.hex)
+
+    override suspend fun send(envelope: ByteArray, to: Fingerprint, expiresAt: Long, silent: Boolean): Boolean =
+        bridge.sendDirect(envelope, to.hex)
 }

@@ -850,6 +850,7 @@ class AppModel(context: Context) {
             sealedKeys = com.carrierpony.app.messaging.SealedKeyStore(appContext, identity.fingerprint.hex),
             pairingSweep = { sweepPendingInvites() },
             lanTransport = com.carrierpony.app.messaging.LanDirectTransport(lanDiscovery),
+            wanTransport = com.carrierpony.app.messaging.WanDirectTransport(wanBridge),
             lanSkipRelay = { AppConfig.lanDirectSkipRelay(appContext) }
         )
         _store.value?.onSignal = { peerHex, op, sdp, candidate ->
@@ -861,6 +862,7 @@ class AppModel(context: Context) {
             scope.launch { _store.value?.sendWanSignal(op, peer, sdp, candidate) }
         }
         wanBridge.onConnectedChange = { count -> _wanConnectedCount.value = count }
+        wanBridge.payloadSink = { _, data -> _store.value?.let { st -> scope.launch { st.ingestLanEnvelope(data) } } }
         loadPendingInvites()
     }
 
