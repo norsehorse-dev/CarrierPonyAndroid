@@ -110,6 +110,7 @@ fun SettingsScreen(
     var lanSkipRelayOn by remember { mutableStateOf(AppConfig.lanDirectSkipRelay(context)) }
     val wanSignals by app.wanSignalsReceived.collectAsState()
     val wanLast by app.lastWanSignal.collectAsState()
+    val wanConnected by app.wanConnectedCount.collectAsState()
     var wanDirectOn by remember { mutableStateOf(AppConfig.wanDirectEnabled(context)) }
 
     var showingProfile by remember { mutableStateOf(false) }
@@ -215,6 +216,7 @@ fun SettingsScreen(
                         directOn = wanDirectOn,
                         received = wanSignals,
                         last = wanLast,
+                        connectedCount = wanConnected,
                         onToggle = { on -> wanDirectOn = on; app.setWanDirectEnabled(on) },
                     )
                     CategoryCard(Icons.Default.Language, stringResource(R.string.settings_language), categoryLangSub) { showingLanguage = true }
@@ -476,9 +478,9 @@ private val languages = listOf(
 )
 
 @Composable
-private fun WanDirectCard(directOn: Boolean, received: Int, last: String?, onToggle: (Boolean) -> Unit) {
-    // WAN-direct (2.2 M1) test surface: toggle + how many webrtc signaling ops have
-    // arrived from peers. No WebRTC yet; this only proves the signaling round-trip.
+private fun WanDirectCard(directOn: Boolean, received: Int, last: String?, connectedCount: Int, onToggle: (Boolean) -> Unit) {
+    // WAN-direct (2.2 M2) test surface: toggle, whether a direct path is up, and how
+    // many signaling ops have arrived from peers.
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -496,6 +498,20 @@ private fun WanDirectCard(directOn: Boolean, received: Int, last: String?, onTog
                 Switch(checked = directOn, onCheckedChange = onToggle)
             }
             if (directOn) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                    Text(
+                        "Direct path",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        if (connectedCount > 0) "connected ($connectedCount)" else "connecting",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (connectedCount > 0) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
                     Text(
                         stringResource(R.string.settings_wan_received),

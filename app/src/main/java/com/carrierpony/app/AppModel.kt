@@ -71,6 +71,7 @@ class AppModel(context: Context) {
     // network and browse for other CarrierPony nodes so Settings can show how
     // many are nearby. Discovery only; no envelopes move yet.
     val lanDiscovery = com.carrierpony.app.net.LanDiscovery(appContext)
+    val wanBridge = com.carrierpony.app.net.WanDirectBridge()
     private val vault = PassphraseVault(appContext)
 
     private val _identity = MutableStateFlow<Identity?>(null)
@@ -196,7 +197,24 @@ class AppModel(context: Context) {
      *  verified over the relay before the WebRTC dependency lands. */
     fun setWanDirectEnabled(enabled: Boolean) {
         AppConfig.setWanDirectEnabled(appContext, enabled)
-        if (enabled) scope.launch { _store.value?.sendTestWanSignals() }
+        if (!enabled) {
+            wanBridge.disable()
+            _wanConnectedCount.value = 0
+            return
+        }
+        val store = _store.value ?: return
+        val myHex = _identity.value?.fingerprint?.hex?.lowercase() ?: return
+        val keys = store.lanContactKeys()
+        wanBridge.updateKeys(keys)
+        val host = AppConfig.wanStunHost(appContext).ifEmpty {
+            try { java.net.URI(AppConfig.relayBaseURL(appContext)).host ?: "" } catch (e: Exception) { "" }
+        }
+        if (host.isEmpty() || !wanBridge.enable(host, AppConfig.wanStunPort(appContext))) return
+        // Exactly one side offers: the peer whose fingerprint sorts after ours. The
+        // other side creates its session when the offer arrives over signaling.
+        for (peerHex in keys.keys) {
+            if (myHex < peerHex) wanBridge.openPath(peerHex)
+        }
     }
 
     // ── Background delivery for non-active accounts ─────────────────────
@@ -211,6 +229,8 @@ class AppModel(context: Context) {
     val wanSignalsReceived: StateFlow<Int> = _wanSignalsReceived.asStateFlow()
     private val _lastWanSignal = MutableStateFlow<String?>(null)
     val lastWanSignal: StateFlow<String?> = _lastWanSignal.asStateFlow()
+    private val _wanConnectedCount = MutableStateFlow(0)
+    val wanConnectedCount: StateFlow<Int> = _wanConnectedCount.asStateFlow()
 
     private var otherPollLoop: Job? = null
 
@@ -832,10 +852,15 @@ class AppModel(context: Context) {
             lanTransport = com.carrierpony.app.messaging.LanDirectTransport(lanDiscovery),
             lanSkipRelay = { AppConfig.lanDirectSkipRelay(appContext) }
         )
-        _store.value?.onSignal = { peerHex, op, _, _ ->
+        _store.value?.onSignal = { peerHex, op, sdp, candidate ->
             _wanSignalsReceived.value = _wanSignalsReceived.value + 1
             _lastWanSignal.value = "$op from ${peerHex.takeLast(8)}"
+            wanBridge.handleIncoming(peerHex, op, sdp, candidate)
         }
+        wanBridge.sendOp = { op, peer, sdp, candidate ->
+            scope.launch { _store.value?.sendWanSignal(op, peer, sdp, candidate) }
+        }
+        wanBridge.onConnectedChange = { count -> _wanConnectedCount.value = count }
         loadPendingInvites()
     }
 

@@ -116,13 +116,33 @@ object AppConfig {
     private const val wanDirectKey = "cp.wanDirect"
 
     /** WAN-direct (2.2): opt-in, off by default. On, the app sets up direct P2P
-     *  connections over the internet (WebRTC) with the relay only introducing peers;
-     *  exposes each peer's IP to the other. M1 is signaling plumbing only. */
+     *  paths over the internet (STUN + authenticated UDP hole punching via
+     *  PonyDirect) with the relay only introducing peers over sealed signaling;
+     *  exposes each peer's IP to the other. Falls back to the relay when a path
+     *  cannot be punched (no TURN). */
     fun wanDirectEnabled(context: Context): Boolean =
         prefs(context).getBoolean(wanDirectKey, false)
 
     fun setWanDirectEnabled(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean(wanDirectKey, on).apply()
+    }
+
+    private const val wanStunHostKey = "cp.wanStunHost"
+    private const val wanStunPortKey = "cp.wanStunPort"
+
+    /** STUN server host for hole punching. Empty means "use the relay's host": a
+     *  self-hoster runs ponystun on the same box (UDP 3478). */
+    fun wanStunHost(context: Context): String =
+        prefs(context).getString(wanStunHostKey, "") ?: ""
+
+    fun setWanStunHost(context: Context, host: String) {
+        prefs(context).edit().putString(wanStunHostKey, host).apply()
+    }
+
+    /** STUN server UDP port. Defaults to 3478. */
+    fun wanStunPort(context: Context): Int {
+        val v = prefs(context).getInt(wanStunPortKey, 0)
+        return if (v == 0) 3478 else v
     }
 
     private fun wakeTokenKeyFor(fpr: String?) = if (fpr == null) wakeTokenKey else "$wakeTokenKey.$fpr"

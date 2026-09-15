@@ -86,6 +86,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(project(":carrierponycore"))
+    implementation("com.ponydirect:ponydirect:0.1.0")
     testImplementation(libs.junit)
     testImplementation("org.json:json:20240303")
     androidTestImplementation(platform(libs.androidx.compose.bom))
