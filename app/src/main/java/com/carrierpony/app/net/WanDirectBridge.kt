@@ -109,10 +109,19 @@ class WanDirectBridge : PonyDirectKeyProvider, PonyDirectSignaling, PonyDirectWa
 
     val connectedCount: Int get() = synchronized(lock) { connected.size }
 
-    /** True when a direct WAN path to this peer is live. */
+    /** The initiator role check needs our own fingerprint; the app sets it on enable. */
+    var selfHex: String? = null
+
+    /** True when a direct WAN path to this peer is live. Also lazily starts a path the
+     *  first time we are asked to reach an initiator peer, so paths exist only for the
+     *  contacts actually messaged rather than every contact at once. Idempotent. */
     fun canReach(peerHex: String): Boolean {
         val w = wan ?: return false
-        return w.stateOf(peerHex.lowercase()) == PonyDirectWan.PathState.CONNECTED
+        val peer = peerHex.lowercase()
+        if (w.stateOf(peer) == PonyDirectWan.PathState.CONNECTED) return true
+        val mine = selfHex
+        if (mine != null && mine < peer) w.open(peer, PonyDirectWan.Role.INITIATOR)
+        return false
     }
 
     /** Deliver over the direct path, resolving true only once every chunk is acked

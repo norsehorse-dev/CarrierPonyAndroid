@@ -210,15 +210,14 @@ class AppModel(context: Context) {
         val myHex = _identity.value?.fingerprint?.hex?.lowercase() ?: return
         val keys = store.lanContactKeys()
         wanBridge.updateKeys(keys)
+        wanBridge.selfHex = myHex
         val host = AppConfig.wanStunHost(appContext).ifEmpty {
             try { java.net.URI(AppConfig.relayBaseURL(appContext)).host ?: "" } catch (e: Exception) { "" }
         }
         if (host.isEmpty() || !wanBridge.enable(host, AppConfig.wanStunPort(appContext))) return
-        // Exactly one side offers: the peer whose fingerprint sorts after ours. The
-        // other side creates its session when the offer arrives over signaling.
-        for (peerHex in keys.keys) {
-            if (myHex < peerHex) wanBridge.openPath(peerHex)
-        }
+        // The transport is up and can answer incoming offers. Outbound paths open
+        // lazily on first activity with a peer (WanDirectBridge.canReach), so we do
+        // not fan out a handshake to every contact the moment WAN is enabled.
     }
 
     // ── Background delivery for non-active accounts ─────────────────────
