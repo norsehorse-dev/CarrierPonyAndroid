@@ -8,13 +8,63 @@
 package com.carrierpony.app
 
 import android.content.Context
+import android.net.Uri
 import com.carrierpony.app.crypto.Fingerprint
 import java.util.UUID
 
 object AppConfig {
 
-    /** The live CarrierPony relay. */
-    const val relayBaseURL = "https://api.carrierpony.com"
+    /** The default CarrierPony relay. Used unless the user has pointed the app
+     *  at a self-hosted relay in Settings > Relay. */
+    const val defaultRelayBaseURL = "https://api.carrierpony.com"
+
+    private const val relayURLKey = "cp.relayBaseURL"
+
+    private fun prefs(context: Context) =
+        context.applicationContext.getSharedPreferences("cp.prefs", Context.MODE_PRIVATE)
+
+    /** The relay this install talks to. Defaults to the CarrierPony relay; a
+     *  self-hoster can override it in Settings > Relay. The value is read once at
+     *  launch when the network stack is built, so a change takes effect on the
+     *  next launch. */
+    fun relayBaseURL(context: Context): String {
+        val stored = prefs(context).getString(relayURLKey, null)
+        return if (stored != null && isValidRelayURL(stored)) normalizedRelayURL(stored)
+               else defaultRelayBaseURL
+    }
+
+    /** True when the app is pointed at a relay other than the default. */
+    fun usingCustomRelay(context: Context): Boolean {
+        val stored = prefs(context).getString(relayURLKey, null) ?: return false
+        return stored.isNotBlank() && normalizedRelayURL(stored) != defaultRelayBaseURL
+    }
+
+    /** Persist a custom relay base URL. Pass null, blank, or the default to clear
+     *  the override and return to the CarrierPony relay. Returns false (storing
+     *  nothing) if the URL is not a valid https origin. */
+    fun setRelayBaseURL(context: Context, url: String?): Boolean {
+        val p = prefs(context)
+        if (url == null || url.isBlank()) {
+            p.edit().remove(relayURLKey).apply()
+            return true
+        }
+        val normalized = normalizedRelayURL(url)
+        if (!isValidRelayURL(normalized)) return false
+        if (normalized == defaultRelayBaseURL) p.edit().remove(relayURLKey).apply()
+        else p.edit().putString(relayURLKey, normalized).apply()
+        return true
+    }
+
+    /** Trim whitespace and any trailing slashes. The client appends "/v1/..."
+     *  paths, so the stored base must not end in a slash. */
+    fun normalizedRelayURL(url: String): String = url.trim().trimEnd('/')
+
+    /** A relay URL must be an https origin with a host. http is refused because
+     *  the challenge-response auth (nonce + signature) must not travel in clear. */
+    fun isValidRelayURL(url: String): Boolean {
+        val u = Uri.parse(normalizedRelayURL(url))
+        return u.scheme?.lowercase() == "https" && !u.host.isNullOrEmpty()
+    }
 
     /** Maximum total attachment bytes per message. The relay must accept an
      *  encrypted envelope somewhat larger than this (base64 of the encrypted
@@ -25,6 +75,67 @@ object AppConfig {
      *  relay requires exactly 32 lowercase hex characters (^[0-9a-f]{32}$), so
      *  a hyphenated/uppercase UUID string won't pass — strip the hyphens and
      *  lowercase it, which yields the 32-hex form the relay was built against. */
+    /** The CarrierPony push gateway. A relay you run yourself can't wake installs
+     *  on its own; a user may opt in to be woken through this gateway. */
+    const val gatewayBaseURL = "https://push.carrierpony.com"
+
+    private const val gatewayEnabledKey = "cp.gatewayPush"
+    private const val wakeTokenKey = "cp.wakeToken"
+
+    fun gatewayPushEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(gatewayEnabledKey, false)
+
+    fun setGatewayPushEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean(gatewayEnabledKey, on).apply()
+    }
+
+    private const val lanDirectKey = "cp.lanDirect"
+
+    /** LAN-direct (2.1): opt-in, off by default. On lets the app identify known
+     *  contacts on the local network and (M3b) deliver to them directly, exposing
+     *  this device's IP to that contact. Off keeps everything on the relay. */
+    fun lanDirectEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(lanDirectKey, false)
+
+    fun setLanDirectEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean(lanDirectKey, on).apply()
+    }
+
+    private const val lanSkipRelayKey = "cp.lanSkipRelay"
+
+    /** LAN-direct "skip the relay" (2.1 M4b): when on, a message delivered directly
+     *  on the local network is NOT also sent through the relay - maximum privacy at
+     *  the cost of the peer's other devices and offline delivery. Off by default. */
+    fun lanDirectSkipRelay(context: Context): Boolean =
+        prefs(context).getBoolean(lanSkipRelayKey, false)
+
+    fun setLanDirectSkipRelay(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean(lanSkipRelayKey, on).apply()
+    }
+
+    private const val wanDirectKey = "cp.wanDirect"
+
+    /** WAN-direct (2.2): opt-in, off by default. On, the app sets up direct P2P
+     *  connections over the internet (WebRTC) with the relay only introducing peers;
+     *  exposes each peer's IP to the other. M1 is signaling plumbing only. */
+    fun wanDirectEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(wanDirectKey, false)
+
+    fun setWanDirectEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean(wanDirectKey, on).apply()
+    }
+
+    private fun wakeTokenKeyFor(fpr: String?) = if (fpr == null) wakeTokenKey else "$wakeTokenKey.$fpr"
+
+    fun storedWakeToken(context: Context, fpr: String? = null): String? =
+        prefs(context).getString(wakeTokenKeyFor(fpr), null)
+
+    fun setStoredWakeToken(context: Context, token: String?, fpr: String? = null) {
+        val p = prefs(context)
+        if (token == null) p.edit().remove(wakeTokenKeyFor(fpr)).apply()
+        else p.edit().putString(wakeTokenKeyFor(fpr), token).apply()
+    }
+
     fun deviceID(context: Context): String {
         val prefs = context.applicationContext.getSharedPreferences("cp.prefs", Context.MODE_PRIVATE)
         val existing = prefs.getString("cp.deviceID", null)

@@ -52,12 +52,12 @@ class StoreSupportTest {
 
     @Test
     fun contactsPersistAcrossInstances() {
-        val store = ContactStore(workDir)
+        val store = ContactStore(workDir).apply { activate("test") }
         store.add(someContact())
         store.markVerified(someContact().fingerprint)
         store.setNickname(someContact().fingerprint, "Bobcat")
 
-        val reloaded = ContactStore(workDir)
+        val reloaded = ContactStore(workDir).apply { activate("test") }
         val contact = reloaded.contact(someContact().fingerprint)
         assertNotNull(contact)
         assertEquals("Bob", contact!!.name)
@@ -68,7 +68,7 @@ class StoreSupportTest {
 
     @Test
     fun addReplacesExistingFingerprint() {
-        val store = ContactStore(workDir)
+        val store = ContactStore(workDir).apply { activate("test") }
         store.add(someContact(name = "Bob"))
         store.add(someContact(name = "Robert"))
         assertEquals(1, store.contacts.size)
@@ -77,18 +77,18 @@ class StoreSupportTest {
 
     @Test
     fun removeAndRemoveAll() {
-        val store = ContactStore(workDir)
+        val store = ContactStore(workDir).apply { activate("test") }
         store.add(someContact())
         store.remove(someContact().fingerprint)
         assertTrue(store.contacts.isEmpty())
         store.add(someContact())
         store.removeAll()
-        assertTrue(ContactStore(workDir).contacts.isEmpty())
+        assertTrue(ContactStore(workDir).apply { activate("test") }.contacts.isEmpty())
     }
 
     @Test
     fun setNameTrimsAndClears() {
-        val store = ContactStore(workDir)
+        val store = ContactStore(workDir).apply { activate("test") }
         store.add(someContact(name = null))
         store.setName(someContact().fingerprint, "  Spaced Out  ")
         assertEquals("Spaced Out", store.contact(someContact().fingerprint)!!.name)
@@ -100,7 +100,7 @@ class StoreSupportTest {
     fun publicKeyDataDearmorsRealKey() {
         val identity = CPIdentityGenerator.generateV4Identity("Keyed", "keyed@carrierpony.com")
         val fingerprint = Fingerprint.from(identity.fingerprint)!!
-        val store = ContactStore(workDir)
+        val store = ContactStore(workDir).apply { activate("test") }
         store.add(Contact(fingerprint, PublicKey(fingerprint, identity.armoredPublicKey)))
         val data = store.publicKeyData(fingerprint)
         assertNotNull(data)

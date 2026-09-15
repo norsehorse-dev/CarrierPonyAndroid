@@ -29,6 +29,9 @@ class PonyCryptoEngine(
     override fun detachedSignature(over: ByteArray): String =
         CPMessenger.detachedSignature(over, secretKey, passphrase())
 
+    override fun verifyDetached(signature: String, over: ByteArray, signerPublicKey: PublicKey): Boolean =
+        CPMessenger.verifyDetached(signature, over, signerPublicKey.armored)
+
     override fun signAndEncrypt(plaintext: ByteArray, to: PublicKey): ByteArray {
         val recipientKey = CPArmor.dearmor(to.armored)
             ?: throw CPCryptoError.MalformedKey("Recipient key for ${to.fingerprint.hex} did not dearmor")

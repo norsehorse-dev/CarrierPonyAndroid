@@ -19,7 +19,9 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,9 +50,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MailOutline
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -119,10 +124,9 @@ fun ConversationScreen(
     var pending by remember { mutableStateOf<List<OutgoingMessage.Attachment>>(emptyList()) }
     var showingMenu by remember { mutableStateOf(false) }
     var showingNicknamePrompt by remember { mutableStateOf(false) }
+    var showingClearConfirm by remember { mutableStateOf(false) }
+    var showingExport by remember { mutableStateOf(false) }
     var nicknameDraft by remember { mutableStateOf("") }
-    var showingTimerDialog by remember { mutableStateOf(false) }
-    val timers by store.disappearingTimers.collectAsState()
-    val currentTtl = remember(timers, contact.fingerprint) { store.disappearingTTL(contact.fingerprint) }
 
     // Mark read on open and whenever new messages arrive.
     LaunchedEffect(conversation?.threadID, messages.size) {
@@ -168,14 +172,15 @@ fun ConversationScreen(
                         Spacer(Modifier.width(10.dp))
                         Column {
                             Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            val activeLabelRes = ttlLabelRes(currentTtl)
-                            if (activeLabelRes != null) {
-                                Text(
-                                    text = stringResource(R.string.chat_disappearing_active, stringResource(activeLabelRes)),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = CPTheme.accent
+                            val sealed = store.isSealed(contact.fingerprint)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    if (sealed) Icons.Filled.Lock else Icons.Filled.LockOpen,
+                                    contentDescription = if (sealed) stringResource(R.string.chat_sealed) else stringResource(R.string.chat_standard),
+                                    modifier = Modifier.size(12.dp),
+                                    tint = if (sealed) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                            } else {
+                                Spacer(Modifier.width(4.dp))
                                 Text(
                                     UiFormat.shortFingerprint(contact.fingerprint),
                                     style = MaterialTheme.typography.labelSmall,
@@ -191,18 +196,11 @@ fun ConversationScreen(
                     }
                 },
                 actions = {
-                    run {
+                    if (onSetNickname != null || onReport != null || conversation != null) {
                         IconButton(onClick = { showingMenu = true }) {
                             Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.common_more), tint = CPTheme.accent)
                         }
                         DropdownMenu(expanded = showingMenu, onDismissRequest = { showingMenu = false }) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.chat_disappearing_title)) },
-                                onClick = {
-                                    showingMenu = false
-                                    showingTimerDialog = true
-                                }
-                            )
                             if (onSetNickname != null) {
                                 DropdownMenuItem(
                                     text = { Text(if (contact.nickname == null) stringResource(R.string.chat_set_nickname) else stringResource(R.string.chat_edit_nickname)) },
@@ -228,6 +226,24 @@ fun ConversationScreen(
                                     onClick = {
                                         showingMenu = false
                                         onReport()
+                                    }
+                                )
+                            }
+                            if (conversation != null) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.chat_clear_history)) },
+                                    onClick = {
+                                        showingMenu = false
+                                        showingClearConfirm = true
+                                    }
+                                )
+                            }
+                            if (conversation != null) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.chat_export)) },
+                                    onClick = {
+                                        showingMenu = false
+                                        showingExport = true
                                     }
                                 )
                             }
@@ -257,7 +273,14 @@ fun ConversationScreen(
                                 DaySeparator(dayLabelText(day))
                             }
                             items(dayMessages.size, key = { dayMessages[it].id }) { index ->
-                                MessageRow(dayMessages[index])
+                                val msg = dayMessages[index]
+                                MessageRow(
+                                    message = msg,
+                                    onDeleteForMe = { scope.launch { store.deleteLocally(msg.id) } },
+                                    onDeleteForEveryone = if (msg.direction == MessageDirection.OUTGOING) {
+                                        { scope.launch { store.deleteForEveryone(msg.id, to = contact) } }
+                                    } else null
+                                )
                             }
                         }
                     }
@@ -368,67 +391,33 @@ fun ConversationScreen(
         )
     }
 
-    if (showingTimerDialog) {
-        val options = listOf<Pair<Int, Long?>>(
-            R.string.chat_disappearing_off to null,
-            R.string.chat_disappearing_1h to 3600L,
-            R.string.chat_disappearing_6h to 21_600L,
-            R.string.chat_disappearing_1d to 86_400L,
-            R.string.chat_disappearing_1w to 604_800L,
-            R.string.chat_disappearing_4w to 2_419_200L
-        )
+    if (showingClearConfirm) {
         AlertDialog(
-            onDismissRequest = { showingTimerDialog = false },
-            title = { Text(stringResource(R.string.chat_disappearing_title)) },
-            text = {
-                Column {
-                    Text(
-                        stringResource(R.string.chat_disappearing_body),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    options.forEach { (labelRes, secs) ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
-                        ) {
-                            androidx.compose.material3.RadioButton(
-                                selected = currentTtl == secs,
-                                onClick = {
-                                    scope.launch { store.setDisappearingTimer(contact.fingerprint, secs) }
-                                    showingTimerDialog = false
-                                }
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(stringResource(labelRes))
-                        }
-                    }
-                }
-            },
+            onDismissRequest = { showingClearConfirm = false },
+            title = { Text(stringResource(R.string.chat_clear_history_title)) },
+            text = { Text(stringResource(R.string.chat_clear_history_body)) },
             confirmButton = {
-                TextButton(onClick = { showingTimerDialog = false }) { Text(stringResource(R.string.common_done)) }
+                TextButton(onClick = {
+                    showingClearConfirm = false
+                    conversation?.threadID?.let { tid -> scope.launch { store.clearHistory(tid) } }
+                }) { Text(stringResource(R.string.chat_clear_history), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showingClearConfirm = false }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }
-}
 
-/** String resource for a disappearing TTL as shown in the header subtitle, or
- *  null when the timer is Off. A synced value outside the preset list falls back
- *  to a generic "On". */
-private fun ttlLabelRes(secs: Long?): Int? = when (secs) {
-    null -> null
-    3600L -> R.string.chat_disappearing_1h
-    21_600L -> R.string.chat_disappearing_6h
-    86_400L -> R.string.chat_disappearing_1d
-    604_800L -> R.string.chat_disappearing_1w
-    2_419_200L -> R.string.chat_disappearing_4w
-    else -> R.string.chat_disappearing_on
+    if (showingExport) {
+        conversation?.let { conv ->
+            ExportSheet(conversation = conv, peerName = title, onDismiss = { showingExport = false })
+        }
+    }
 }
 
 // ── Attachment loading ─────────────────────────────────────────────────
 
-private fun readAttachment(context: android.content.Context, uri: Uri): OutgoingMessage.Attachment? {
+internal fun readAttachment(context: android.content.Context, uri: Uri): OutgoingMessage.Attachment? {
     return try {
         val data = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
         val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
@@ -461,14 +450,46 @@ private fun DaySeparator(label: String) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MessageRow(message: ChatMessage) {
+private fun MessageRow(
+    message: ChatMessage,
+    onDeleteForMe: () -> Unit,
+    onDeleteForEveryone: (() -> Unit)?
+) {
     val isOutgoing = message.direction == MessageDirection.OUTGOING
+    var showMenu by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
         if (isOutgoing) Spacer(Modifier.weight(1f, fill = true).widthIn(min = 48.dp))
-        Column(horizontalAlignment = if (isOutgoing) Alignment.End else Alignment.Start) {
-            Bubble(message, isOutgoing)
-            Metadata(message, isOutgoing)
+        Box {
+            Column(
+                modifier = Modifier.combinedClickable(
+                    onClick = {},
+                    onLongClick = { showMenu = true }
+                ),
+                horizontalAlignment = if (isOutgoing) Alignment.End else Alignment.Start
+            ) {
+                Bubble(message, isOutgoing)
+                Metadata(message, isOutgoing)
+            }
+            DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.chat_delete_for_me)) },
+                    onClick = {
+                        showMenu = false
+                        onDeleteForMe()
+                    }
+                )
+                if (onDeleteForEveryone != null) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.chat_delete_for_everyone), color = MaterialTheme.colorScheme.error) },
+                        onClick = {
+                            showMenu = false
+                            onDeleteForEveryone()
+                        }
+                    )
+                }
+            }
         }
         if (!isOutgoing) Spacer(Modifier.weight(1f, fill = true).widthIn(min = 48.dp))
     }
@@ -498,8 +519,10 @@ private fun Bubble(message: ChatMessage, isOutgoing: Boolean) {
                 }
             }
             message.text?.takeIf { it.isNotEmpty() }?.let {
+                val context = LocalContext.current
+                val linkColor = if (isOutgoing) Color.White else CPTheme.accent
                 Text(
-                    text = it,
+                    text = linkifiedMessage(it, linkColor) { url -> openInAppBrowser(context, url) },
                     color = if (isOutgoing) Color.White else MaterialTheme.colorScheme.onSurface
                 )
             }
@@ -522,6 +545,14 @@ private fun Metadata(message: ChatMessage, isOutgoing: Boolean) {
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        if (message.viaLan) {
+            Icon(
+                imageVector = Icons.Default.Wifi,
+                contentDescription = stringResource(R.string.chat_via_lan),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(13.dp)
+            )
+        }
         if (isOutgoing) {
             Icon(
                 imageVector = if (message.isRead) Icons.Default.CheckCircle else Icons.Default.Check,
@@ -534,7 +565,7 @@ private fun Metadata(message: ChatMessage, isOutgoing: Boolean) {
 }
 
 @Composable
-private fun AttachmentImage(attachment: ChatMessage.Attachment) {
+internal fun AttachmentImage(attachment: ChatMessage.Attachment) {
     var showingFull by remember { mutableStateOf(false) }
     val bitmap by produceState<android.graphics.Bitmap?>(initialValue = null, attachment.localPath) {
         value = withContext(Dispatchers.IO) {
@@ -577,7 +608,7 @@ private fun AttachmentImage(attachment: ChatMessage.Attachment) {
 }
 
 @Composable
-private fun AttachmentChip(attachment: ChatMessage.Attachment, onAccent: Boolean) {
+internal fun AttachmentChip(attachment: ChatMessage.Attachment, onAccent: Boolean) {
     val context = LocalContext.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -630,7 +661,7 @@ private fun shareAttachment(context: android.content.Context, attachment: ChatMe
 }
 
 @Composable
-private fun PendingChip(attachment: OutgoingMessage.Attachment, onRemove: () -> Unit) {
+internal fun PendingChip(attachment: OutgoingMessage.Attachment, onRemove: () -> Unit) {
     Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
         Row(
             verticalAlignment = Alignment.CenterVertically,

@@ -20,6 +20,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -30,10 +31,13 @@ import androidx.core.os.LocaleListCompat
 import com.carrierpony.app.crypto.Fingerprint
 import com.carrierpony.app.crypto.PublicKey
 import com.carrierpony.app.messaging.Contact
+import com.carrierpony.app.ui.AddAccountScreen
 import com.carrierpony.app.ui.BackupScreen
 import com.carrierpony.app.ui.ConversationListScreen
 import com.carrierpony.app.ui.ConversationScreen
 import com.carrierpony.app.ui.FilesScreen
+import com.carrierpony.app.ui.GroupConversationScreen
+import com.carrierpony.app.ui.GroupDetailScreen
 import com.carrierpony.app.ui.ImportBackupScreen
 import com.carrierpony.app.ui.ImportKeyScreen
 import com.carrierpony.app.ui.LockScreen
@@ -109,13 +113,8 @@ class MainActivity : AppCompatActivity() {
     // not — and engage the lock when leaving the foreground.
     override fun onStart() {
         super.onStart()
-        // Mirror iOS: no relay traffic (device registration, polling, push)
-        // while the lock screen is up. unlock() starts messaging once the
-        // session passphrase is available.
-        if (!app.appLock.isLocked.value) {
-            app.startMessaging()
-            requestNotificationPermissionOnce()
-        }
+        app.startMessaging()
+        requestNotificationPermissionOnce()
     }
 
     override fun onResume() {
@@ -163,11 +162,14 @@ private fun Root(
     val contacts by app.contactStore.contactsFlow.collectAsState()
     val isLocked by app.appLock.isLocked.collectAsState()
     val onboarded by app.onboarded.collectAsState()
+    val accountUnread by app.accountUnread.collectAsState()
 
     var tab by remember { mutableStateOf(0) }
     var openPeer by remember { mutableStateOf<Fingerprint?>(null) }
-    var showingPairing by remember { mutableStateOf(false) }
-    var showingSettings by remember { mutableStateOf(false) }
+    var openGroup by remember { mutableStateOf<String?>(null) }
+    var groupDetail by remember { mutableStateOf<String?>(null) }
+    var showingPairing by rememberSaveable { mutableStateOf(false) }
+    var showingSettings by rememberSaveable { mutableStateOf(false) }
     var showingBackup by remember { mutableStateOf(false) }
     var showingRestore by remember { mutableStateOf(false) }
     var showingImportKey by remember { mutableStateOf(false) }
@@ -175,6 +177,7 @@ private fun Root(
     var showingTerms by remember { mutableStateOf(false) }
     var showingLearn by remember { mutableStateOf(false) }
     var confirmExit by remember { mutableStateOf(false) }
+    var showingAddAccount by remember { mutableStateOf(false) }
     var reportPeer by remember { mutableStateOf<Fingerprint?>(null) }
 
     if (isLocked) {
@@ -247,8 +250,15 @@ private fun Root(
             onImport = { showingSettings = false; showingImportKey = true },
             onPrivacy = { showingSettings = false; showingPrivacy = true },
             onTerms = { showingSettings = false; showingTerms = true },
-            onLearn = { showingSettings = false; showingLearn = true }
+            onLearn = { showingSettings = false; showingLearn = true },
+            onAddAccount = { showingSettings = false; showingAddAccount = true }
         )
+        return
+    }
+
+    if (showingAddAccount) {
+        BackHandler { showingAddAccount = false }
+        AddAccountScreen(app = app, onDone = { showingAddAccount = false })
         return
     }
 
@@ -262,6 +272,32 @@ private fun Root(
                 openPeer = null
             },
             onDone = { reportPeer = null }
+        )
+        return
+    }
+
+    val gDetail = groupDetail
+    if (gDetail != null) {
+        BackHandler { groupDetail = null }
+        GroupDetailScreen(
+            store = currentStore,
+            groupID = gDetail,
+            contacts = contacts,
+            onBack = { groupDetail = null },
+            onLeft = { groupDetail = null; openGroup = null }
+        )
+        return
+    }
+
+    val gid = openGroup
+    if (gid != null) {
+        BackHandler { openGroup = null }
+        GroupConversationScreen(
+            store = currentStore,
+            groupID = gid,
+            contacts = contacts,
+            onBack = { openGroup = null },
+            onOpenDetail = { groupDetail = gid }
         )
         return
     }
@@ -327,10 +363,15 @@ private fun Root(
                     store = currentStore,
                     contacts = contacts,
                     onOpen = { openPeer = it },
+                    onOpenGroup = { openGroup = it },
                     onUnpair = { app.contactStore.remove(it) },
-                    onReport = { reportPeer = it },
                     onPair = { showingPairing = true },
                     onSettings = { showingSettings = true },
+                    accounts = app.accounts(),
+                    activeFingerprintHex = app.activeFingerprintHex,
+                    onSwitchAccount = { app.switchAccount(it) },
+                    onAddAccount = { showingAddAccount = true },
+                    accountUnread = accountUnread,
                     notificationsOff = notificationsOff,
                     onEnableNotifications = onEnableNotifications,
                     onDismissNotificationsHint = onDismissNotificationsHint

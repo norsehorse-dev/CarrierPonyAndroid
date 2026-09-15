@@ -24,7 +24,10 @@ data class ChatMessage(
     val attachments: List<Attachment>,
     val sentAt: Long,
     val expiresAt: Long,
-    val isRead: Boolean
+    val isRead: Boolean,
+    // True when this message was delivered/received over the local network
+    // (LAN-direct) rather than fetched from the relay. Drives a subtle indicator.
+    val viaLan: Boolean = false
 ) {
 
     // Attachment bytes live on disk (see AttachmentStore); the message only

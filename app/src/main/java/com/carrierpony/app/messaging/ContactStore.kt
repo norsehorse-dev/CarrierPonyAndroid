@@ -18,17 +18,39 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-class ContactStore(storageDir: File) {
+class ContactStore(private val storageDir: File) {
 
-    private val fileURL = File(storageDir, "carrierpony-contacts.json")
+    // Contacts are per-account. The store is switchable: activate(fpr) points it
+    // at that identity's file and reloads, so the same instance (and the flow the
+    // UI observes) survives an account switch. Starts empty until activated.
+    private val legacyURL = File(storageDir, "carrierpony-contacts.json")
+    private var fileURL: File = legacyURL
 
     private val _contacts = MutableStateFlow<List<Contact>>(emptyList())
     val contactsFlow: StateFlow<List<Contact>> = _contacts.asStateFlow()
 
     val contacts: List<Contact> get() = _contacts.value
 
-    init {
+    /** Point the store at an identity's contacts and load them. Called on launch
+     *  and on every account switch. The first account to activate inherits the
+     *  pre-account shared file so a later second account starts empty. */
+    fun activate(identityHex: String) {
+        val perAccount = File(storageDir, "carrierpony-contacts-$identityHex.json")
+        if (!perAccount.exists() && legacyURL.exists()) {
+            try {
+                legacyURL.copyTo(perAccount, overwrite = false)
+                legacyURL.delete()
+            } catch (e: Exception) {
+                // best-effort; a failed move just means an empty contact list
+            }
+        }
+        fileURL = perAccount
         load()
+    }
+
+    /** Delete this account's contacts file (used when an account is removed). */
+    fun deleteFile(identityHex: String) {
+        try { File(storageDir, "carrierpony-contacts-$identityHex.json").delete() } catch (e: Exception) {}
     }
 
     // ── Mutations ──────────────────────────────────────────────────────
@@ -92,7 +114,7 @@ class ContactStore(storageDir: File) {
             fileURL.takeIf { it.exists() }?.readText()
         } catch (e: Exception) {
             null
-        } ?: return
+        } ?: run { _contacts.value = emptyList(); return }   // no file: this account has no contacts yet
         val loaded = try {
             val array = JSONArray(text)
             (0 until array.length()).mapNotNull { index ->
@@ -108,6 +130,7 @@ class ContactStore(storageDir: File) {
                 )
             }
         } catch (e: Exception) {
+            _contacts.value = emptyList()
             return
         }
         _contacts.value = loaded

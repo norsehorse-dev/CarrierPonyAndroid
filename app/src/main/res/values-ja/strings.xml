@@ -35,7 +35,6 @@
     <string name="inbox_unpair_q">この連絡先とのペアリングを解除しますか？</string>
     <string name="inbox_unpair_body">この端末から相手の鍵を削除します。再度ペアリングするまで、相手からの新しいメッセージは読めません。</string>
     <string name="inbox_unpair">ペアリング解除</string>
-    <string name="inbox_report">報告</string>
     <string name="inbox_you_prefix">あなた: </string>
     <string name="inbox_no_messages">メッセージはまだありません</string>
     <string name="inbox_attachment_fallback">メッセージ</string>
@@ -49,16 +48,6 @@
     <string name="chat_empty_title">メッセージはまだありません</string>
     <string name="chat_empty_body">ここで送るものはすべてエンドツーエンドで暗号化されます。</string>
     <string name="chat_nickname">ニックネーム</string>
-    <string name="chat_disappearing_title">消えるメッセージ</string>
-    <string name="chat_disappearing_body">この会話の新しいメッセージは、選んだ時間が過ぎると自動的に削除されます。既存のメッセージは元のタイマーのままです。</string>
-    <string name="chat_disappearing_off">オフ</string>
-    <string name="chat_disappearing_1h">1時間</string>
-    <string name="chat_disappearing_6h">6時間</string>
-    <string name="chat_disappearing_1d">1日</string>
-    <string name="chat_disappearing_1w">1週間</string>
-    <string name="chat_disappearing_4w">4週間</string>
-    <string name="chat_disappearing_active">消える: %1$s</string>
-    <string name="chat_disappearing_on">オン</string>
     <string name="chat_set_nickname">ニックネームを設定</string>
     <string name="chat_edit_nickname">ニックネームを編集</string>
     <string name="chat_remove_nickname">ニックネームを削除</string>
@@ -174,8 +163,6 @@
     <string name="pair_send_invite_body">信頼できる経路でこの招待を相手に送ってください。貼り付けられるリンクとしても、スキャンできるコードとしても使えます。</string>
     <string name="pair_share_invite">招待を共有</string>
     <string name="pair_waiting_accept">相手の承諾を待っています…</string>
-    <string name="pair_close_note">この画面を閉じても大丈夫です。相手が承諾すると連絡先に表示されます。</string>
-    <string name="pair_invite_expires">この招待は%1$sに期限切れになります。</string>
     <string name="pair_paste_or_scan">受け取った招待を貼り付けるか、送信者のコードをスキャンしてください。</string>
     <string name="pair_scan_instead">代わりにコードをスキャン</string>
     <string name="pair_demo_needs_identity">先にアイデンティティを作成してから、もう一度デモコードをお試しください。</string>
@@ -249,4 +236,122 @@
     <string name="push_channel_name">メッセージ</string>
     <string name="push_channel_desc">新しい暗号化メッセージ</string>
     <string name="push_body">新しいメッセージがあります。</string>
+    <string name="inbox_delete_conversation">会話を削除</string>
+    <string name="chat_delete_for_me">自分から削除</string>
+    <string name="chat_delete_for_everyone">全員から削除</string>
+    <string name="chat_clear_history">チャット履歴を消去</string>
+    <string name="chat_clear_history_title">このチャットの履歴を消去しますか？</string>
+    <string name="chat_clear_history_body">この端末上のこのチャットのすべてのメッセージを削除します。連絡先のペアリングは維持されます。</string>
+    <string name="chat_export">チャットをエクスポート</string>
+    <string name="export_title">チャットをエクスポート</string>
+    <string name="export_format">形式</string>
+    <string name="export_format_txt">プレーンテキスト (.txt)</string>
+    <string name="export_format_json">JSON (.json)</string>
+    <string name="export_format_html">ウェブページ (.html)</string>
+    <string name="export_encrypt">パスフレーズで暗号化</string>
+    <string name="export_passphrase">パスフレーズ</string>
+    <string name="export_confirm">パスフレーズを確認</string>
+    <string name="export_encrypt_note">ファイルはあなたのパスフレーズで封印され、ID バックアップと同じ暗号化が使われ、CarrierPony または任意の OpenPGP ツールで開けます。パスフレーズがなければ読めないので、大切に保管してください。</string>
+    <string name="export_plaintext_warning">ファイルは暗号化されていないプレーンテキストとして書き込まれます。入手した人は誰でも会話全体を読めます。</string>
+    <string name="export_expiry_warning">CarrierPony 内のメッセージは自動的に期限切れになりますが、エクスポートしたコピーは期限切れにならず、消去時間を過ぎても残ります。添付ファイルは名前のみ記載され、内容は含まれません。</string>
+    <string name="export_action">エクスポート</string>
+    <string name="export_need_passphrase">エクスポートを暗号化するにはパスフレーズを入力してください。</string>
+    <string name="export_passphrase_mismatch">パスフレーズが一致しません。</string>
+    <string name="export_share_chooser">エクスポートを共有</string>
+    <string name="export_failed">エクスポートを作成できませんでした。</string>
+    <string name="groups_section">グループ</string>
+    <string name="group_new">新規グループ</string>
+    <string name="group_new_message">新規メッセージ</string>
+    <string name="group_name">グループ名</string>
+    <string name="group_need_contacts">グループに追加するには、まず相手とペアリングしてください。</string>
+    <string name="group_members">メンバー</string>
+    <string name="group_create">作成</string>
+    <string name="group_details">グループの詳細</string>
+    <string name="group_empty">まだメッセージはありません。グループに挨拶しましょう。</string>
+    <string name="group_rename">グループ名を変更</string>
+    <string name="group_add_members">メンバーを追加</string>
+    <string name="group_admin">管理者</string>
+    <string name="group_remove">削除</string>
+    <string name="group_add">追加</string>
+    <string name="group_leave">グループを退出</string>
+    <string name="group_leave_q">このグループを退出しますか？</string>
+    <string name="group_leave_body">この端末でこのグループのメッセージを受信しなくなります。</string>
+    <string name="group_no_more_contacts">追加できる連絡先はもうありません。</string>
+    <string name="group_member_one">1 人のメンバー</string>
+    <string name="group_member_many">%d 人のメンバー</string>
+
+    <!-- Self-hostable relay (Settings > Relay) -->
+    <string name="settings_relay">リレー</string>
+    <string name="relay_server">リレーサーバー</string>
+    <string name="relay_custom">カスタム</string>
+    <string name="relay_default">デフォルト</string>
+    <string name="relay_current">現在のリレー</string>
+    <string name="relay_custom_section">カスタムリレー</string>
+    <string name="relay_test">接続をテスト</string>
+    <string name="relay_reachable">リレーに到達でき、プロトコルに対応しています</string>
+    <string name="relay_bad_url">有効な https:// アドレスを入力してください</string>
+    <string name="relay_unreachable">接続できませんでした: %1$s</string>
+    <string name="relay_footer">https のアドレスである必要があります。同じリレーを指しているアプリの相手とのみメッセージを交換できます。ペアリングの前に切り替えるか、後で再度ペアリングしてください。セルフホストのリレーはプッシュ通知を送信できないため、CarrierPony を開いているときにメッセージを受信します。</string>
+    <string name="relay_use">このリレーを使用</string>
+    <string name="relay_reset">CarrierPony のリレーに戻す</string>
+    <string name="relay_use_q">このリレーを使用しますか？</string>
+    <string name="relay_switch_body">新しいリレーに接続するには、CarrierPony を終了してもう一度開いてください。あなたのアイデンティティはこの端末に残りますが、新しいリレーで連絡先と再度ペアリングする必要があります。</string>
+    <string name="relay_saved">リレーを保存しました</string>
+    <string name="relay_saved_body">変更を反映するには、CarrierPony を終了してもう一度開いてください。</string>
+
+    <!-- Relay setup during onboarding -->
+    <string name="relay_onb_use">カスタムリレーを使用</string>
+    <string name="relay_onb_footer">https のアドレスである必要があります。あなたのアイデンティティはこのリレーに登録され、同じリレーの相手にのみ連絡できます。セルフホストのリレーはプッシュ通知を送信できません。</string>
+    <string name="relay_onb_switch_body">アイデンティティを作成すると、このリレーに登録されます。後で設定から変更できます。</string>
+
+    <!-- Relay self-hosting links -->
+    <string name="relay_selfhost_header">セルフホスト</string>
+    <string name="relay_selfhost_setup">自分のリレーを設定</string>
+    <string name="relay_selfhost_source">GitHub のリレーソース</string>
+
+    <!-- Push gateway opt-in -->
+    <string name="relay_push_header">プッシュ通知</string>
+    <string name="relay_push_toggle">CarrierPony のプッシュサービスを使用</string>
+    <string name="relay_push_notice">セルフホストのリレーはプッシュ通知を送信できません。これをオンにすると、代わりに CarrierPony のプッシュサービス経由で通知を受け取れます。メッセージが待っているという合図のみを受け取り、送信者やメッセージの内容は受け取りません。オフの場合は、アプリを開いているときにメッセージを受信します。</string>
+    <string name="settings_account_sub">プロフィール、ペアリング、バックアップ、ロック</string>
+    <string name="settings_relay_sub">リレーを選択または自分でホスト</string>
+    <string name="settings_more_from">NorseHorse の他のアプリ</string>
+    <string name="settings_more_sub">他のアプリとオープンソース</string>
+    <string name="settings_support_sub">ヘルプ、フィードバック、法的情報</string>
+    <string name="settings_reset_sub">オンボーディングの再設定、消去、サインアウト</string>
+    <string name="settings_sub_burnpony">自動消滅するメッセージ</string>
+    <string name="settings_sub_scrubpony">ファイルのメタデータを削除</string>
+    <string name="settings_sub_vaultpony">暗号化ファイル保管庫</string>
+    <string name="settings_sub_passpony">パスワードマネージャー</string>
+    <string name="settings_pony_family">ポニーファミリー全体を見る</string>
+    <string name="settings_pony_family_sub">すべての NorseHorse アプリを一か所に</string>
+    <string name="settings_source_repo">GitHub の CarrierPony</string>
+    <string name="settings_source_core">監査可能な暗号コア</string>
+    <string name="chat_sealed">封印済み</string>
+    <string name="chat_standard">標準</string>
+
+    <!-- Multiple accounts -->
+    <string name="accounts_title">アカウント</string>
+    <string name="accounts_sub">アカウントの切り替え・追加・削除</string>
+    <string name="accounts_active">使用中</string>
+    <string name="accounts_add">アカウントを追加</string>
+    <string name="accounts_remove">アカウントを削除</string>
+    <string name="accounts_switch_cd">アカウントを切り替え</string>
+    <string name="accounts_remove_q">このアカウントを削除しますか？</string>
+    <string name="accounts_remove_body">この端末からこのアカウントのメッセージ、連絡先、鍵を消去します。元に戻せません。</string>
+    <string name="accounts_add_q">別のアカウントを追加しますか？</string>
+    <string name="accounts_add_limit">アカウントを分けても、メッセージと連絡先はこの端末上で分離されるだけです。両方が同じ端末とネットワークから来ていることはリレーに隠せないため、リレーを監視している人には関連していると分かる可能性があります。</string>
+    <string name="accounts_continue">続ける</string>
+    <string name="settings_lan_title">ローカルネットワーク</string>
+    <string name="settings_lan_sub">近くの CarrierPony デバイス</string>
+    <string name="settings_lan_direct">このネットワークで直接接続</string>
+    <string name="settings_lan_reachable">直接つながる連絡先</string>
+    <string name="settings_lan_direct_sub">リレーを使わずに、この Wi-Fi 上の連絡先に直接つながります。直接やり取りする相手に端末のローカル IP が伝わります。オフにするとすべてリレー経由になります。</string>
+    <string name="chat_via_lan">ローカルネットワークで配信</string>
+    <string name="settings_lan_skip_relay">直接接続時はリレーを使わない</string>
+    <string name="settings_lan_skip_relay_sub">直接届いたメッセージはリレーを経由しなくなります。相手の他の端末やオフライン時の配信には届きません。</string>
+    <string name="settings_wan_title">インターネット直接接続</string>
+    <string name="settings_wan_toggle">インターネットで直接接続</string>
+    <string name="settings_wan_received">受信したシグナリングメッセージ</string>
+    <string name="settings_wan_sub">早期テスト（2.2）: リレーは仲介のみで、連絡先とインターネット経由で直接つながります。直接やり取りする相手にあなたの IP が伝わります。オフにするとすべてリレー経由になります。</string>
 </resources>

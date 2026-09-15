@@ -210,12 +210,8 @@ fun BackupScreen(identity: Identity, onDone: () -> Unit) {
                 Row {
                     OutlinedButton(
                         onClick = {
-                            scope.launch {
-                                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("CarrierPony", ready)))
-                                copied = true
-                                kotlinx.coroutines.delay(1500)
-                                copied = false   // revert the label, matching iOS
-                            }
+                            scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("CarrierPony", ready))) }
+                            copied = true
                         },
                         modifier = Modifier.weight(1f)
                     ) { Text(if (copied) stringResource(R.string.common_copied) else stringResource(R.string.common_copy)) }

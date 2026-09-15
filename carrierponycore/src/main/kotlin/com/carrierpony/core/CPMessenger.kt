@@ -142,6 +142,39 @@ object CPMessenger {
         }
     }
 
+    /**
+     * Verify an armored detached signature over [data] against the signer's
+     * armored public key. Returns true only when the signature parses, was made
+     * by a key in that ring, and is valid over exactly these bytes; any parse or
+     * verification failure returns false. Added for group-message sender
+     * authentication (the Android twin of the iOS core's verifyDetachedEd25519).
+     */
+    fun verifyDetached(
+        armoredSignature: String,
+        data: ByteArray,
+        signerArmoredPublicKey: String
+    ): Boolean {
+        return try {
+            val sigBytes = CPArmor.dearmor(armoredSignature) ?: return false
+            val factory = BcPGPObjectFactory(PGPUtil.getDecoderStream(ByteArrayInputStream(sigBytes)))
+            val sigList = factory.nextObject() as? PGPSignatureList ?: return false
+            if (sigList.isEmpty) return false
+            val signature = sigList[0]
+            val ringBytes = CPArmor.dearmor(signerArmoredPublicKey) ?: return false
+            val ring = loadPublicRing(ringBytes)
+            // Resolve by the signature's issuer key ID, then fall back to the ring's
+            // primary key. A v4 CarrierPony identity signs with its primary key, and
+            // a producer whose issuer-keyID subpacket the strict lookup won't match
+            // would otherwise fail to verify even though the signature is valid.
+            val pub = ring.getPublicKey(signature.keyID) ?: ring.publicKey ?: return false
+            signature.init(BcPGPContentVerifierBuilderProvider(), pub)
+            signature.update(data)
+            signature.verify()
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     // ── Sign and encrypt ───────────────────────────────────────────────
 
     /**

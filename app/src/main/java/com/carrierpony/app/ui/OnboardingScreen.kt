@@ -78,6 +78,7 @@ private sealed class OnboardRoute {
     data object Restore : OnboardRoute()
     data object Backup : OnboardRoute()
     data object Pairing : OnboardRoute()
+    data object Relay : OnboardRoute()
 }
 
 @Composable
@@ -109,6 +110,11 @@ fun OnboardingScreen(app: AppModel) {
             PairingScreen(app = app, onFinished = { route = OnboardRoute.Pages })
             return
         }
+        is OnboardRoute.Relay -> {
+            BackHandler { route = OnboardRoute.Pages }
+            RelayScreen(app = app, onBack = { route = OnboardRoute.Pages }, onboarding = true)
+            return
+        }
         is OnboardRoute.Pages -> Unit
     }
 
@@ -134,7 +140,8 @@ fun OnboardingScreen(app: AppModel) {
                     3 -> IdentityStep(
                         app = app,
                         onImport = { route = OnboardRoute.Import },
-                        onRestore = { route = OnboardRoute.Restore }
+                        onRestore = { route = OnboardRoute.Restore },
+                        onRelay = { route = OnboardRoute.Relay }
                     )
                     4 -> BackupStep { route = OnboardRoute.Backup }
                     5 -> ConnectStep { route = OnboardRoute.Pairing }
@@ -286,7 +293,7 @@ private fun InfoRow(icon: ImageVector, title: String, body: String) {
 }
 
 @Composable
-private fun IdentityStep(app: AppModel, onImport: () -> Unit, onRestore: () -> Unit) {
+private fun IdentityStep(app: AppModel, onImport: () -> Unit, onRestore: () -> Unit, onRelay: () -> Unit) {
     val identity by app.identity.collectAsState()
     var name by remember { mutableStateOf("") }
     var creating by remember { mutableStateOf(false) }
@@ -374,6 +381,9 @@ private fun IdentityStep(app: AppModel, onImport: () -> Unit, onRestore: () -> U
                     TextButton(onClick = onRestore) {
                         Text(stringResource(R.string.onb_restore), color = CPTheme.accent, fontWeight = FontWeight.SemiBold)
                     }
+                }
+                TextButton(onClick = onRelay) {
+                    Text(stringResource(R.string.relay_onb_use), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                 }
                 createError?.let {
                     Spacer(Modifier.height(8.dp))

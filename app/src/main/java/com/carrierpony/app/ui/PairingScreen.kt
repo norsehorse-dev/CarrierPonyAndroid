@@ -80,6 +80,10 @@ import android.content.ClipData
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -233,10 +237,28 @@ private fun PairHub(
         }
     }
 
+    val scanCtx = LocalContext.current
+    var pendingScanPrompt by remember { mutableStateOf<String?>(null) }
+    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val prompt = pendingScanPrompt
+        pendingScanPrompt = null
+        if (granted && prompt != null) scanner.launch(scanOptions(prompt))
+    }
+    // Ask for the camera before launching the scanner, so the preview starts on
+    // the first run instead of only after backing out and returning.
+    fun launchScan(prompt: String) {
+        if (ContextCompat.checkSelfPermission(scanCtx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            scanner.launch(scanOptions(prompt))
+        } else {
+            pendingScanPrompt = prompt
+            cameraPermission.launch(Manifest.permission.CAMERA)
+        }
+    }
+
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 8.dp)) {
         SectionHeader(stringResource(R.string.pair_in_person))
         HubRow(Icons.Default.Person, stringResource(R.string.pair_show_code), onMyCode)
-        HubRow(Icons.Default.Check, stringResource(R.string.pair_scan_code)) { scanner.launch(scanOptions(strScanPrompt)) }
+        HubRow(Icons.Default.Check, stringResource(R.string.pair_scan_code)) { launchScan(strScanPrompt) }
 
         SectionHeader(stringResource(R.string.pair_remotely))
         HubRow(Icons.Default.Email, stringResource(R.string.pair_create_invite), onInviteCreate)
@@ -275,6 +297,7 @@ private fun scanOptions(prompt: String): ScanOptions = ScanOptions()
     .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
     .setBeepEnabled(false)
     .setOrientationLocked(true)
+    .setCaptureActivity(ScannerActivity::class.java)
     .setPrompt(prompt)
 
 @Composable
@@ -315,21 +338,30 @@ private fun MyCodeView(app: AppModel, onPaired: (Contact) -> Unit) {
     var offline by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        try {
-            val created: Invite = app.createInvite()
-            inviteText = created.encoded()
-            while (isActive) {
-                delay(3000)
+        // Persist the offer (inPerson) so the offerer's side still completes from
+        // the background sweep if this screen closes before the poll catches the
+        // scan. Otherwise the shower silently half-pairs. Only a failure to CREATE
+        // the offer means we're offline; a transient poll error (network blip, or
+        // the offer already completed by the background sweep) must NOT flip the
+        // live code to the static offline fallback.
+        val created = try {
+            app.createRememberedInvite(inPerson = true).first
+        } catch (e: Exception) {
+            offline = true
+            return@LaunchedEffect
+        }
+        inviteText = created.encoded()
+        while (isActive) {
+            delay(3000)
+            try {
                 val contact = app.pollInvite(created)
                 if (contact != null) {
-                    // They scanned in person — mark them verified on our side too.
-                    app.contactStore.markVerified(contact.fingerprint)
                     onPaired(contact)
                     break
                 }
+            } catch (e: Exception) {
+                // keep the live code up and retry on the next tick
             }
-        } catch (e: Exception) {
-            offline = true
         }
     }
 
@@ -411,7 +443,6 @@ private fun MyCodeView(app: AppModel, onPaired: (Contact) -> Unit) {
 @Composable
 private fun InviteCreateView(app: AppModel, onPaired: (Contact) -> Unit) {
     var inviteText by remember { mutableStateOf<String?>(null) }
-    var expiresAt by remember { mutableStateOf<Long?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var copied by remember { mutableStateOf(false) }
     val clipboard = LocalClipboard.current
@@ -421,28 +452,30 @@ private fun InviteCreateView(app: AppModel, onPaired: (Contact) -> Unit) {
     val strShareInvite = stringResource(R.string.pair_share_invite)
 
     LaunchedEffect(Unit) {
-        try {
-            // Remembered (not ephemeral): this side keeps polling for the
-            // acceptance even after the screen closes, since a remote invite may
-            // be pasted hours later. The pending list drives that in AppModel.
-            val (created, expiry) = app.createRememberedInvite()
-            inviteText = created.encoded()
-            expiresAt = expiry
-            while (isActive) {
-                delay(3000)
+        val created = try {
+            app.createRememberedInvite(inPerson = false).first
+        } catch (e: PairingException) {
+            error = e.message
+            return@LaunchedEffect
+        } catch (e: Exception) {
+            error = strCouldntReach
+            return@LaunchedEffect
+        }
+        inviteText = created.encoded()
+        while (isActive) {
+            delay(3000)
+            try {
                 val contact = app.pollInvite(created)
                 if (contact != null) {
                     onPaired(contact)
                     break
                 }
+            } catch (e: Exception) {
+                // transient poll failure (or completed by the background sweep);
+                // keep the invite up and retry on the next tick
             }
-        } catch (e: PairingException) {
-            error = e.message
-        } catch (e: Exception) {
-            error = strCouldntReach
         }
     }
-
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -526,25 +559,6 @@ private fun InviteCreateView(app: AppModel, onPaired: (Contact) -> Unit) {
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.pair_waiting_accept), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = stringResource(R.string.pair_close_note),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
-                expiresAt?.let { exp ->
-                    val relative = android.text.format.DateUtils.getRelativeTimeSpanString(
-                        exp, System.currentTimeMillis(), android.text.format.DateUtils.MINUTE_IN_MILLIS
-                    ).toString()
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = stringResource(R.string.pair_invite_expires, relative),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                }
             }
         }
     }
@@ -565,6 +579,24 @@ private fun InviteEnterView(app: AppModel, onPaired: (Contact) -> Unit) {
 
     val scanner = rememberLauncherForActivityResult(ScanContract()) { result ->
         result.contents?.let { text = it }
+    }
+
+    val scanCtx = LocalContext.current
+    var pendingScanPrompt by remember { mutableStateOf<String?>(null) }
+    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val prompt = pendingScanPrompt
+        pendingScanPrompt = null
+        if (granted && prompt != null) scanner.launch(scanOptions(prompt))
+    }
+    // Ask for the camera before launching the scanner, so the preview starts on
+    // the first run instead of only after backing out and returning.
+    fun launchScan(prompt: String) {
+        if (ContextCompat.checkSelfPermission(scanCtx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            scanner.launch(scanOptions(prompt))
+        } else {
+            pendingScanPrompt = prompt
+            cameraPermission.launch(Manifest.permission.CAMERA)
+        }
     }
 
     suspend fun accept() {
@@ -638,7 +670,7 @@ private fun InviteEnterView(app: AppModel, onPaired: (Contact) -> Unit) {
         }
         Spacer(Modifier.height(10.dp))
         OutlinedButton(
-            onClick = { scanner.launch(scanOptions(strScanPromptEnter)) },
+            onClick = { launchScan(strScanPromptEnter) },
             modifier = Modifier.fillMaxWidth()
         ) { Text(stringResource(R.string.pair_scan_instead)) }
 

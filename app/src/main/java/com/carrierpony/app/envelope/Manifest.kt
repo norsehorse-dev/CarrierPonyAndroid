@@ -25,7 +25,9 @@ data class Manifest(
     val to: String? = null,
     val sentAt: Long,
     val expiresAt: Long,
-    val parts: List<Part>
+    val parts: List<Part>,
+    val groupID: String? = null,
+    val epoch: Int? = null
 ) {
 
     data class Part(
@@ -42,6 +44,8 @@ data class Manifest(
         json.put("message_id", messageID)
         json.put("thread_id", threadID)
         if (to != null) json.put("to", to)
+        if (groupID != null) json.put("group_id", groupID)
+        if (epoch != null) json.put("epoch", epoch)
         json.put("sent_at", sentAt)
         json.put("expires_at", expiresAt)
         val partsArray = JSONArray()
@@ -80,7 +84,9 @@ data class Manifest(
                 to = if (json.has("to")) json.getString("to") else null,
                 sentAt = json.getLong("sent_at"),
                 expiresAt = json.getLong("expires_at"),
-                parts = parts
+                parts = parts,
+                groupID = if (json.has("group_id")) json.getString("group_id") else null,
+                epoch = if (json.has("epoch")) json.getInt("epoch") else null
             )
         }
     }

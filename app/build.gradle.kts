@@ -24,7 +24,7 @@ android {
         applicationId = "com.carrierpony.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 4
+        versionCode = 6
         versionName = "2.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -68,6 +68,7 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.core)
+    implementation("androidx.compose.material:material-icons-extended")
     implementation(libs.zxing.core)
     implementation(libs.zxing.embedded)
     implementation(libs.androidx.biometric)
@@ -76,6 +77,7 @@ dependencies {
     // modern androidx.activity launchers crash through it. Pin fragment up.
     implementation(libs.androidx.fragment.ktx)
     implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.browser)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
     implementation(libs.androidx.compose.ui)

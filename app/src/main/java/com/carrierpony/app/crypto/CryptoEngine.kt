@@ -57,6 +57,11 @@ interface CryptoEngine {
     /** Armored detached signature over the data (relay challenge auth). */
     fun detachedSignature(over: ByteArray): String
 
+    /** Verify an armored detached signature over [over] against a signer's
+     *  public key. True only if it parses, was made by that key, and is valid
+     *  over exactly these bytes. Used for group-message sender authentication. */
+    fun verifyDetached(signature: String, over: ByteArray, signerPublicKey: PublicKey): Boolean
+
     /** Sign with our key, encrypt to the recipient. Returns a binary OpenPGP message. */
     fun signAndEncrypt(plaintext: ByteArray, to: PublicKey): ByteArray
 

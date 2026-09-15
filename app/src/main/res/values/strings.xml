@@ -35,7 +35,49 @@
     <string name="inbox_unpair_q">Unpair this contact?</string>
     <string name="inbox_unpair_body">This removes their key from this device. You won\'t be able to read new messages from them until you pair again.</string>
     <string name="inbox_unpair">Unpair</string>
-    <string name="inbox_report">Report</string>
+    <string name="inbox_delete_conversation">Delete conversation</string>
+    <string name="chat_delete_for_me">Delete for me</string>
+    <string name="chat_delete_for_everyone">Delete for everyone</string>
+    <string name="chat_clear_history">Clear chat history</string>
+    <string name="chat_clear_history_title">Clear this chat\'s history?</string>
+    <string name="chat_clear_history_body">Deletes every message in this chat on this device. The contact stays paired.</string>
+    <string name="chat_export">Export chat</string>
+    <string name="export_title">Export chat</string>
+    <string name="export_format">Format</string>
+    <string name="export_format_txt">Plain text (.txt)</string>
+    <string name="export_format_json">JSON (.json)</string>
+    <string name="export_format_html">Web page (.html)</string>
+    <string name="export_encrypt">Encrypt with a passphrase</string>
+    <string name="export_passphrase">Passphrase</string>
+    <string name="export_confirm">Confirm passphrase</string>
+    <string name="export_encrypt_note">The file is sealed with your passphrase, the same encryption as an identity backup, and opens in CarrierPony or any OpenPGP tool. Without the passphrase it cannot be read, so keep it safe.</string>
+    <string name="export_plaintext_warning">The file is written as plain, unencrypted text. Anyone who gets it can read the whole conversation.</string>
+    <string name="export_expiry_warning">Messages auto-expire in CarrierPony, but an exported copy does not, so it outlives the disappear time. Attachments are listed by name; their contents are not included.</string>
+    <string name="export_action">Export</string>
+    <string name="export_need_passphrase">Enter a passphrase to encrypt the export.</string>
+    <string name="export_passphrase_mismatch">The passphrases don\'t match.</string>
+    <string name="export_share_chooser">Share export</string>
+    <string name="groups_section">Groups</string>
+    <string name="group_new">New group</string>
+    <string name="group_new_message">New message</string>
+    <string name="group_name">Group name</string>
+    <string name="group_need_contacts">Pair with someone first to add them to a group.</string>
+    <string name="group_members">Members</string>
+    <string name="group_create">Create</string>
+    <string name="group_details">Group details</string>
+    <string name="group_empty">No messages yet. Say hello to the group.</string>
+    <string name="group_rename">Rename group</string>
+    <string name="group_add_members">Add members</string>
+    <string name="group_admin">Admin</string>
+    <string name="group_remove">Remove</string>
+    <string name="group_add">Add</string>
+    <string name="group_leave">Leave group</string>
+    <string name="group_leave_q">Leave this group?</string>
+    <string name="group_leave_body">You will stop receiving messages from this group on this device.</string>
+    <string name="group_no_more_contacts">No more contacts to add.</string>
+    <string name="group_member_one">1 member</string>
+    <string name="group_member_many">%d members</string>
+    <string name="export_failed">Couldn\'t create the export.</string>
     <string name="inbox_you_prefix">You: </string>
     <string name="inbox_no_messages">No messages yet</string>
     <string name="inbox_attachment_fallback">Message</string>
@@ -49,16 +91,6 @@
     <string name="chat_empty_title">No messages yet</string>
     <string name="chat_empty_body">Everything you send here is end to end encrypted.</string>
     <string name="chat_nickname">Nickname</string>
-    <string name="chat_disappearing_title">Disappearing messages</string>
-    <string name="chat_disappearing_body">New messages in this conversation delete themselves after the time you choose. Existing messages keep their own timer.</string>
-    <string name="chat_disappearing_off">Off</string>
-    <string name="chat_disappearing_1h">1 hour</string>
-    <string name="chat_disappearing_6h">6 hours</string>
-    <string name="chat_disappearing_1d">1 day</string>
-    <string name="chat_disappearing_1w">1 week</string>
-    <string name="chat_disappearing_4w">4 weeks</string>
-    <string name="chat_disappearing_active">Disappearing: %1$s</string>
-    <string name="chat_disappearing_on">On</string>
     <string name="chat_set_nickname">Set Nickname</string>
     <string name="chat_edit_nickname">Edit Nickname</string>
     <string name="chat_remove_nickname">Remove Nickname</string>
@@ -174,8 +206,6 @@
     <string name="pair_send_invite_body">Send this invite to the other person over a channel you trust. It works as a link they paste, or a code they scan.</string>
     <string name="pair_share_invite">Share invite</string>
     <string name="pair_waiting_accept">Waiting for them to accept…</string>
-    <string name="pair_close_note">You can close this screen. When they accept, they\'ll show up in your contacts.</string>
-    <string name="pair_invite_expires">This invite expires %1$s.</string>
     <string name="pair_paste_or_scan">Paste an invite you received, or scan the sender\'s code.</string>
     <string name="pair_scan_instead">Scan a code instead</string>
     <string name="pair_demo_needs_identity">Create an identity first, then try the demo code again.</string>
@@ -249,4 +279,79 @@
     <string name="push_channel_name">Messages</string>
     <string name="push_channel_desc">New encrypted messages</string>
     <string name="push_body">You have a new message.</string>
+
+    <!-- Self-hostable relay (Settings > Relay) -->
+    <string name="settings_relay">Relay</string>
+    <string name="relay_server">Relay Server</string>
+    <string name="relay_custom">Custom</string>
+    <string name="relay_default">Default</string>
+    <string name="relay_current">Current relay</string>
+    <string name="relay_custom_section">Custom relay</string>
+    <string name="relay_test">Test Connection</string>
+    <string name="relay_reachable">Relay reachable and speaking the protocol</string>
+    <string name="relay_bad_url">Enter a valid https:// address</string>
+    <string name="relay_unreachable">Couldn\'t reach it: %1$s</string>
+    <string name="relay_footer">Must be an https address. You can only exchange messages with people whose app points at the same relay, so switch before you pair, or re-pair afterward. A self-hosted relay can\'t send push notifications, so you\'ll receive messages when CarrierPony is open.</string>
+    <string name="relay_use">Use This Relay</string>
+    <string name="relay_reset">Reset to CarrierPony Relay</string>
+    <string name="relay_use_q">Use this relay?</string>
+    <string name="relay_switch_body">Quit and reopen CarrierPony to connect to the new relay. Your identity stays on this device, but you\'ll need to pair again with contacts on the new relay.</string>
+    <string name="relay_saved">Relay saved</string>
+    <string name="relay_saved_body">Quit and reopen CarrierPony for the change to take effect.</string>
+
+    <!-- Relay setup during onboarding -->
+    <string name="relay_onb_use">Use a custom relay</string>
+    <string name="relay_onb_footer">Must be an https address. Your identity will register on this relay, and you\'ll only be able to reach people on the same one. A self-hosted relay can\'t send push notifications.</string>
+    <string name="relay_onb_switch_body">Your identity will register on this relay when you create it. You can change it later in Settings.</string>
+
+    <!-- Relay self-hosting links -->
+    <string name="relay_selfhost_header">Self-hosting</string>
+    <string name="relay_selfhost_setup">Set up your own relay</string>
+    <string name="relay_selfhost_source">Relay source on GitHub</string>
+
+    <!-- Push gateway opt-in -->
+    <string name="relay_push_header">Push notifications</string>
+    <string name="relay_push_toggle">Use CarrierPony\'s push service</string>
+    <string name="relay_push_notice">A relay you run yourself can\'t send push notifications. Turn this on to be woken through CarrierPony\'s push service instead. It only ever receives a signal that a message is waiting, never the sender or the message. Left off, you get messages when the app is open.</string>
+    <string name="settings_account_sub">Profile, pairing, backup, app lock</string>
+    <string name="settings_relay_sub">Choose or self-host your relay</string>
+    <string name="settings_more_from">More from NorseHorse</string>
+    <string name="settings_more_sub">Other apps, and our open source</string>
+    <string name="settings_support_sub">Help, feedback, and legal</string>
+    <string name="settings_reset_sub">Reset onboarding, erase, sign out</string>
+    <string name="settings_sub_burnpony">Self-destructing messages</string>
+    <string name="settings_sub_scrubpony">Strip file metadata</string>
+    <string name="settings_sub_vaultpony">Encrypted file vaults</string>
+    <string name="settings_sub_passpony">Password manager</string>
+    <string name="settings_pony_family">See the full pony family</string>
+    <string name="settings_pony_family_sub">Every NorseHorse app in one place</string>
+    <string name="settings_source_repo">CarrierPony on GitHub</string>
+    <string name="settings_source_core">Auditable crypto core</string>
+    <string name="chat_sealed">Sealed</string>
+    <string name="chat_standard">Standard</string>
+
+    <!-- Multiple accounts -->
+    <string name="accounts_title">Accounts</string>
+    <string name="accounts_sub">Switch, add, or remove accounts</string>
+    <string name="accounts_active">Active</string>
+    <string name="accounts_add">Add account</string>
+    <string name="accounts_remove">Remove account</string>
+    <string name="accounts_switch_cd">Switch account</string>
+    <string name="accounts_remove_q">Remove this account?</string>
+    <string name="accounts_remove_body">This erases this account\'s messages, contacts, and keys from this device. It can\'t be undone.</string>
+    <string name="accounts_add_q">Add another account?</string>
+    <string name="accounts_add_limit">Separate accounts keep their messages and contacts apart on this device. They don\'t hide from the relay that both come from the same device and network, so anyone watching the relay could still tell they\'re linked.</string>
+    <string name="accounts_continue">Continue</string>
+    <string name="settings_lan_title">Local network</string>
+    <string name="settings_lan_sub">CarrierPony devices nearby</string>
+    <string name="settings_lan_direct">Direct on this network</string>
+    <string name="settings_lan_reachable">Contacts reachable directly</string>
+    <string name="settings_lan_direct_sub">Reach contacts on this Wi-Fi without the relay. This shares your device\'s local IP with a contact you message directly. Off keeps everything on the relay.</string>
+    <string name="chat_via_lan">Delivered over your local network</string>
+    <string name="settings_lan_skip_relay">Skip the relay when direct</string>
+    <string name="settings_lan_skip_relay_sub">A message delivered directly won\'t also go through the relay. The person\'s other devices and offline delivery won\'t receive it.</string>
+    <string name="settings_wan_title">Internet direct</string>
+    <string name="settings_wan_toggle">Direct over the internet</string>
+    <string name="settings_wan_received">Signaling messages received</string>
+    <string name="settings_wan_sub">Early test (2.2): connect to contacts directly over the internet, with the relay only introducing you. This shares your IP with a contact you message directly. Off keeps everything on the relay.</string>
 </resources>

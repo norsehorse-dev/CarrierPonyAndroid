@@ -27,3 +27,10 @@ google-services.json
 _to_delete/
 updates/
 relaypony-site-fdroid.zip
+
+# --- reconstruction hygiene ---
+.idea/
+build/
+**/build/
+*.bundle
+*.tgz

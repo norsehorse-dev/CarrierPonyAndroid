@@ -30,6 +30,7 @@ zxing-embedded = { group = "com.journeyapps", name = "zxing-android-embedded", v
 androidx-biometric = { group = "androidx.biometric", name = "biometric", version = "1.1.0" }
 androidx-fragment-ktx = { group = "androidx.fragment", name = "fragment-ktx", version = "1.8.5" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version = "1.7.0" }
+androidx-browser = { group = "androidx.browser", name = "browser", version = "1.8.0" }
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version = "34.4.0" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
 

@@ -33,6 +33,7 @@ class RelayClient(
 
     private val baseURL: String = baseURL.trimEnd('/')
 
+
     // ── Device registration ────────────────────────────────────────────
 
     suspend fun registerDevice(label: String? = null) {
@@ -50,11 +51,15 @@ class RelayClient(
 
     // ── Messaging ──────────────────────────────────────────────────────
 
-    suspend fun send(envelope: ByteArray, to: Fingerprint, expiresAt: Long): SendResponse {
+    suspend fun send(envelope: ByteArray, to: Fingerprint, expiresAt: Long, silent: Boolean = false): SendResponse {
         val body = authBody()
         body.put("to_fpr", to.hex)
         body.put("envelope", Base64.Default.encode(envelope))
         body.put("expires_at", expiresAt)
+        // Control messages and self-copies ask the relay for a background push
+        // (no alert), so read receipts, profile syncs and multi-device echoes
+        // don't buzz the recipient. Real messages leave this false.
+        if (silent) body.put("silent", true)
         return SendResponse.from(post("/v1/send", body))
     }
 
@@ -82,6 +87,16 @@ class RelayClient(
         body.put("push_token", token)
         body.put("platform", platform)
         post("/v1/register-push", body)
+    }
+
+    /** Store (or clear) this device's gateway wake token on the relay. An empty
+     *  string clears it. The relay never sees the push token, only this opaque
+     *  token it uses to nudge the gateway. */
+    suspend fun registerWake(wakeToken: String) {
+        val body = authBody()
+        body.put("device_id", deviceID)
+        body.put("wake_token", wakeToken)
+        post("/v1/register-wake", body)
     }
 
     // ── Pairing ────────────────────────────────────────────────────────
@@ -128,6 +143,62 @@ class RelayClient(
     }
 
     // ── Challenge auth ─────────────────────────────────────────────────
+
+    // ── Sealed sender ──────────────────────────────────────────────────
+
+    // Sealed calls carry their OWN device id (from SealedKeyStore), independent
+    // of the push/legacy deviceID, so the relay cannot link the two and the
+    // (device_id, device_key) pair shares one lifecycle.
+    suspend fun sealedRegisterDevice(sealedDeviceId: String, deviceKey: String, wakeToken: String?) {
+        val ts = System.currentTimeMillis() / 1000
+        val body = JSONObject()
+        body.put("device_id", sealedDeviceId)
+        body.put("device_key", deviceKey)
+        if (!wakeToken.isNullOrEmpty()) body.put("wake_token", wakeToken)
+        body.put("ts", ts)
+        body.put("auth", MailboxCrypto.deviceAuth(deviceKey, "register", sealedDeviceId, ts))
+        post("/v1/sealed/register-device", body)
+    }
+
+    suspend fun sealedRegisterMailboxes(sealedDeviceId: String, deviceKey: String, mailboxes: JSONArray): Int {
+        val ts = System.currentTimeMillis() / 1000
+        val body = JSONObject()
+        body.put("device_id", sealedDeviceId)
+        body.put("ts", ts)
+        body.put("auth", MailboxCrypto.deviceAuth(deviceKey, "mbx", sealedDeviceId, ts))
+        body.put("mailboxes", mailboxes)
+        return post("/v1/sealed/register-mailboxes", body).optInt("registered", 0)
+    }
+
+    suspend fun sealedSend(mailbox: String, envelope: ByteArray, expiresAt: Long, silent: Boolean = false) {
+        val body = JSONObject()
+        body.put("mailbox", mailbox)
+        body.put("envelope", Base64.Default.encode(envelope))
+        body.put("expires_at", expiresAt)
+        if (silent) body.put("silent", true)
+        post("/v1/sealed/send", body)
+    }
+
+    suspend fun sealedInbox(sealedDeviceId: String, deviceKey: String): List<SealedInboxMessage> {
+        val ts = System.currentTimeMillis() / 1000
+        val body = JSONObject()
+        body.put("device_id", sealedDeviceId)
+        body.put("ts", ts)
+        body.put("auth", MailboxCrypto.deviceAuth(deviceKey, "inbox", sealedDeviceId, ts))
+        val response = post("/v1/sealed/inbox", body)
+        val array = response.getJSONArray("messages")
+        return (0 until array.length()).map { SealedInboxMessage.from(array.getJSONObject(it)) }
+    }
+
+    suspend fun sealedAck(sealedDeviceId: String, deviceKey: String, messageIDs: List<String>): Int {
+        val ts = System.currentTimeMillis() / 1000
+        val body = JSONObject()
+        body.put("device_id", sealedDeviceId)
+        body.put("ts", ts)
+        body.put("auth", MailboxCrypto.deviceAuth(deviceKey, "ack", sealedDeviceId, ts))
+        body.put("message_ids", JSONArray(messageIDs))
+        return post("/v1/sealed/ack", body).optInt("deleted", 0)
+    }
 
     private suspend fun challenge(fpr: String): String {
         val body = JSONObject().put("fpr", fpr)

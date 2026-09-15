@@ -82,3 +82,21 @@ class PairStatusResponse(
         )
     }
 }
+
+class SealedInboxMessage(
+    val messageId: String,
+    val mailbox: String,
+    val envelope: String,
+    val receivedAt: String,
+    val expiresAt: String
+) {
+    companion object {
+        fun from(json: JSONObject) = SealedInboxMessage(
+            messageId = json.getString("message_id"),
+            mailbox = json.getString("mailbox"),
+            envelope = json.getString("envelope"),
+            receivedAt = json.getString("received_at"),
+            expiresAt = json.getString("expires_at")
+        )
+    }
+}

@@ -35,7 +35,6 @@
     <string name="inbox_unpair_q">Dissociare questo contatto?</string>
     <string name="inbox_unpair_body">Questo rimuove la sua chiave da questo dispositivo. Non potrai leggere i suoi nuovi messaggi finché non vi associate di nuovo.</string>
     <string name="inbox_unpair">Dissocia</string>
-    <string name="inbox_report">Segnala</string>
     <string name="inbox_you_prefix">Tu: </string>
     <string name="inbox_no_messages">Ancora nessun messaggio</string>
     <string name="inbox_attachment_fallback">Messaggio</string>
@@ -49,16 +48,6 @@
     <string name="chat_empty_title">Ancora nessun messaggio</string>
     <string name="chat_empty_body">Tutto ciò che invii qui è cifrato end-to-end.</string>
     <string name="chat_nickname">Soprannome</string>
-    <string name="chat_disappearing_title">Messaggi effimeri</string>
-    <string name="chat_disappearing_body">I nuovi messaggi di questa conversazione si eliminano da soli dopo il tempo scelto. I messaggi esistenti mantengono il proprio timer.</string>
-    <string name="chat_disappearing_off">Disattivato</string>
-    <string name="chat_disappearing_1h">1 ora</string>
-    <string name="chat_disappearing_6h">6 ore</string>
-    <string name="chat_disappearing_1d">1 giorno</string>
-    <string name="chat_disappearing_1w">1 settimana</string>
-    <string name="chat_disappearing_4w">4 settimane</string>
-    <string name="chat_disappearing_active">Effimero: %1$s</string>
-    <string name="chat_disappearing_on">Attivo</string>
     <string name="chat_set_nickname">Imposta soprannome</string>
     <string name="chat_edit_nickname">Modifica soprannome</string>
     <string name="chat_remove_nickname">Rimuovi soprannome</string>
@@ -174,8 +163,6 @@
     <string name="pair_send_invite_body">Invia questo invito all\'altra persona su un canale di cui ti fidi. Funziona come link da incollare o come codice da scansionare.</string>
     <string name="pair_share_invite">Condividi invito</string>
     <string name="pair_waiting_accept">In attesa che accetti…</string>
-    <string name="pair_close_note">Puoi chiudere questa schermata. Quando accetta, comparirà nei tuoi contatti.</string>
-    <string name="pair_invite_expires">Questo invito scade %1$s.</string>
     <string name="pair_paste_or_scan">Incolla un invito ricevuto o scansiona il codice del mittente.</string>
     <string name="pair_scan_instead">Scansiona invece un codice</string>
     <string name="pair_demo_needs_identity">Crea prima un\'identità, poi riprova il codice demo.</string>
@@ -249,4 +236,122 @@
     <string name="push_channel_name">Messaggi</string>
     <string name="push_channel_desc">Nuovi messaggi cifrati</string>
     <string name="push_body">Hai un nuovo messaggio.</string>
+    <string name="inbox_delete_conversation">Elimina conversazione</string>
+    <string name="chat_delete_for_me">Elimina per me</string>
+    <string name="chat_delete_for_everyone">Elimina per tutti</string>
+    <string name="chat_clear_history">Cancella cronologia chat</string>
+    <string name="chat_clear_history_title">Cancellare la cronologia di questa chat?</string>
+    <string name="chat_clear_history_body">Elimina ogni messaggio di questa chat su questo dispositivo. Il contatto resta abbinato.</string>
+    <string name="chat_export">Esporta chat</string>
+    <string name="export_title">Esporta chat</string>
+    <string name="export_format">Formato</string>
+    <string name="export_format_txt">Testo semplice (.txt)</string>
+    <string name="export_format_json">JSON (.json)</string>
+    <string name="export_format_html">Pagina web (.html)</string>
+    <string name="export_encrypt">Cifra con una passphrase</string>
+    <string name="export_passphrase">Passphrase</string>
+    <string name="export_confirm">Conferma passphrase</string>
+    <string name="export_encrypt_note">Il file è sigillato con la tua passphrase, la stessa cifratura di un backup dell\'identità, e si apre in CarrierPony o in qualsiasi strumento OpenPGP. Senza la passphrase non può essere letto, quindi conservala al sicuro.</string>
+    <string name="export_plaintext_warning">Il file viene scritto come testo semplice, non cifrato. Chiunque lo ottenga può leggere l\'intera conversazione.</string>
+    <string name="export_expiry_warning">I messaggi scadono automaticamente in CarrierPony, ma una copia esportata no, quindi sopravvive al tempo di scomparsa. Gli allegati sono elencati per nome; il loro contenuto non è incluso.</string>
+    <string name="export_action">Esporta</string>
+    <string name="export_need_passphrase">Inserisci una passphrase per cifrare l\'esportazione.</string>
+    <string name="export_passphrase_mismatch">Le passphrase non corrispondono.</string>
+    <string name="export_share_chooser">Condividi esportazione</string>
+    <string name="export_failed">Impossibile creare l\'esportazione.</string>
+    <string name="groups_section">Gruppi</string>
+    <string name="group_new">Nuovo gruppo</string>
+    <string name="group_new_message">Nuovo messaggio</string>
+    <string name="group_name">Nome del gruppo</string>
+    <string name="group_need_contacts">Abbinati prima a qualcuno per aggiungerlo a un gruppo.</string>
+    <string name="group_members">Membri</string>
+    <string name="group_create">Crea</string>
+    <string name="group_details">Dettagli del gruppo</string>
+    <string name="group_empty">Ancora nessun messaggio. Saluta il gruppo.</string>
+    <string name="group_rename">Rinomina gruppo</string>
+    <string name="group_add_members">Aggiungi membri</string>
+    <string name="group_admin">Admin</string>
+    <string name="group_remove">Rimuovi</string>
+    <string name="group_add">Aggiungi</string>
+    <string name="group_leave">Esci dal gruppo</string>
+    <string name="group_leave_q">Uscire da questo gruppo?</string>
+    <string name="group_leave_body">Smetterai di ricevere i messaggi di questo gruppo su questo dispositivo.</string>
+    <string name="group_no_more_contacts">Nessun altro contatto da aggiungere.</string>
+    <string name="group_member_one">1 membro</string>
+    <string name="group_member_many">%d membri</string>
+
+    <!-- Self-hostable relay (Settings > Relay) -->
+    <string name="settings_relay">Relay</string>
+    <string name="relay_server">Server relay</string>
+    <string name="relay_custom">Personalizzato</string>
+    <string name="relay_default">Predefinito</string>
+    <string name="relay_current">Relay attuale</string>
+    <string name="relay_custom_section">Relay personalizzato</string>
+    <string name="relay_test">Prova connessione</string>
+    <string name="relay_reachable">Relay raggiungibile e compatibile con il protocollo</string>
+    <string name="relay_bad_url">Inserisci un indirizzo https:// valido</string>
+    <string name="relay_unreachable">Impossibile raggiungerlo: %1$s</string>
+    <string name="relay_footer">Deve essere un indirizzo https. Puoi scambiare messaggi solo con persone la cui app punta allo stesso relay, quindi cambialo prima di abbinarti o riabbinati dopo. Un relay self-hosted non può inviare notifiche push, perciò riceverai i messaggi quando CarrierPony è aperto.</string>
+    <string name="relay_use">Usa questo relay</string>
+    <string name="relay_reset">Ripristina il relay di CarrierPony</string>
+    <string name="relay_use_q">Usare questo relay?</string>
+    <string name="relay_switch_body">Chiudi e riapri CarrierPony per connetterti al nuovo relay. La tua identità resta su questo dispositivo, ma dovrai abbinarti di nuovo ai contatti sul nuovo relay.</string>
+    <string name="relay_saved">Relay salvato</string>
+    <string name="relay_saved_body">Chiudi e riapri CarrierPony affinché la modifica abbia effetto.</string>
+
+    <!-- Relay setup during onboarding -->
+    <string name="relay_onb_use">Usa un relay personalizzato</string>
+    <string name="relay_onb_footer">Deve essere un indirizzo https. La tua identità verrà registrata su questo relay e potrai raggiungere solo le persone sullo stesso relay. Un relay self-hosted non può inviare notifiche push.</string>
+    <string name="relay_onb_switch_body">La tua identità verrà registrata su questo relay quando la crei. Puoi cambiarlo più tardi nelle impostazioni.</string>
+
+    <!-- Relay self-hosting links -->
+    <string name="relay_selfhost_header">Self-hosting</string>
+    <string name="relay_selfhost_setup">Configura il tuo relay</string>
+    <string name="relay_selfhost_source">Codice del relay su GitHub</string>
+
+    <!-- Push gateway opt-in -->
+    <string name="relay_push_header">Notifiche push</string>
+    <string name="relay_push_toggle">Usa il servizio push di CarrierPony</string>
+    <string name="relay_push_notice">Un relay self-hosted non può inviare notifiche push. Attiva questa opzione per essere svegliato tramite il servizio push di CarrierPony. Riceve solo un segnale che un messaggio è in attesa, mai il mittente o il messaggio. Disattivato, ricevi i messaggi quando l\'app è aperta.</string>
+    <string name="settings_account_sub">Profilo, abbinamento, backup, blocco</string>
+    <string name="settings_relay_sub">Scegli o auto-ospita il tuo relay</string>
+    <string name="settings_more_from">Altro da NorseHorse</string>
+    <string name="settings_more_sub">Altre app e il nostro open source</string>
+    <string name="settings_support_sub">Aiuto, feedback e note legali</string>
+    <string name="settings_reset_sub">Reimposta, cancella, esci</string>
+    <string name="settings_sub_burnpony">Messaggi che si autodistruggono</string>
+    <string name="settings_sub_scrubpony">Rimuovi i metadati dai file</string>
+    <string name="settings_sub_vaultpony">Casseforti cifrate per i file</string>
+    <string name="settings_sub_passpony">Gestore di password</string>
+    <string name="settings_pony_family">Vedi tutta la famiglia pony</string>
+    <string name="settings_pony_family_sub">Ogni app NorseHorse in un unico posto</string>
+    <string name="settings_source_repo">CarrierPony su GitHub</string>
+    <string name="settings_source_core">Nucleo crittografico verificabile</string>
+    <string name="chat_sealed">Sigillato</string>
+    <string name="chat_standard">Standard</string>
+
+    <!-- Multiple accounts -->
+    <string name="accounts_title">Account</string>
+    <string name="accounts_sub">Cambia, aggiungi o rimuovi account</string>
+    <string name="accounts_active">Attivo</string>
+    <string name="accounts_add">Aggiungi account</string>
+    <string name="accounts_remove">Rimuovi account</string>
+    <string name="accounts_switch_cd">Cambia account</string>
+    <string name="accounts_remove_q">Rimuovere questo account?</string>
+    <string name="accounts_remove_body">Questo cancella i messaggi, i contatti e le chiavi di questo account da questo dispositivo. Non può essere annullato.</string>
+    <string name="accounts_add_q">Aggiungere un altro account?</string>
+    <string name="accounts_add_limit">Gli account separati tengono distinti i loro messaggi e contatti su questo dispositivo. Non nascondono al relay che entrambi provengono dallo stesso dispositivo e dalla stessa rete, quindi chi osserva il relay potrebbe comunque capire che sono collegati.</string>
+    <string name="accounts_continue">Continua</string>
+    <string name="settings_lan_title">Rete locale</string>
+    <string name="settings_lan_sub">Dispositivi CarrierPony nelle vicinanze</string>
+    <string name="settings_lan_direct">Diretto su questa rete</string>
+    <string name="settings_lan_reachable">Contatti raggiungibili direttamente</string>
+    <string name="settings_lan_direct_sub">Raggiungi i contatti su questo Wi-Fi senza il relay. Questo condivide l\'IP locale del tuo dispositivo con un contatto a cui scrivi direttamente. Disattivato, tutto passa dal relay.</string>
+    <string name="chat_via_lan">Consegnato tramite la tua rete locale</string>
+    <string name="settings_lan_skip_relay">Salta il relay quando diretto</string>
+    <string name="settings_lan_skip_relay_sub">Un messaggio consegnato direttamente non passa più anche dal relay. Gli altri dispositivi della persona e la consegna offline non lo ricevono.</string>
+    <string name="settings_wan_title">Diretto via internet</string>
+    <string name="settings_wan_toggle">Diretto via internet</string>
+    <string name="settings_wan_received">Messaggi di segnalazione ricevuti</string>
+    <string name="settings_wan_sub">Test iniziale (2.2): raggiungi i contatti direttamente via internet, con il relay che fa solo da presentatore. Questo condivide il tuo IP con un contatto a cui scrivi direttamente. Disattivato, tutto passa dal relay.</string>
 </resources>

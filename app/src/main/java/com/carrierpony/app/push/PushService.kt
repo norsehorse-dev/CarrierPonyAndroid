@@ -59,16 +59,25 @@ class PushService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
-        android.util.Log.i("CarrierPony", "push wake received (data=${message.data.keys})")
+        // A silent wake (relay sets data["silent"]="1") is a control message,
+        // self-copy, or profile sync — not a real message. We still let a live
+        // ChatStore refresh, but we never post a banner for it. This is the
+        // Android half of the phantom-notification fix.
+        val silent = message.data["silent"] == "1"
+        android.util.Log.i("CarrierPony", "push wake received (data=${message.data.keys}, silent=$silent)")
         // Contentless by design: ignore any payload beyond the wake itself.
         val handledLive = try {
             onWake.invoke()
         } catch (e: Exception) {
             false
         }
-        android.util.Log.i("CarrierPony", if (handledLive) "wake handled live (foreground refresh)" else "posting generic notification")
-        if (!handledLive) {
-            postGenericNotification()
+        when {
+            handledLive -> android.util.Log.i("CarrierPony", "wake handled live (foreground refresh)")
+            silent -> android.util.Log.i("CarrierPony", "silent wake; banner suppressed")
+            else -> {
+                android.util.Log.i("CarrierPony", "posting generic notification")
+                postGenericNotification()
+            }
         }
     }
 

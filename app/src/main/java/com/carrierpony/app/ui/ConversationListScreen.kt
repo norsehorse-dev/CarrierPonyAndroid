@@ -24,12 +24,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Person
@@ -39,6 +43,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -63,7 +68,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.carrierpony.app.AppModel
 import com.carrierpony.app.crypto.Fingerprint
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.carrierpony.app.messaging.ChatGroup
+import com.carrierpony.app.messaging.ChatMessage
 import com.carrierpony.app.messaging.ChatStore
 import com.carrierpony.app.messaging.Contact
 import com.carrierpony.app.messaging.Conversation
@@ -77,25 +87,67 @@ fun ConversationListScreen(
     store: ChatStore,
     contacts: List<Contact>,
     onOpen: (Fingerprint) -> Unit,
+    onOpenGroup: (String) -> Unit = {},
     onUnpair: ((Fingerprint) -> Unit)? = null,
-    onReport: ((Fingerprint) -> Unit)? = null,
     onPair: (() -> Unit)? = null,
     onSettings: (() -> Unit)? = null,
+    accounts: List<AppModel.AccountSummary> = emptyList(),
+    activeFingerprintHex: String? = null,
+    onSwitchAccount: (String) -> Unit = {},
+    onAddAccount: () -> Unit = {},
+    accountUnread: Map<String, Int> = emptyMap(),
     notificationsOff: Boolean = false,
     onEnableNotifications: () -> Unit = {},
     onDismissNotificationsHint: () -> Unit = {}
 ) {
+    val scope = rememberCoroutineScope()
     val conversations by store.conversations.collectAsState()
-    val ordered = conversations.values.sortedByDescending { it.lastMessage?.sentAt ?: 0 }
-    val error by store.lastError.collectAsState()
+    val groupsMap by store.groups.collectAsState()
+    val groupThreads by store.groupMessages.collectAsState()
+    // One inbox, sorted by most-recent activity: groups and 1:1 threads share a
+    // single list instead of groups pinning to the top. A group rises only when
+    // it holds the newest message.
+    val inboxItems = remember(conversations, groupsMap, groupThreads) {
+        val convItems = conversations.values.map { c ->
+            InboxItem.Conv(c, c.lastMessage?.sentAt ?: 0L)
+        }
+        val groupItems = groupsMap.values.map { g ->
+            InboxItem.Grp(g, groupThreads[g.groupID]?.maxOfOrNull { m -> m.sentAt } ?: 0L)
+        }
+        (convItems + groupItems).sortedWith(
+            compareByDescending<InboxItem> { it.activity }.thenBy { it.sortName.lowercase() }
+        )
+    }
 
     var showingNewMessage by remember { mutableStateOf(false) }
+    var showingNewGroup by remember { mutableStateOf(false) }
+    var showingComposeMenu by remember { mutableStateOf(false) }
     var pendingUnpair by remember { mutableStateOf<Fingerprint?>(null) }
+    var showingAccounts by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.app_name), fontWeight = FontWeight.Bold) },
+                title = {
+                    if (accounts.size > 1) {
+                        val active = accounts.firstOrNull { it.fingerprint.hex == activeFingerprintHex }
+                        val label = active?.let { it.name ?: UiFormat.shortFingerprint(it.fingerprint) }
+                            ?: stringResource(R.string.app_name)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable { showingAccounts = true }
+                        ) {
+                            Text(label, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = stringResource(R.string.accounts_switch_cd), tint = CPTheme.accent)
+                            if (accounts.any { it.fingerprint.hex != activeFingerprintHex && (accountUnread[it.fingerprint.hex] ?: 0) > 0 }) {
+                                Spacer(Modifier.width(4.dp))
+                                Box(Modifier.size(8.dp).clip(CircleShape).background(CPTheme.accent))
+                            }
+                        }
+                    } else {
+                        Text(stringResource(R.string.app_name), fontWeight = FontWeight.Bold)
+                    }
+                },
                 navigationIcon = {
                     if (onSettings != null) {
                         IconButton(onClick = onSettings) {
@@ -109,30 +161,24 @@ fun ConversationListScreen(
                             Icon(Icons.Default.Person, contentDescription = stringResource(R.string.common_pair), tint = CPTheme.accent)
                         }
                     }
-                    IconButton(onClick = { showingNewMessage = true }) {
-                        Icon(Icons.Default.Create, contentDescription = stringResource(R.string.inbox_new_message_cd), tint = CPTheme.accent)
+                    Box {
+                        IconButton(onClick = { showingComposeMenu = true }) {
+                            Icon(Icons.Default.Create, contentDescription = stringResource(R.string.inbox_new_message_cd), tint = CPTheme.accent)
+                        }
+                        DropdownMenu(expanded = showingComposeMenu, onDismissRequest = { showingComposeMenu = false }) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.group_new_message)) }, onClick = {
+                                showingComposeMenu = false; showingNewMessage = true
+                            })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.group_new)) }, onClick = {
+                                showingComposeMenu = false; showingNewGroup = true
+                            })
+                        }
                     }
                 }
             )
         }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            error?.let { msg ->
-                Surface(color = MaterialTheme.colorScheme.errorContainer) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 4.dp, bottom = 4.dp)
-                    ) {
-                        Text(
-                            text = msg,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.weight(1f)
-                        )
-                        TextButton(onClick = { store.clearError() }) { Text(stringResource(R.string.common_dismiss)) }
-                    }
-                }
-            }
             if (notificationsOff) {
                 Surface(color = MaterialTheme.colorScheme.secondaryContainer) {
                     Row(
@@ -151,21 +197,83 @@ fun ConversationListScreen(
                 }
             }
             Box(Modifier.fillMaxSize()) {
-                if (ordered.isEmpty()) {
+                if (inboxItems.isEmpty()) {
                     EmptyInbox(onCompose = { showingNewMessage = true })
                 } else {
                     LazyColumn {
-                        items(ordered, key = { it.threadID }) { conversation ->
-                            ConversationRow(
-                                conversation = conversation,
-                                displayName = displayName(conversation, contacts),
-                                verified = contacts.firstOrNull { it.fingerprint == conversation.peer }?.trust == TrustLevel.VERIFIED,
-                                onClick = { onOpen(conversation.peer) },
-                                onUnpair = onUnpair?.let { { pendingUnpair = conversation.peer } },
-                                onReport = onReport?.let { r -> { r(conversation.peer) } }
-                            )
+                        items(inboxItems, key = { it.key }) { item ->
+                            when (item) {
+                                is InboxItem.Grp -> {
+                                    val gmsgs = groupThreads[item.group.groupID] ?: emptyList()
+                                    val unread = gmsgs.count { it.direction == MessageDirection.INCOMING && !it.isRead }
+                                    val last = gmsgs.maxByOrNull { it.sentAt }
+                                    GroupListRow(group = item.group, unread = unread, last = last, onClick = { onOpenGroup(item.group.groupID) })
+                                }
+                                is InboxItem.Conv -> {
+                                    val conversation = item.conversation
+                                    ConversationRow(
+                                        conversation = conversation,
+                                        displayName = displayName(conversation, contacts),
+                                        verified = contacts.firstOrNull { it.fingerprint == conversation.peer }?.trust == TrustLevel.VERIFIED,
+                                        onClick = { onOpen(conversation.peer) },
+                                        onUnpair = onUnpair?.let { { pendingUnpair = conversation.peer } },
+                                        onDelete = { scope.launch { store.deleteConversation(conversation.threadID) } }
+                                    )
+                                }
+                            }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    if (showingAccounts) {
+        ModalBottomSheet(onDismissRequest = { showingAccounts = false }) {
+            Column(Modifier.padding(bottom = 24.dp)) {
+                Text(
+                    text = stringResource(R.string.accounts_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                )
+                for (acct in accounts) {
+                    val hex = acct.fingerprint.hex
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showingAccounts = false; if (hex != activeFingerprintHex) onSwitchAccount(hex) }
+                            .padding(horizontal = 20.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Avatar(name = acct.name, size = 40.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(acct.name ?: UiFormat.shortFingerprint(acct.fingerprint), fontWeight = FontWeight.SemiBold)
+                            Text(
+                                UiFormat.shortFingerprint(acct.fingerprint),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (hex == activeFingerprintHex) {
+                            Icon(Icons.Default.Check, contentDescription = stringResource(R.string.accounts_active), tint = CPTheme.accent)
+                        } else if ((accountUnread[hex] ?: 0) > 0) {
+                            Box(Modifier.size(10.dp).clip(CircleShape).background(CPTheme.accent))
+                        }
+                    }
+                }
+                HorizontalDivider(Modifier.padding(start = 20.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showingAccounts = false; onAddAccount() }
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = CPTheme.accent)
+                    Spacer(Modifier.width(12.dp))
+                    Text(stringResource(R.string.accounts_add), color = CPTheme.accent)
                 }
             }
         }
@@ -178,6 +286,17 @@ fun ConversationListScreen(
                 onOpen(contact.fingerprint)
             }
         }
+    }
+
+    if (showingNewGroup) {
+        NewGroupSheet(
+            contacts = contacts,
+            onDismiss = { showingNewGroup = false },
+            onCreate = { name, members ->
+                showingNewGroup = false
+                scope.launch { store.createGroup(name, members) }
+            }
+        )
     }
 
     pendingUnpair?.let { fingerprint ->
@@ -198,6 +317,25 @@ fun ConversationListScreen(
     }
 }
 
+// A single inbox row: a 1:1 conversation or a group, tagged with the last
+// activity time so the list interleaves both and sorts by recency. Groups no
+// longer pin to the top; a group rises only when it has the newest message.
+private sealed interface InboxItem {
+    val activity: Long
+    val key: String
+    val sortName: String
+
+    data class Conv(val conversation: Conversation, override val activity: Long) : InboxItem {
+        override val key get() = "c-" + conversation.threadID
+        override val sortName get() = conversation.threadID
+    }
+
+    data class Grp(val group: ChatGroup, override val activity: Long) : InboxItem {
+        override val key get() = "g-" + group.groupID
+        override val sortName get() = group.name
+    }
+}
+
 private fun displayName(conversation: Conversation, contacts: List<Contact>): String {
     val contact = contacts.firstOrNull { it.fingerprint == conversation.peer }
     return contact?.displayName
@@ -209,13 +347,69 @@ private fun displayName(conversation: Conversation, contacts: List<Contact>): St
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
+private fun GroupListRow(group: ChatGroup, unread: Int, last: ChatMessage?, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Avatar(name = group.name, size = 46.dp)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                group.name,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            val lastText = last?.text
+            val subtitle = when {
+                !lastText.isNullOrEmpty() -> lastText
+                last != null && last.attachments.isNotEmpty() -> "\uD83D\uDCCE " + last.attachments.first().filename
+                group.members.size == 1 -> stringResource(R.string.group_member_one)
+                else -> stringResource(R.string.group_member_many, group.members.size)
+            }
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = last?.let { listTimeLabelText(it.sentAt) } ?: "",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(6.dp))
+            if (unread > 0) {
+                Surface(color = CPTheme.accent, shape = CircleShape) {
+                    Text(
+                        text = unread.toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                    )
+                }
+            } else {
+                Spacer(Modifier.height(18.dp))
+            }
+        }
+    }
+}
+
+@Composable
 private fun ConversationRow(
     conversation: Conversation,
     displayName: String,
     verified: Boolean,
     onClick: () -> Unit,
     onUnpair: (() -> Unit)?,
-    onReport: (() -> Unit)? = null
+    onDelete: (() -> Unit)? = null
 ) {
     var showingMenu by remember { mutableStateOf(false) }
 
@@ -225,7 +419,7 @@ private fun ConversationRow(
                 .fillMaxWidth()
                 .combinedClickable(
                     onClick = onClick,
-                    onLongClick = { if (onUnpair != null || onReport != null) showingMenu = true }
+                    onLongClick = { if (onUnpair != null || onDelete != null) showingMenu = true }
                 )
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -284,12 +478,12 @@ private fun ConversationRow(
         }
 
         DropdownMenu(expanded = showingMenu, onDismissRequest = { showingMenu = false }) {
-            if (onReport != null) {
+            if (onDelete != null) {
                 DropdownMenuItem(
-                    text = { Text(stringResource(R.string.inbox_report)) },
+                    text = { Text(stringResource(R.string.inbox_delete_conversation)) },
                     onClick = {
                         showingMenu = false
-                        onReport()
+                        onDelete()
                     }
                 )
             }

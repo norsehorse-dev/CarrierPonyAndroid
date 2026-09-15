@@ -20,18 +20,23 @@ import com.carrierpony.app.AppConfig
 import com.carrierpony.app.DemoMode
 import com.carrierpony.app.attachments.AttachmentStore
 import com.carrierpony.app.crypto.CryptoEngine
-import com.carrierpony.app.crypto.CryptoException
 import com.carrierpony.app.crypto.Fingerprint
 import com.carrierpony.app.crypto.PublicKey
 import com.carrierpony.app.envelope.CPN1
-import com.carrierpony.app.envelope.CPN1Exception
 import com.carrierpony.app.envelope.Manifest
 import com.carrierpony.app.envelope.Threading
 import com.carrierpony.app.relay.RelayClient
 import com.carrierpony.app.relay.RelayException
+import com.carrierpony.app.relay.MailboxCrypto
+import com.carrierpony.app.relay.SealedInboxMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -41,6 +46,7 @@ import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 import kotlin.io.encoding.Base64
+import javax.crypto.SecretKey
 
 class ChatStore(
     private val identity: Fingerprint,
@@ -50,26 +56,41 @@ class ChatStore(
     private val multiDevice: Boolean = true,
     private val defaultTTL: Long = 30L * 86_400,
     private val updatePeerName: (Fingerprint, String?) -> Unit = { _, _ -> },
-    // Checked once per refresh, before messages are processed, so a pairing
-    // acceptance discovered this pass adds the contact before their first
-    // messages are filed. Swallows its own errors (see AppModel.sweepPendingInvites).
-    private val pairingSweep: suspend () -> Unit = {},
     storageDir: File,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val groupKeys: GroupKeyStore? = null,
+    private val sealedKeys: SealedKeyStore? = null,
+    // Completes any outstanding pairing offers this identity created, before the
+    // inbox is processed, so a newly paired peer's first messages open on the
+    // same pass. Wired to AppModel.sweepPendingInvites.
+    private val pairingSweep: (suspend () -> Unit)? = null,
+    // Optional best-effort direct transport (LAN). The relay stays authoritative;
+    // this only accelerates delivery when the peer is reachable on this network.
+    private val lanTransport: Transport? = null,
+    // When this returns true AND the LAN delivered, the relay copy is skipped
+    // (opt-in "direct only on this network"). Default: never skip.
+    private val lanSkipRelay: () -> Boolean = { false }
 ) {
 
     private val factory = EnvelopeFactory(crypto)
-    private val fileURL = File(storageDir, "carrierpony-conversations-${identity.hex}.json")
-    private val timersURL = File(storageDir, "carrierpony-timers-${identity.hex}.json")
+    private val transports: List<Transport> = listOf(RelayTransport(relay, sealedKeys))
 
-    // Per-conversation disappearing-message timer, keyed by threadID → TTL in
-    // seconds. Absence means "Off": messages fall back to the standard defaultTTL.
-    // Synced across a user's own devices via a "timer" control message to self.
-    private val _disappearingTimers = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Long>>(emptyMap())
-    val disappearingTimers: kotlinx.coroutines.flow.StateFlow<Map<String, Long>> = _disappearingTimers
+    /** WAN-direct (2.2) signaling hook: (peerHex, op, sdp, candidate) when a
+     *  webrtc-offer/answer/ice control op arrives. AppModel wires it to the WebRTC
+     *  layer (M2); M1 uses it for a received-count test. */
+    @Volatile var onSignal: ((String, String, String?, String?) -> Unit)? = null
+    private val fileURL = File(storageDir, "carrierpony-conversations-${identity.hex}.json")
 
     private val _conversations = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Conversation>>(emptyMap())
     val conversations: kotlinx.coroutines.flow.StateFlow<Map<String, Conversation>> = _conversations
+
+    // Groups: the roster/epoch metadata (no secret material) and the per-group
+    // message threads. Epoch keys live in groupKeys (Keychain-equivalent).
+    private val _groups = kotlinx.coroutines.flow.MutableStateFlow<Map<String, ChatGroup>>(emptyMap())
+    val groups: kotlinx.coroutines.flow.StateFlow<Map<String, ChatGroup>> = _groups
+    private val _groupMessages = kotlinx.coroutines.flow.MutableStateFlow<Map<String, List<ChatMessage>>>(emptyMap())
+    val groupMessages: kotlinx.coroutines.flow.StateFlow<Map<String, List<ChatMessage>>> = _groupMessages
+    private val groupMagic = "CPG1".toByteArray(Charsets.UTF_8)
 
     private val _lastError = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
     val lastError: kotlinx.coroutines.flow.StateFlow<String?> = _lastError
@@ -77,6 +98,8 @@ class ChatStore(
     private val seenMessageIDs = mutableSetOf<String>()
     private var pollJob: Job? = null
     private val mutex = Mutex()
+    private val sealedAddressMap = mutableMapOf<String, SealedRoute>()
+    private var lastSealedWindowRefresh: Long = 0
 
     companion object {
         /** Diagnostics sink. A no-op by default (JVM tests); the app wires it
@@ -87,7 +110,6 @@ class ChatStore(
 
     init {
         load()
-        loadTimers()
     }
 
     // ── Lifecycle ──────────────────────────────────────────────────────
@@ -98,6 +120,7 @@ class ChatStore(
         } catch (e: Exception) {
             _lastError.value = describe(e)
         }
+        sealedEnsureDevice()
         refresh()
         pollJob?.cancel()
         pollJob = scope.launch {
@@ -123,11 +146,16 @@ class ChatStore(
                 }
             }
         }
+        for (msgs in _groupMessages.value.values) {
+            for (message in msgs) for (attachment in message.attachments) AttachmentStore.delete(attachment.localPath)
+        }
         _conversations.value = emptyMap()
-        _disappearingTimers.value = emptyMap()
+        _groups.value = emptyMap()
+        _groupMessages.value = emptyMap()
+        groupKeys?.purge()
+        sealedKeys?.purge()
         synchronized(seenMessageIDs) { seenMessageIDs.clear() }
         fileURL.delete()
-        timersURL.delete()
     }
 
     fun clearError() {
@@ -136,39 +164,53 @@ class ChatStore(
 
     // ── Receive ────────────────────────────────────────────────────────
 
-    /** Envelopes that failed to open are retried on later polls instead of being
-     *  acked (consumed): the common cause is a message racing pairing — the
-     *  sender's key lands seconds later and the retry succeeds. We never give up
-     *  and ack, because acking tells the relay to delete its only copy; each
-     *  envelope's own expires_at bounds how long it can linger, so nothing
-     *  accumulates forever. The count is kept only for diagnostics. (Matches iOS.) */
+    /** Envelopes that failed to open get retried on later polls instead of
+     *  being acked (consumed) immediately: the common cause is a message
+     *  racing pairing — the sender's key lands seconds later and the retry
+     *  succeeds. The bound stops poison envelopes from looping forever. */
     private val failedOpenCounts = mutableMapOf<String, Int>()
+    private val maxOpenAttempts = 10
+    private val maxPerRefresh = 50
 
-    suspend fun refresh() {
+    suspend fun refresh() = withContext(Dispatchers.Default) {
+        // Complete any accepted pairing offers first, so a new contact exists
+        // before their messages are opened this pass.
+        try { pairingSweep?.invoke() } catch (e: Exception) { }
+        // The PGP decrypt of every inbox envelope is CPU-heavy and used to run on
+        // the caller's Main dispatcher while holding the mutex across the whole
+        // loop, so a backlog (e.g. after the app was offline) froze the UI for
+        // seconds on the first poll. Now the work runs on Default, the lock is
+        // taken per envelope so a concurrent send isn't stuck behind the backlog,
+        // and each pass is capped so a large queue drains over several polls
+        // instead of one long block. Un-acked overflow simply returns next poll.
         try {
-            // Detect any pairing acceptances before filing this pass's messages,
-            // so a brand-new contact's first messages open on the same refresh.
-            pairingSweep()
-            val inbox = relay.inbox()
+            val inbox = relay.inbox().take(maxPerRefresh)
             val ackIDs = mutableListOf<String>()
-            mutex.withLock {
-                for (item in inbox) {
-                    val envelope = try {
-                        Base64.Default.decode(item.envelope)
-                    } catch (e: Exception) {
-                        ackIDs.add(item.messageId)   // unparseable; drop it
-                        continue
-                    }
-                    val opened = handleLocked(envelope)
-                    if (opened) {
+            for (item in inbox) {
+                val envelope = try {
+                    Base64.Default.decode(item.envelope)
+                } catch (e: Exception) {
+                    ackIDs.add(item.messageId)   // unparseable; drop it
+                    continue
+                }
+                val isGroup = isGroupPayload(envelope)
+                val opened = mutex.withLock {
+                    if (isGroup) handleGroupLocked(envelope.copyOfRange(groupMagic.size, envelope.size)) else handleLocked(envelope)
+                }
+                if (opened) {
+                    ackIDs.add(item.messageId)
+                    failedOpenCounts.remove(item.messageId)
+                } else {
+                    val failures = (failedOpenCounts[item.messageId] ?: 0) + 1
+                    if (failures >= maxOpenAttempts) {
+                        diagnostics("giving up on envelope ${item.messageId} after $failures failed opens", null)
                         ackIDs.add(item.messageId)
                         failedOpenCounts.remove(item.messageId)
                     } else {
-                        // Never ack: a recoverable open failure must not delete
-                        // the relay's only copy. Its expires_at bounds the retries.
-                        failedOpenCounts[item.messageId] = (failedOpenCounts[item.messageId] ?: 0) + 1
+                        failedOpenCounts[item.messageId] = failures
                     }
                 }
+                yield()
             }
             if (ackIDs.isNotEmpty()) {
                 relay.ack(ackIDs)
@@ -178,12 +220,13 @@ class ChatStore(
             diagnostics("refresh failed: ${e.javaClass.simpleName}: ${e.message}", e)
             _lastError.value = describe(e)
         }
+        sealedMaintain()
     }
 
     /** @return true when the envelope was consumed (opened, or a duplicate /
      *  expired message we intentionally skip); false when opening failed and a
      *  retry on a later poll might succeed. */
-    private fun handleLocked(envelope: ByteArray): Boolean {
+    private fun handleLocked(envelope: ByteArray, viaLan: Boolean = false): Boolean {
         val incoming = try {
             factory.open(envelope)
         } catch (e: Exception) {
@@ -194,7 +237,7 @@ class ChatStore(
             val chain = generateSequence<Throwable>(e) { it.cause }
                 .joinToString(" <- ") { "${it.javaClass.simpleName}: ${it.message}" }
             diagnostics("envelope open failed (${envelope.size} bytes): $chain", e)
-            _lastError.value = "Couldn't open an incoming message (${describe(e)}). Is the sender paired on this device?"
+            _lastError.value = "Couldn't open an incoming message. Is the sender paired on this device?"
             return false
         }
         val manifest = incoming.manifest
@@ -207,6 +250,7 @@ class ChatStore(
 
         val senderIsSelf = incoming.sender == identity
         when {
+            manifest.type == "group-key" -> applyGroupKeyLocked(incoming)
             senderIsSelf && manifest.type == "control" -> applyControlLocked(incoming)
             senderIsSelf && manifest.type == "message" -> {
                 // Self-copy of one of my own sent messages, synced from another device.
@@ -214,11 +258,11 @@ class ChatStore(
                 fileLocked(incoming, peer, MessageDirection.OUTGOING)
             }
             !senderIsSelf && manifest.type == "message" ->
-                fileLocked(incoming, incoming.sender, MessageDirection.INCOMING)
+                fileLocked(incoming, incoming.sender, MessageDirection.INCOMING, viaLan)
             !senderIsSelf && manifest.type == "control" ->
-                // The only control a peer may send is a profile update (their display
-                // name). It touches only how we label them, never our own state.
-                applyContactProfileLocked(incoming)
+                // A peer may send a profile update (display name) or a sealed-sender
+                // mailbox-key handshake. Both only affect our view of them.
+                applyPeerControlLocked(incoming)
             else -> return true   // Others cannot control my state; rejected-by-policy is consumed, not retried.
         }
         seenMessageIDs.add(manifest.messageID)
@@ -245,7 +289,7 @@ class ChatStore(
         }?.fingerprint
     }
 
-    private fun fileLocked(incoming: IncomingMessage, peer: Fingerprint, direction: MessageDirection) {
+    private fun fileLocked(incoming: IncomingMessage, peer: Fingerprint, direction: MessageDirection, viaLan: Boolean = false) {
         val manifest = incoming.manifest
         val message = ChatMessage(
             id = manifest.messageID,
@@ -266,12 +310,37 @@ class ChatStore(
             },
             sentAt = manifest.sentAt,
             expiresAt = manifest.expiresAt,
-            isRead = direction == MessageDirection.OUTGOING
+            isRead = direction == MessageDirection.OUTGOING,
+            viaLan = viaLan
         )
         appendToConversationLocked(message, peer)
     }
 
     // ── Send ───────────────────────────────────────────────────────────
+
+    /** Whether messages to this peer are sealed (roster-hidden) yet. False until
+     *  the mailbox-key handshake completes both ways, or for a pre-2.0 peer.
+     *  Drives the pair-state indicator so the honest limit is visible. */
+    fun isSealed(peer: Fingerprint): Boolean = sealedKeys?.pair(peer.hex)?.canSend == true
+
+    /** This account's sealed device id, for per-account gateway registration. */
+    fun sealedDeviceId(): String? = sealedKeys?.deviceId()
+
+    /** LAN-direct (2.1): per-pair LAN key for each sealed-capable contact of this
+     *  identity, keyed by lowercased fingerprint hex. A pair with no peer inbound
+     *  key is not sealed-capable and is omitted (it stays relay-only). Lets a
+     *  nearby random node be matched to a known contact without revealing anything
+     *  to a non-contact. Must match iOS ChatStore.lanContactKeys byte-for-byte. */
+    fun lanContactKeys(): Map<String, ByteArray> {
+        val sk = sealedKeys ?: return emptyMap()
+        val out = HashMap<String, ByteArray>()
+        for (c in contacts()) {
+            val st = sk.pair(c.fingerprint.hex) ?: continue
+            val peer = st.peerInboundKey ?: continue
+            out[c.fingerprint.hex.lowercase()] = com.carrierpony.app.net.LanCrypto.pairKey(st.myInboundKey, peer)
+        }
+        return out
+    }
 
     suspend fun send(
         text: String?,
@@ -287,9 +356,7 @@ class ChatStore(
         }
 
         val threadID = Threading.pairwise(identity.hex, to.fingerprint.hex)
-        // An explicit ttl wins; otherwise the conversation's disappearing timer;
-        // otherwise the standard default.
-        val expiresAt = now + (ttl ?: _disappearingTimers.value[threadID] ?: defaultTTL)
+        val expiresAt = now + (ttl ?: defaultTTL)
         val messageID = UUID.randomUUID().toString().uppercase()
         val outgoing = OutgoingMessage(threadID = threadID, text = text, attachments = attachments, expiresAt = expiresAt)
 
@@ -329,7 +396,7 @@ class ChatStore(
 
         try {
             val envelope = factory.build(outgoing, to.publicKey, messageID)
-            relay.send(envelope, to.fingerprint, expiresAt)
+            deliverToPeer(envelope, to.fingerprint, expiresAt, silent = false)
             if (multiDevice) {
                 sendSelfCopy(outgoing, messageID)
             }
@@ -341,7 +408,117 @@ class ChatStore(
     private suspend fun sendSelfCopy(outgoing: OutgoingMessage, messageID: String) {
         val selfKey = ownPublicKey() ?: return
         val envelope = factory.build(outgoing, selfKey, messageID)
-        relay.send(envelope, identity, outgoing.expiresAt)
+        relay.send(envelope, identity, outgoing.expiresAt, silent = true)
+    }
+
+    // ── Deletion (QoL) ─────────────────────────────────────────────────
+    //
+    // Ported from iOS ChatStore. Delete-for-me is local only. Delete-for-
+    // everyone sends the "delete" control op to the peer (they erase their copy
+    // if their build handles it) plus a self-copy so this identity's other
+    // devices follow, then deletes locally. Clearing history and deleting a
+    // conversation are local only and keep the contact paired.
+
+    /** Remove a single message on this device only. */
+    suspend fun deleteLocally(messageID: String) {
+        mutex.withLock { deleteMessageLocked(messageID) }
+    }
+
+    /** Delete a message for everyone: tell the peer, sync our own devices, then
+     *  remove it here. The peer only erases their copy if their build handles the
+     *  incoming "delete" control op. */
+    suspend fun deleteForEveryone(messageID: String, to: Contact) {
+        sendControlToPeer(op = "delete", targetMessageID = messageID, to = to)
+        if (multiDevice) {
+            val threadID = Threading.pairwise(identity.hex, to.fingerprint.hex)
+            emitControl(op = "delete", targetMessageID = messageID, threadID = threadID)
+        }
+        mutex.withLock { deleteMessageLocked(messageID) }
+    }
+
+    /** Clear every message in a thread on this device, keeping the contact and
+     *  pairing intact. Local only. */
+    suspend fun clearHistory(threadID: String) {
+        mutex.withLock {
+            val conversation = _conversations.value[threadID] ?: return@withLock
+            for (message in conversation.messages) {
+                for (attachment in message.attachments) AttachmentStore.delete(attachment.localPath)
+            }
+            _conversations.value = _conversations.value + (threadID to conversation.copy(messages = emptyList()))
+            persistLocked()
+        }
+    }
+
+    /** Remove a whole conversation (and its messages) from this device. The
+     *  contact stays paired, unlike unpairing. */
+    suspend fun deleteConversation(threadID: String) {
+        mutex.withLock {
+            val conversation = _conversations.value[threadID] ?: return@withLock
+            for (message in conversation.messages) {
+                for (attachment in message.attachments) AttachmentStore.delete(attachment.localPath)
+            }
+            _conversations.value = _conversations.value - threadID
+            persistLocked()
+        }
+    }
+
+    /** Send a control op (e.g. "delete") to the peer over the relay, silent so
+     *  it never buzzes them. */
+    private suspend fun sendControlToPeer(op: String, targetMessageID: String, to: Contact) {
+        val threadID = Threading.pairwise(identity.hex, to.fingerprint.hex)
+        val body = ControlOp(op = op, targetMessageID = targetMessageID, at = now)
+        val controlMessage = OutgoingMessage(
+            threadID = threadID,
+            text = null,
+            attachments = listOf(OutgoingMessage.Attachment("control", "application/json", body.encoded())),
+            expiresAt = now + 86_400
+        )
+        try {
+            val messageID = UUID.randomUUID().toString().uppercase()
+            mutex.withLock { seenMessageIDs.add(messageID) }
+            val envelope = buildControl(controlMessage, to.publicKey, messageID)
+            deliverToPeer(envelope, to.fingerprint, controlMessage.expiresAt, silent = true)
+        } catch (e: Exception) {
+            _lastError.value = describe(e)
+        }
+    }
+
+    /** WAN-direct (2.2): send a signaling control op over the sealed relay path,
+     *  like any other control op, so the relay sees only opaque mailbox traffic. */
+    private suspend fun sendSignal(op: String, to: Contact, sdp: String?, candidate: String?) {
+        val threadID = Threading.pairwise(identity.hex, to.fingerprint.hex)
+        val body = ControlOp(op = op, targetMessageID = "", at = now, sdp = sdp, candidate = candidate)
+        val controlMessage = OutgoingMessage(
+            threadID = threadID,
+            text = null,
+            attachments = listOf(OutgoingMessage.Attachment("control", "application/json", body.encoded())),
+            expiresAt = now + 86_400
+        )
+        try {
+            val messageID = UUID.randomUUID().toString().uppercase()
+            mutex.withLock { seenMessageIDs.add(messageID) }
+            val envelope = buildControl(controlMessage, to.publicKey, messageID)
+            deliverToPeer(envelope, to.fingerprint, controlMessage.expiresAt, silent = true)
+        } catch (e: Exception) {
+            // Background signaling op; retried by the WebRTC layer, no banner.
+        }
+    }
+
+    /** WAN-direct (2.2) public signaling send, addressed by peer fingerprint hex. */
+    suspend fun sendWanSignal(op: String, peerHex: String, sdp: String?, candidate: String?) {
+        val contact = contacts().firstOrNull { it.fingerprint.hex.lowercase() == peerHex.lowercase() } ?: return
+        sendSignal(op, contact, sdp, candidate)
+    }
+
+    /** M1 test only: exercise the signaling round-trip with a synthetic offer + ice
+     *  to every sealed-capable contact. Replaced in M2 by real WebRTC offers. */
+    suspend fun sendTestWanSignals() {
+        val sk = sealedKeys ?: return
+        for (contact in contacts()) {
+            if (sk.pair(contact.fingerprint.hex)?.peerInboundKey == null) continue
+            sendSignal("webrtc-offer", contact, sdp = "m1-test-offer", candidate = null)
+            sendSignal("webrtc-ice", contact, sdp = null, candidate = "m1-test-candidate")
+        }
     }
 
     // ── Reporting ──────────────────────────────────────────────────────
@@ -431,81 +608,12 @@ class ChatStore(
         }
     }
 
-    // ── Disappearing messages ──────────────────────────────────────────
-
-    /** Current disappearing TTL (seconds) for a peer's thread, or null for Off. */
-    fun disappearingTTL(peer: Fingerprint): Long? =
-        _disappearingTimers.value[Threading.pairwise(identity.hex, peer.hex)]
-
-    /** Set (or clear, with null) the disappearing-message timer for a peer's
-     *  thread. Persists locally and syncs the change to the user's own devices.
-     *  Applies to messages sent after this point; existing messages keep the
-     *  expiry they were sent with. */
-    suspend fun setDisappearingTimer(peer: Fingerprint, ttl: Long?) {
-        val threadID = Threading.pairwise(identity.hex, peer.hex)
-        mutex.withLock {
-            _disappearingTimers.value =
-                if (ttl == null || ttl <= 0L) _disappearingTimers.value - threadID
-                else _disappearingTimers.value + (threadID to ttl)
-            persistTimersLocked()
-        }
-        if (multiDevice) {
-            emitControl(op = "timer", targetMessageID = "", threadID = threadID, ttl = ttl ?: 0L)
-        }
-    }
-
-    private fun loadTimers() {
-        val text = try {
-            if (timersURL.exists()) timersURL.readText() else null
-        } catch (e: Exception) {
-            null
-        } ?: return
-        try {
-            val json = JSONObject(text)
-            val map = mutableMapOf<String, Long>()
-            val keys = json.keys()
-            while (keys.hasNext()) {
-                val key = keys.next()
-                map[key] = json.getLong(key)
-            }
-            _disappearingTimers.value = map
-        } catch (e: Exception) {
-            // Malformed timer file: start with no timers rather than crash.
-        }
-    }
-
-    private fun persistTimersLocked() {
-        try {
-            if (_disappearingTimers.value.isEmpty()) {
-                timersURL.delete()
-                return
-            }
-            val json = JSONObject()
-            for ((k, v) in _disappearingTimers.value) json.put(k, v)
-            timersURL.writeText(json.toString())
-        } catch (e: Exception) {
-            // Best-effort: a failed timer write must not break messaging.
-        }
-    }
-
     private fun applyControlLocked(incoming: IncomingMessage) {
         val control = controlPayload(incoming) ?: return
         when (control.op) {
             "read" -> setReadLocked(control.targetMessageID)
             "delete" -> deleteMessageLocked(control.targetMessageID)
-            "timer" -> applyTimerLocked(incoming.manifest.threadID, control.ttl)
         }
-    }
-
-    /** Adopt a disappearing-timer change synced from one of my own devices. A
-     *  TTL of 0 (or null) means the sender turned the timer Off. Does not
-     *  re-broadcast — this is the receiving side of the sync. */
-    private fun applyTimerLocked(threadID: String, ttl: Long?) {
-        val current = _disappearingTimers.value
-        _disappearingTimers.value =
-            if (ttl == null || ttl <= 0L) current - threadID
-            else current + (threadID to ttl)
-        persistTimersLocked()
     }
 
     // ── Profile (display name exchange) ────────────────────────────────
@@ -526,7 +634,7 @@ class ChatStore(
             val messageID = UUID.randomUUID().toString().uppercase()
             mutex.withLock { seenMessageIDs.add(messageID) }
             val envelope = buildControl(controlMessage, to.publicKey, messageID)
-            relay.send(envelope, to.fingerprint, controlMessage.expiresAt)
+            deliverToPeer(envelope, to.fingerprint, controlMessage.expiresAt, silent = true)
         } catch (e: Exception) {
             _lastError.value = describe(e)
         }
@@ -547,9 +655,9 @@ class ChatStore(
         }
     }
 
-    private suspend fun emitControl(op: String, targetMessageID: String, threadID: String, ttl: Long? = null) {
+    private suspend fun emitControl(op: String, targetMessageID: String, threadID: String) {
         val selfKey = ownPublicKey() ?: return
-        val body = ControlOp(op = op, targetMessageID = targetMessageID, at = now, ttl = ttl)
+        val body = ControlOp(op = op, targetMessageID = targetMessageID, at = now)
         val controlMessage = OutgoingMessage(
             threadID = threadID,
             text = null,
@@ -560,7 +668,7 @@ class ChatStore(
             val messageID = UUID.randomUUID().toString().uppercase()
             mutex.withLock { seenMessageIDs.add(messageID) }
             val envelope = buildControl(controlMessage, selfKey, messageID)
-            relay.send(envelope, identity, controlMessage.expiresAt)
+            relay.send(envelope, identity, controlMessage.expiresAt, silent = true)
         } catch (e: Exception) {
             _lastError.value = describe(e)
         }
@@ -593,7 +701,10 @@ class ChatStore(
         val targetMessageID: String,
         val at: Long,
         val name: String? = null,
-        val ttl: Long? = null   // op == "timer": disappearing TTL in seconds, 0 = Off
+        val mailboxKey: String? = null,
+        // WAN-direct (2.2) signaling: SDP for webrtc-offer/answer, candidate for webrtc-ice.
+        val sdp: String? = null,
+        val candidate: String? = null
     ) {
         fun encoded(): ByteArray {
             val json = JSONObject()
@@ -601,7 +712,9 @@ class ChatStore(
             json.put("target_message_id", targetMessageID)
             json.put("at", at)
             if (name != null) json.put("name", name)
-            if (ttl != null) json.put("ttl", ttl)
+            if (mailboxKey != null) json.put("mailbox_key", mailboxKey)
+            if (sdp != null) json.put("sdp", sdp)
+            if (candidate != null) json.put("candidate", candidate)
             return json.toString().toByteArray(Charsets.UTF_8)
         }
 
@@ -613,7 +726,9 @@ class ChatStore(
                     targetMessageID = json.optString("target_message_id"),
                     at = json.optLong("at"),
                     name = json.optString("name").takeIf { it.isNotEmpty() },
-                    ttl = if (json.has("ttl")) json.getLong("ttl") else null
+                    mailboxKey = json.optString("mailbox_key").takeIf { it.isNotEmpty() },
+                    sdp = json.optString("sdp").takeIf { it.isNotEmpty() },
+                    candidate = json.optString("candidate").takeIf { it.isNotEmpty() }
                 )
             } catch (e: Exception) {
                 null
@@ -626,6 +741,279 @@ class ChatStore(
             ?: incoming.text?.toByteArray(Charsets.UTF_8)
             ?: return null
         return ControlOp.decode(payload)
+    }
+
+    // ── Sealed sender wiring ───────────────────────────────────────────
+    //
+    // Roster-hiding delivery layered onto the 1:1 path. A pair becomes sealed
+    // once both sides exchange inbound mailbox keys (a control op over the legacy
+    // path, which also upgrades pre-2.0 pairs). Sends then address an opaque
+    // rotating mailbox; the inbox is polled by mailbox and mapped back to the
+    // peer. Self-copies and groups stay legacy for now. Mirrors iOS ChatStore.
+
+    /** Re-register the sealed device with the relay (e.g. once the gateway wake
+     *  token is obtained), so its wake_token is attached without waiting for the
+     *  next app start. Safe to call repeatedly. */
+    suspend fun sealedReregisterDevice() {
+        if (sealedKeys == null) return
+        sealedEnsureDevice()
+    }
+
+    private suspend fun sealedEnsureDevice() {
+        val sk = sealedKeys ?: return
+        try {
+            relay.sealedRegisterDevice(sk.deviceId(), sk.deviceKey(), sk.wakeToken())
+        } catch (e: RelayException) {
+            // 401 means the relay already first-claimed this sealed device_id
+            // under a key we no longer hold (Keystore wipe, or a partial backup
+            // restore). Mint a fresh sealed identity and register it; the old one
+            // is orphaned and reaped by the relay. Clear the stale window map so
+            // it rebuilds under the new id next refresh.
+            if (e.status == 401) {
+                sk.rotateDeviceIdentity()
+                sealedAddressMap.clear()
+                try {
+                    relay.sealedRegisterDevice(sk.deviceId(), sk.deviceKey(), sk.wakeToken())
+                } catch (e2: Exception) {
+                    // best-effort; the next refresh retries
+                }
+            }
+        } catch (e: Exception) {
+            // best-effort; sealed delivery just waits for the next refresh
+        }
+    }
+
+    private suspend fun sealedMaintain() {
+        if (sealedKeys == null) return
+        if (sealedAddressMap.isEmpty() || (now - lastSealedWindowRefresh) > 30) {
+            sealedRefreshWindows()
+            lastSealedWindowRefresh = now
+        }
+        sealedPollInbox()
+    }
+
+    private suspend fun deliverToPeer(envelope: ByteArray, to: Fingerprint, expiresAt: Long, silent: Boolean): Unit = coroutineScope {
+        // Direct-only mode (opt-in): when the peer is reachable on the LAN, deliver
+        // there and skip the relay entirely. Fall back to the relay only if the LAN
+        // send fails, so a message is never lost. The user accepted the cost (the
+        // peer's other devices and offline delivery won't get it) by enabling it.
+        val lan = lanTransport
+        if (lanSkipRelay() && lan != null && lan.canReach(to)) {
+            val ok = try { lan.send(envelope, to, expiresAt, silent) } catch (e: Exception) { false }
+            if (ok) return@coroutineScope
+            for (transport in transports) {
+                if (transport.canReach(to) && transport.send(envelope, to, expiresAt, silent)) return@coroutineScope
+            }
+            return@coroutineScope
+        }
+        // The relay is authoritative (store-and-forward, the peer's other devices,
+        // offline delivery). A direct transport (LAN) runs concurrently as a
+        // best-effort accelerator: both fire, the receiver dedupes by message id,
+        // and a relay failure is tolerated only if the direct path delivered - so
+        // a message still lands when the relay is down but the peer is on this Wi-Fi.
+        val lanDeferred = async {
+            val lan = lanTransport
+            if (lan != null && lan.canReach(to)) {
+                try { lan.send(envelope, to, expiresAt, silent) } catch (e: Exception) { false }
+            } else false
+        }
+        var relayError: Exception? = null
+        try {
+            for (transport in transports) {
+                if (transport.canReach(to) && transport.send(envelope, to, expiresAt, silent)) break
+            }
+        } catch (e: Exception) {
+            relayError = e
+        }
+        val lanOk = lanDeferred.await()
+        if (relayError != null && !lanOk) throw relayError
+    }
+
+    /** Ingest one sealed envelope received over a direct transport (LAN), running
+     *  it through the same open path as a relay-fetched envelope. Dedupe by
+     *  message id is automatic, so a message that also arrives via the relay is
+     *  filed once. No ack: there is no relay message to acknowledge. */
+    suspend fun ingestLanEnvelope(envelope: ByteArray) = withContext(Dispatchers.Default) {
+        val isGroup = isGroupPayload(envelope)
+        mutex.withLock {
+            if (isGroup) handleGroupLocked(envelope.copyOfRange(groupMagic.size, envelope.size))
+            else handleLocked(envelope, viaLan = true)
+        }
+        Unit
+    }
+
+    private suspend fun sealedRefreshWindows() {
+        val sk = sealedKeys ?: return
+        val window = 64L
+        val expiresAt = now + defaultTTL
+        val batch = JSONArray()
+        val map = mutableMapOf<String, SealedRoute>()
+
+        for (contact in contacts()) {
+            if (contact.fingerprint == DemoMode.fingerprint) continue
+            var st = sk.pair(contact.fingerprint.hex)
+                ?: SealedPairState(sk.newPairKey(), null, 0, 0, false)
+            if (!st.sharedMine) {
+                if (sealedSendMyKey(st.myInboundKey, contact)) {
+                    st = SealedPairState(st.myInboundKey, st.peerInboundKey, st.sendCounter, st.receiveHigh, true)
+                }
+            }
+            sk.setPair(contact.fingerprint.hex, st)
+
+            val low = if (st.receiveHigh > window) st.receiveHigh - window else 0L
+            val high = st.receiveHigh + window
+            var m = low
+            while (m <= high) {
+                val address = MailboxCrypto.address(st.myInboundKey, m)
+                batch.put(JSONObject().put("mailbox", address).put("expires_at", expiresAt))
+                map[address] = SealedRoute.PairRoute(contact.fingerprint, m)
+                m += 1
+            }
+        }
+
+        // Group streams: an inbound window per co-member per group, so a group
+        // fan-out to my per-pair group address is delivered and mapped back.
+        val gk = groupKeys
+        if (gk != null) {
+            for ((groupID, group) in _groups.value) {
+                val secret = gk.key(groupID, group.epoch) ?: continue
+                val epochKey = secret.encoded
+                var gst = sk.group(groupID) ?: SealedGroupState(group.epoch, mutableMapOf(), mutableMapOf())
+                if (gst.epoch != group.epoch) gst = SealedGroupState(group.epoch, mutableMapOf(), mutableMapOf())
+                sk.setGroup(groupID, gst)
+                for (member in group.members) {
+                    if (member.fingerprint == identity) continue
+                    val hw = gst.recvHighs[member.fingerprint.hex] ?: 0L
+                    val low = if (hw > window) hw - window else 0L
+                    val high = hw + window
+                    var m = low
+                    while (m <= high) {
+                        val address = MailboxCrypto.groupAddress(epochKey, member.fingerprint.hex, identity.hex, m)
+                        batch.put(JSONObject().put("mailbox", address).put("expires_at", expiresAt))
+                        map[address] = SealedRoute.GroupRoute(groupID, member.fingerprint, m)
+                        m += 1
+                    }
+                }
+            }
+        }
+        sealedAddressMap.clear()
+        sealedAddressMap.putAll(map)
+
+        var i = 0
+        while (i < batch.length()) {
+            val chunk = JSONArray()
+            var j = i
+            val end = minOf(i + 500, batch.length())
+            while (j < end) { chunk.put(batch.getJSONObject(j)); j++ }
+            try {
+                relay.sealedRegisterMailboxes(sk.deviceId(), sk.deviceKey(), chunk)
+            } catch (e: Exception) {
+                break
+            }
+            i += 500
+        }
+    }
+
+    private suspend fun sealedSendMyKey(key: ByteArray, to: Contact): Boolean {
+        val threadID = Threading.pairwise(identity.hex, to.fingerprint.hex)
+        val body = ControlOp(op = "mailbox-key", targetMessageID = "", at = now, mailboxKey = Base64.Default.encode(key))
+        val controlMessage = OutgoingMessage(
+            threadID = threadID,
+            text = null,
+            attachments = listOf(OutgoingMessage.Attachment("control", "application/json", body.encoded())),
+            expiresAt = now + 7 * 86_400
+        )
+        return try {
+            val messageID = UUID.randomUUID().toString().uppercase()
+            mutex.withLock { seenMessageIDs.add(messageID) }
+            val envelope = buildControl(controlMessage, to.publicKey, messageID)
+            relay.send(envelope, to.fingerprint, controlMessage.expiresAt, silent = true)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private suspend fun sealedPollInbox() {
+        val sk = sealedKeys ?: return
+        try {
+            val messages = relay.sealedInbox(sk.deviceId(), sk.deviceKey()).take(maxPerRefresh)
+            val ackIDs = mutableListOf<String>()
+            for (item in messages) {
+                val mapped = sealedAddressMap[item.mailbox]
+                if (mapped == null) { yield(); continue }
+                val envelope = try {
+                    Base64.Default.decode(item.envelope)
+                } catch (e: Exception) {
+                    ackIDs.add(item.messageId); yield(); continue
+                }
+                val isGroup = isGroupPayload(envelope)
+                val opened = mutex.withLock {
+                    if (isGroup) handleGroupLocked(envelope.copyOfRange(groupMagic.size, envelope.size)) else handleLocked(envelope)
+                }
+                if (opened) {
+                    ackIDs.add(item.messageId)
+                    when (mapped) {
+                        is SealedRoute.PairRoute -> {
+                            val st = sk.pair(mapped.peer.hex)
+                            if (st != null && mapped.counter > st.receiveHigh) {
+                                sk.setPair(mapped.peer.hex, SealedPairState(st.myInboundKey, st.peerInboundKey, st.sendCounter, mapped.counter, st.sharedMine))
+                            }
+                        }
+                        is SealedRoute.GroupRoute -> {
+                            val gst = sk.group(mapped.groupID)
+                            if (gst != null) {
+                                val cur = gst.recvHighs[mapped.sender.hex] ?: 0L
+                                if (mapped.counter > cur) {
+                                    gst.recvHighs[mapped.sender.hex] = mapped.counter
+                                    sk.setGroup(mapped.groupID, gst)
+                                }
+                            }
+                        }
+                    }
+                }
+                yield()
+            }
+            if (ackIDs.isNotEmpty()) {
+                relay.sealedAck(sk.deviceId(), sk.deviceKey(), ackIDs)
+            }
+        } catch (e: Exception) {
+            // best-effort; a sealed failure must not break legacy delivery
+        }
+    }
+
+    private fun applyPeerControlLocked(incoming: IncomingMessage) {
+        val control = controlPayload(incoming) ?: return
+        when (control.op) {
+            "mailbox-key" -> {
+                val b64 = control.mailboxKey ?: return
+                val key = try { Base64.Default.decode(b64) } catch (e: Exception) { return }
+                sealedApplyPeerKeyLocked(incoming.sender, key)
+            }
+            "webrtc-offer", "webrtc-answer", "webrtc-ice" ->
+                onSignal?.invoke(incoming.sender.hex, control.op, control.sdp, control.candidate)
+            else -> applyContactProfileLocked(incoming)
+        }
+    }
+
+    private fun sealedGroupSendAddress(groupID: String, epoch: Int, recipient: Fingerprint): String? {
+        val sk = sealedKeys ?: return null
+        val gk = groupKeys ?: return null
+        val secret = gk.key(groupID, epoch) ?: return null
+        val epochKey = secret.encoded
+        var gst = sk.group(groupID) ?: SealedGroupState(epoch, mutableMapOf(), mutableMapOf())
+        if (gst.epoch != epoch) gst = SealedGroupState(epoch, mutableMapOf(), mutableMapOf())
+        val counter = gst.sendCounters[recipient.hex] ?: 0L
+        val address = MailboxCrypto.groupAddress(epochKey, identity.hex, recipient.hex, counter)
+        gst.sendCounters[recipient.hex] = counter + 1
+        sk.setGroup(groupID, gst)
+        return address
+    }
+
+    private fun sealedApplyPeerKeyLocked(sender: Fingerprint, key: ByteArray) {
+        val sk = sealedKeys ?: return
+        val st = sk.pair(sender.hex) ?: SealedPairState(sk.newPairKey(), null, 0, 0, false)
+        sk.setPair(sender.hex, SealedPairState(st.myInboundKey, key, st.sendCounter, st.receiveHigh, st.sharedMine))
     }
 
     // ── Helpers ────────────────────────────────────────────────────────
@@ -681,20 +1069,326 @@ class ChatStore(
         val cutoff = now
         var updated = _conversations.value
         for ((threadID, conversation) in updated) {
-            val expired = conversation.messages.filter { it.expiresAt <= cutoff }
-            if (expired.isEmpty()) continue
-            // A disappearing message must take its attachment files with it, or
-            // the "disappeared" bytes linger on disk.
-            for (message in expired) {
-                for (attachment in message.attachments) {
-                    AttachmentStore.delete(attachment.localPath)
-                }
+            val kept = conversation.messages.filter { it.expiresAt > cutoff }
+            if (kept.size != conversation.messages.size) {
+                updated = updated + (threadID to conversation.copy(messages = kept))
             }
-            updated = updated + (threadID to conversation.copy(
-                messages = conversation.messages.filter { it.expiresAt > cutoff }
-            ))
         }
         _conversations.value = updated
+        persistLocked()
+    }
+
+    // ── Groups ─────────────────────────────────────────────────────────
+    //
+    // Ported from iOS ChatStore. A group has a shared symmetric key per epoch
+    // (rotated on membership change, stored in groupKeys) plus a per-sender
+    // detached signature verified against the roster. A message is sealed once
+    // and the identical payload is fanned out to every member by the client;
+    // the relay stays dumb. Group-key envelopes ride the normal PGP path,
+    // silent, one per member.
+
+    val identityFingerprint: Fingerprint get() = identity
+
+    fun amGroupAdmin(groupID: String): Boolean = _groups.value[groupID]?.isAdmin(identity) == true
+
+    /** Mark every incoming message in a group thread read on this device. Local
+     *  only; group read receipts are not fanned out to the whole group. */
+    suspend fun markGroupRead(groupID: String) {
+        mutex.withLock {
+            val list = _groupMessages.value[groupID] ?: return@withLock
+            if (list.none { it.direction == MessageDirection.INCOMING && !it.isRead }) return@withLock
+            val updated = list.map {
+                if (it.direction == MessageDirection.INCOMING && !it.isRead) it.copy(isRead = true) else it
+            }
+            _groupMessages.value = _groupMessages.value + (groupID to updated)
+            persistLocked()
+        }
+    }
+
+    private fun isGroupPayload(envelope: ByteArray): Boolean {
+        if (envelope.size < groupMagic.size) return false
+        for (i in groupMagic.indices) if (envelope[i] != groupMagic[i]) return false
+        return true
+    }
+
+    /** Create a group, generate the epoch-0 key, and distribute the key + roster
+     *  to every member. The creator is the first admin. */
+    suspend fun createGroup(name: String, members: List<Contact>) {
+        val gk = groupKeys ?: return
+        val mine = ownPublicKey() ?: return
+        val roster = mutableListOf(GroupMember(identity, mine.armored, contactName(identity), true))
+        for (c in members) roster.add(GroupMember(c.fingerprint, c.publicKey.armored, c.name, false))
+        val groupID = ChatGroup.newID()
+        val key = gk.newKey()
+        gk.store(key, groupID, 0)
+        val group = ChatGroup(groupID, name, roster, 0)
+        mutex.withLock {
+            _groups.value = _groups.value + (groupID to group)
+            persistLocked()
+        }
+        distributeGroupKey(group, key)
+    }
+
+    /** Admin only: add paired contacts, rekey, and redistribute to all. */
+    suspend fun addMembers(contacts: List<Contact>, groupID: String) {
+        val gk = groupKeys ?: return
+        val group = _groups.value[groupID] ?: return
+        if (!group.isAdmin(identity)) return
+        val present = group.members.map { it.fingerprint.hex }.toSet()
+        val additions = contacts
+            .filter { it.fingerprint.hex !in present }
+            .map { GroupMember(it.fingerprint, it.publicKey.armored, it.name, false) }
+        if (additions.isEmpty()) return
+        val newEpoch = group.epoch + 1
+        val updated = group.copy(members = group.members + additions, epoch = newEpoch)
+        val key = gk.newKey()
+        gk.store(key, groupID, newEpoch)
+        mutex.withLock {
+            _groups.value = _groups.value + (groupID to updated)
+            persistLocked()
+        }
+        distributeGroupKey(updated, key)
+    }
+
+    /** Admin only: remove a member (not yourself), rekey, and redistribute to the
+     *  remaining members. The removed member never receives the new epoch key. */
+    suspend fun removeMember(fingerprint: Fingerprint, groupID: String) {
+        val gk = groupKeys ?: return
+        val group = _groups.value[groupID] ?: return
+        if (!group.isAdmin(identity) || fingerprint == identity) return
+        val newEpoch = group.epoch + 1
+        val updated = group.copy(members = group.members.filter { it.fingerprint != fingerprint }, epoch = newEpoch)
+        val key = gk.newKey()
+        gk.store(key, groupID, newEpoch)
+        mutex.withLock {
+            _groups.value = _groups.value + (groupID to updated)
+            persistLocked()
+        }
+        distributeGroupKey(updated, key)
+    }
+
+    /** Admin only: rename a group (no rekey; same epoch key, new name). */
+    suspend fun renameGroup(groupID: String, name: String) {
+        val gk = groupKeys ?: return
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        val group = _groups.value[groupID] ?: return
+        if (!group.isAdmin(identity)) return
+        val key = gk.key(groupID, group.epoch) ?: return
+        val updated = group.copy(name = trimmed)
+        mutex.withLock {
+            _groups.value = _groups.value + (groupID to updated)
+            persistLocked()
+        }
+        distributeGroupKey(updated, key)
+    }
+
+    /** Leave a group. If you are an admin, remove yourself and rekey the remaining
+     *  members first, so your departure cuts you off cryptographically. Then
+     *  delete the group and its keys locally. */
+    suspend fun leaveGroup(groupID: String) {
+        val gk = groupKeys ?: return
+        val group = _groups.value[groupID] ?: return
+        if (group.isAdmin(identity)) {
+            val remainingMembers = group.members.filter { it.fingerprint != identity }
+            if (remainingMembers.isNotEmpty()) {
+                val newEpoch = group.epoch + 1
+                val remaining = group.copy(members = remainingMembers, epoch = newEpoch)
+                val key = gk.newKey()
+                gk.store(key, groupID, newEpoch)
+                distributeGroupKey(remaining, key, includeSelf = false)
+            }
+        }
+        gk.deleteGroup(groupID, group.epoch + 1)
+        sealedKeys?.deleteGroupState(groupID)
+        mutex.withLock {
+            _groups.value = _groups.value - groupID
+            _groupMessages.value = _groupMessages.value - groupID
+            persistLocked()
+        }
+    }
+
+    private suspend fun distributeGroupKey(group: ChatGroup, key: SecretKey, includeSelf: Boolean = true) {
+        val payload = GroupKeyPayload(
+            groupID = group.groupID,
+            epoch = group.epoch,
+            keyB64 = Base64.Default.encode(key.encoded),
+            name = group.name,
+            members = group.members
+        )
+        for (member in group.members) {
+            if (member.fingerprint != identity) sendGroupKey(payload, member.publicKey, member.fingerprint)
+        }
+        if (multiDevice && includeSelf) {
+            ownPublicKey()?.let { sendGroupKey(payload, it, identity) }
+        }
+    }
+
+    private suspend fun sendGroupKey(payload: GroupKeyPayload, to: PublicKey, recipient: Fingerprint) {
+        val outgoing = OutgoingMessage(
+            threadID = payload.groupID,
+            text = null,
+            attachments = listOf(OutgoingMessage.Attachment("group-key", "application/json", payload.encoded())),
+            expiresAt = now + defaultTTL
+        )
+        try {
+            val messageID = UUID.randomUUID().toString().uppercase()
+            mutex.withLock { seenMessageIDs.add(messageID) }
+            val envelope = buildGroupEnvelope(outgoing, "group-key", payload.groupID, payload.epoch, to, messageID)
+            relay.send(envelope, recipient, outgoing.expiresAt, silent = true)
+        } catch (e: Exception) {
+            _lastError.value = describe(e)
+        }
+    }
+
+    private fun buildGroupEnvelope(message: OutgoingMessage, type: String, groupID: String, epoch: Int, recipient: PublicKey, messageID: String): ByteArray {
+        val parts = message.attachments.map { it.data }
+        val meta = listOf(Manifest.Part(kind = "control", mime = "application/json", size = parts.firstOrNull()?.size?.toLong()))
+        val manifest = Manifest(
+            v = 1, type = type, messageID = messageID, threadID = message.threadID,
+            sentAt = now, expiresAt = message.expiresAt, parts = meta, groupID = groupID, epoch = epoch
+        )
+        val container = CPN1.encode(manifest.encoded(), parts)
+        return crypto.signAndEncrypt(container, recipient)
+    }
+
+    /** Apply a received group-key envelope: store the epoch key and roster. A new
+     *  group is accepted only from a creator listed as admin; an existing group
+     *  only from a current admin, and only for an epoch at least as new as ours.
+     *  Called under the receive lock. */
+    private fun applyGroupKeyLocked(incoming: IncomingMessage) {
+        val gk = groupKeys ?: return
+        val data = incoming.files.firstOrNull()?.second ?: incoming.text?.toByteArray(Charsets.UTF_8) ?: return
+        val payload = GroupKeyPayload.decode(data) ?: return
+        val keyData = try { Base64.Default.decode(payload.keyB64) } catch (e: Exception) { return }
+        val senderIsSelf = incoming.sender == identity
+        val existing = _groups.value[payload.groupID]
+        if (existing != null) {
+            if (!(senderIsSelf || existing.isAdmin(incoming.sender))) return
+            if (payload.epoch < existing.epoch) return
+        } else {
+            if (!(senderIsSelf || payload.members.any { it.fingerprint == incoming.sender && it.isAdmin })) return
+        }
+        gk.store(gk.keyFromRaw(keyData), payload.groupID, payload.epoch)
+        _groups.value = _groups.value + (payload.groupID to ChatGroup(payload.groupID, payload.name, payload.members, payload.epoch))
+        persistLocked()
+    }
+
+    /** Send a message to a group: seal it once, fan out the identical payload to
+     *  every member, plus a silent self-copy for my other devices. */
+    suspend fun sendGroupMessage(groupID: String, text: String, attachments: List<OutgoingMessage.Attachment> = emptyList()) {
+        val gk = groupKeys ?: return
+        val trimmed = text.trim()
+        if (trimmed.isEmpty() && attachments.isEmpty()) return
+        val group = _groups.value[groupID] ?: return
+        val key = gk.key(groupID, group.epoch) ?: return
+        val messageID = UUID.randomUUID().toString().uppercase()
+        val expiresAt = now + defaultTTL
+        val container = try {
+            buildGroupContainer(if (trimmed.isEmpty()) null else trimmed, attachments, groupID, group.epoch, messageID, expiresAt)
+        } catch (e: Exception) {
+            _lastError.value = describe(e); return
+        }
+        val storedAttachments = attachments.map { a ->
+            val localPath = AttachmentStore.save(a.data, a.filename)
+            ChatMessage.Attachment(UUID.randomUUID().toString(), a.filename, a.mime, a.data.size.toLong(), localPath)
+        }
+        val local = ChatMessage(
+            id = messageID, threadID = groupID, peer = identity, direction = MessageDirection.OUTGOING,
+            text = if (trimmed.isEmpty()) null else trimmed, attachments = storedAttachments,
+            sentAt = now, expiresAt = expiresAt, isRead = true
+        )
+        mutex.withLock {
+            seenMessageIDs.add(messageID)
+            appendGroupMessageLocked(local, groupID)
+        }
+        try {
+            val box = GroupCrypto.seal(container, groupID, identity, group.epoch, key, crypto)
+            val payload = groupMagic + box
+            val recipients = group.members.map { it.fingerprint }.filter { it != identity }.toMutableList()
+            if (multiDevice) recipients.add(identity)
+            for (recipient in recipients) {
+                val silent = recipient == identity
+                val address = sealedGroupSendAddress(groupID, group.epoch, recipient)
+                if (address != null) {
+                    relay.sealedSend(address, payload, expiresAt, silent)
+                } else {
+                    relay.send(payload, recipient, expiresAt, silent)
+                }
+            }
+        } catch (e: Exception) {
+            _lastError.value = describe(e)
+        }
+    }
+
+    private fun buildGroupContainer(text: String?, attachments: List<OutgoingMessage.Attachment>, groupID: String, epoch: Int, messageID: String, expiresAt: Long): ByteArray {
+        val parts = mutableListOf<ByteArray>()
+        val meta = mutableListOf<Manifest.Part>()
+        if (text != null) {
+            parts.add(text.toByteArray(Charsets.UTF_8))
+            meta.add(Manifest.Part(kind = "text", mime = "text/plain; charset=utf-8"))
+        }
+        for (a in attachments) {
+            parts.add(a.data)
+            meta.add(Manifest.Part(kind = "file", mime = a.mime, filename = a.filename, size = a.data.size.toLong()))
+        }
+        val manifest = Manifest(
+            v = 1, type = "group-msg", messageID = messageID, threadID = groupID,
+            sentAt = now, expiresAt = expiresAt, parts = meta, groupID = groupID, epoch = epoch
+        )
+        return CPN1.encode(manifest.encoded(), parts)
+    }
+
+    /** Open a received group message: decrypt with the epoch key, verify the
+     *  sender against the roster, and file it. Returns false only when the failure
+     *  is recoverable (a rekey or group-key we have not received yet), so the
+     *  relay keeps the message for a retry. Called under the receive lock. */
+    private fun handleGroupLocked(payload: ByteArray): Boolean {
+        val gk = groupKeys ?: return true
+        val groupID = GroupCrypto.peekGroupID(payload) ?: return true
+        val group = _groups.value[groupID] ?: return false
+        val opened = try {
+            GroupCrypto.open(payload, group, { gk.key(groupID, it) }, crypto)
+        } catch (e: GroupCryptoException.NoKey) {
+            return false
+        } catch (e: Exception) {
+            diagnostics("group message for $groupID dropped on open: ${e.javaClass.simpleName}: ${e.message}", e)
+            return true
+        }
+        val (sender, container) = opened
+        val decoded = try { CPN1.decode(container) } catch (e: Exception) { diagnostics("group CPN1 decode failed for $groupID: ${e.message}", e); return true }
+        val manifest = try { Manifest.decode(decoded.manifest) } catch (e: Exception) { diagnostics("group manifest decode failed for $groupID: ${e.message}", e); return true }
+        if (seenMessageIDs.contains(manifest.messageID)) return true
+        if (manifest.expiresAt <= now) { seenMessageIDs.add(manifest.messageID); return true }
+        var text: String? = null
+        val atts = mutableListOf<ChatMessage.Attachment>()
+        for ((i, part) in manifest.parts.withIndex()) {
+            if (i >= decoded.parts.size) break
+            when (part.kind) {
+                "text" -> text = String(decoded.parts[i], Charsets.UTF_8)
+                "file" -> {
+                    val filename = part.filename ?: "file"
+                    val localPath = AttachmentStore.save(decoded.parts[i], filename)
+                    atts.add(ChatMessage.Attachment(UUID.randomUUID().toString(), filename, part.mime ?: "application/octet-stream", decoded.parts[i].size.toLong(), localPath))
+                }
+            }
+        }
+        val message = ChatMessage(
+            id = manifest.messageID, threadID = groupID, peer = sender,
+            direction = if (sender == identity) MessageDirection.OUTGOING else MessageDirection.INCOMING,
+            text = text, attachments = atts, sentAt = manifest.sentAt, expiresAt = manifest.expiresAt,
+            isRead = sender == identity
+        )
+        seenMessageIDs.add(manifest.messageID)
+        appendGroupMessageLocked(message, groupID)
+        return true
+    }
+
+    private fun appendGroupMessageLocked(message: ChatMessage, groupID: String) {
+        val list = _groupMessages.value[groupID] ?: emptyList()
+        if (list.any { it.id == message.id }) return
+        val updated = (list + message).sortedBy { it.sentAt }
+        _groupMessages.value = _groupMessages.value + (groupID to updated)
         persistLocked()
     }
 
@@ -728,6 +1422,7 @@ class ChatStore(
                     .put("sentAt", message.sentAt)
                     .put("expiresAt", message.expiresAt)
                     .put("isRead", message.isRead)
+                    .put("viaLan", message.viaLan)
                 if (message.text != null) messageJson.put("text", message.text)
                 messagesArray.put(messageJson)
             }
@@ -738,9 +1433,47 @@ class ChatStore(
             if (conversation.peerName != null) conversationJson.put("peerName", conversation.peerName)
             conversationsArray.put(conversationJson)
         }
+        val groupsArray = JSONArray()
+        for (group in _groups.value.values) {
+            groupsArray.put(JSONObject()
+                .put("groupID", group.groupID)
+                .put("name", group.name)
+                .put("epoch", group.epoch)
+                .put("members", membersToJson(group.members)))
+        }
+        val groupThreadsArray = JSONArray()
+        for ((gid, msgs) in _groupMessages.value) {
+            val marr = JSONArray()
+            for (message in msgs) {
+                val attachmentsArray = JSONArray()
+                for (attachment in message.attachments) {
+                    attachmentsArray.put(JSONObject()
+                        .put("id", attachment.id)
+                        .put("filename", attachment.filename)
+                        .put("mime", attachment.mime)
+                        .put("size", attachment.size)
+                        .put("localPath", attachment.localPath))
+                }
+                val mj = JSONObject()
+                    .put("id", message.id)
+                    .put("threadID", message.threadID)
+                    .put("peer", message.peer.hex)
+                    .put("direction", if (message.direction == MessageDirection.INCOMING) "in" else "out")
+                    .put("attachments", attachmentsArray)
+                    .put("sentAt", message.sentAt)
+                    .put("expiresAt", message.expiresAt)
+                    .put("isRead", message.isRead)
+                    .put("viaLan", message.viaLan)
+                if (message.text != null) mj.put("text", message.text)
+                marr.put(mj)
+            }
+            groupThreadsArray.put(JSONObject().put("groupID", gid).put("messages", marr))
+        }
         val snapshot = JSONObject()
             .put("conversations", conversationsArray)
             .put("seen", JSONArray(seenMessageIDs.toList()))
+            .put("groups", groupsArray)
+            .put("groupThreads", groupThreadsArray)
         try {
             fileURL.parentFile?.mkdirs()
             fileURL.writeText(snapshot.toString())
@@ -787,7 +1520,8 @@ class ChatStore(
                         attachments = attachments,
                         sentAt = m.getLong("sentAt"),
                         expiresAt = m.getLong("expiresAt"),
-                        isRead = m.getBoolean("isRead")
+                        isRead = m.getBoolean("isRead"),
+                        viaLan = m.optBoolean("viaLan", false)
                     ))
                 }
                 restored[stored.getString("threadID")] = Conversation(
@@ -802,6 +1536,48 @@ class ChatStore(
             seenMessageIDs.clear()
             for (i in 0 until seenArray.length()) {
                 seenMessageIDs.add(seenArray.getString(i))
+            }
+            if (snapshot.has("groups")) {
+                val ga = snapshot.getJSONArray("groups")
+                val restoredGroups = mutableMapOf<String, ChatGroup>()
+                for (i in 0 until ga.length()) {
+                    val g = ga.getJSONObject(i)
+                    restoredGroups[g.getString("groupID")] = ChatGroup(
+                        groupID = g.getString("groupID"),
+                        name = g.getString("name"),
+                        members = membersFromJson(g.getJSONArray("members")),
+                        epoch = g.getInt("epoch")
+                    )
+                }
+                _groups.value = restoredGroups
+            }
+            if (snapshot.has("groupThreads")) {
+                val ta = snapshot.getJSONArray("groupThreads")
+                val restoredThreads = mutableMapOf<String, List<ChatMessage>>()
+                for (i in 0 until ta.length()) {
+                    val t = ta.getJSONObject(i)
+                    val msgs = mutableListOf<ChatMessage>()
+                    val ma = t.getJSONArray("messages")
+                    for (j in 0 until ma.length()) {
+                        val m = ma.getJSONObject(j)
+                        val mp = Fingerprint.from(m.getString("peer")) ?: continue
+                        val aa = m.getJSONArray("attachments")
+                        val atts = (0 until aa.length()).map { k ->
+                            val a = aa.getJSONObject(k)
+                            ChatMessage.Attachment(a.getString("id"), a.getString("filename"), a.getString("mime"), a.getLong("size"), a.getString("localPath"))
+                        }
+                        msgs.add(ChatMessage(
+                            id = m.getString("id"), threadID = m.getString("threadID"), peer = mp,
+                            direction = if (m.getString("direction") == "in") MessageDirection.INCOMING else MessageDirection.OUTGOING,
+                            text = if (m.has("text")) m.getString("text") else null,
+                            attachments = atts, sentAt = m.getLong("sentAt"), expiresAt = m.getLong("expiresAt"),
+                            isRead = m.getBoolean("isRead"),
+                            viaLan = m.optBoolean("viaLan", false)
+                        ))
+                    }
+                    restoredThreads[t.getString("groupID")] = msgs.sortedBy { it.sentAt }
+                }
+                _groupMessages.value = restoredThreads
             }
         } catch (e: Exception) {
             // A corrupt snapshot loads as empty rather than crashing.
@@ -819,16 +1595,10 @@ class ChatStore(
 
     private val now: Long get() = System.currentTimeMillis() / 1000
 
-    // Map the concrete failure to human text. A signature failure and a
-    // decryption failure have completely different causes, so this is the whole
-    // diagnosis, not decoration. (Matches iOS describe().)
-    private fun describe(error: Exception): String = when (error) {
-        is RelayException -> "relay ${error.status}${error.code?.let { ": $it" } ?: ""}"
-        is CryptoException.NoValidSignature -> "sender's key missing or signature invalid"
-        is CryptoException.DecryptionFailed -> "not encrypted to this identity"
-        is CryptoException.NotImplemented -> "unsupported key type"
-        is CPN1Exception.BadMagic -> "not a CarrierPony envelope"
-        is CPN1Exception.Truncated -> "envelope truncated"
-        else -> error.message ?: error.javaClass.simpleName
+    private fun describe(error: Exception): String {
+        if (error is RelayException) {
+            return "relay ${error.status}${error.code?.let { ": $it" } ?: ""}"
+        }
+        return error.message ?: error.javaClass.simpleName
     }
 }

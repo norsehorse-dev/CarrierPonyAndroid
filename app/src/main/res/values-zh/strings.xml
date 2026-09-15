@@ -35,7 +35,6 @@
     <string name="inbox_unpair_q">取消与此联系人的配对？</string>
     <string name="inbox_unpair_body">这会从本设备移除对方的密钥。在重新配对之前，你将无法阅读对方的新消息。</string>
     <string name="inbox_unpair">取消配对</string>
-    <string name="inbox_report">举报</string>
     <string name="inbox_you_prefix">你：</string>
     <string name="inbox_no_messages">暂无消息</string>
     <string name="inbox_attachment_fallback">消息</string>
@@ -49,16 +48,6 @@
     <string name="chat_empty_title">暂无消息</string>
     <string name="chat_empty_body">你在这里发送的一切都经过端到端加密。</string>
     <string name="chat_nickname">昵称</string>
-    <string name="chat_disappearing_title">消失的消息</string>
-    <string name="chat_disappearing_body">此对话中的新消息会在你选择的时间后自动删除。现有消息保留各自的计时。</string>
-    <string name="chat_disappearing_off">关闭</string>
-    <string name="chat_disappearing_1h">1 小时</string>
-    <string name="chat_disappearing_6h">6 小时</string>
-    <string name="chat_disappearing_1d">1 天</string>
-    <string name="chat_disappearing_1w">1 周</string>
-    <string name="chat_disappearing_4w">4 周</string>
-    <string name="chat_disappearing_active">消失：%1$s</string>
-    <string name="chat_disappearing_on">开启</string>
     <string name="chat_set_nickname">设置昵称</string>
     <string name="chat_edit_nickname">编辑昵称</string>
     <string name="chat_remove_nickname">移除昵称</string>
@@ -174,8 +163,6 @@
     <string name="pair_send_invite_body">通过你信任的渠道把这个邀请发给对方。它既是可粘贴的链接，也是可扫描的二维码。</string>
     <string name="pair_share_invite">分享邀请</string>
     <string name="pair_waiting_accept">等待对方接受…</string>
-    <string name="pair_close_note">你可以关闭此界面。对方接受后，会出现在你的联系人中。</string>
-    <string name="pair_invite_expires">此邀请将于%1$s过期。</string>
     <string name="pair_paste_or_scan">粘贴收到的邀请，或扫描发送者的二维码。</string>
     <string name="pair_scan_instead">改为扫描二维码</string>
     <string name="pair_demo_needs_identity">请先创建身份，然后再试演示码。</string>
@@ -249,4 +236,122 @@
     <string name="push_channel_name">消息</string>
     <string name="push_channel_desc">新的加密消息</string>
     <string name="push_body">你有一条新消息。</string>
+    <string name="inbox_delete_conversation">删除对话</string>
+    <string name="chat_delete_for_me">为我删除</string>
+    <string name="chat_delete_for_everyone">为所有人删除</string>
+    <string name="chat_clear_history">清除聊天记录</string>
+    <string name="chat_clear_history_title">清除此聊天的记录？</string>
+    <string name="chat_clear_history_body">删除此设备上此聊天的所有消息。联系人仍保持配对。</string>
+    <string name="chat_export">导出聊天</string>
+    <string name="export_title">导出聊天</string>
+    <string name="export_format">格式</string>
+    <string name="export_format_txt">纯文本 (.txt)</string>
+    <string name="export_format_json">JSON (.json)</string>
+    <string name="export_format_html">网页 (.html)</string>
+    <string name="export_encrypt">使用密码短语加密</string>
+    <string name="export_passphrase">密码短语</string>
+    <string name="export_confirm">确认密码短语</string>
+    <string name="export_encrypt_note">该文件用您的密码短语封存，采用与身份备份相同的加密方式，可在 CarrierPony 或任何 OpenPGP 工具中打开。没有密码短语就无法读取，请妥善保管。</string>
+    <string name="export_plaintext_warning">该文件以未加密的纯文本形式写入。任何拿到它的人都能读取整段对话。</string>
+    <string name="export_expiry_warning">CarrierPony 中的消息会自动过期，但导出的副本不会，因此它会在消失时间之后仍然存在。附件仅按名称列出，不包含其内容。</string>
+    <string name="export_action">导出</string>
+    <string name="export_need_passphrase">请输入密码短语以加密导出文件。</string>
+    <string name="export_passphrase_mismatch">两次输入的密码短语不一致。</string>
+    <string name="export_share_chooser">分享导出文件</string>
+    <string name="export_failed">无法创建导出文件。</string>
+    <string name="groups_section">群组</string>
+    <string name="group_new">新建群组</string>
+    <string name="group_new_message">新建消息</string>
+    <string name="group_name">群组名称</string>
+    <string name="group_need_contacts">请先与某人配对，才能将其添加到群组。</string>
+    <string name="group_members">成员</string>
+    <string name="group_create">创建</string>
+    <string name="group_details">群组详情</string>
+    <string name="group_empty">还没有消息。向群组打个招呼吧。</string>
+    <string name="group_rename">重命名群组</string>
+    <string name="group_add_members">添加成员</string>
+    <string name="group_admin">管理员</string>
+    <string name="group_remove">移除</string>
+    <string name="group_add">添加</string>
+    <string name="group_leave">退出群组</string>
+    <string name="group_leave_q">退出此群组？</string>
+    <string name="group_leave_body">您将不再在此设备上接收此群组的消息。</string>
+    <string name="group_no_more_contacts">没有更多可添加的联系人。</string>
+    <string name="group_member_one">1 名成员</string>
+    <string name="group_member_many">%d 名成员</string>
+
+    <!-- Self-hostable relay (Settings > Relay) -->
+    <string name="settings_relay">中继</string>
+    <string name="relay_server">中继服务器</string>
+    <string name="relay_custom">自定义</string>
+    <string name="relay_default">默认</string>
+    <string name="relay_current">当前中继</string>
+    <string name="relay_custom_section">自定义中继</string>
+    <string name="relay_test">测试连接</string>
+    <string name="relay_reachable">中继可访问且支持该协议</string>
+    <string name="relay_bad_url">请输入有效的 https:// 地址</string>
+    <string name="relay_unreachable">无法连接：%1$s</string>
+    <string name="relay_footer">必须是 https 地址。你只能与应用指向同一中继的人收发消息，因此请在配对前切换，或在切换后重新配对。自托管中继无法发送推送通知，因此你将在 CarrierPony 打开时收到消息。</string>
+    <string name="relay_use">使用此中继</string>
+    <string name="relay_reset">重置为 CarrierPony 中继</string>
+    <string name="relay_use_q">使用此中继？</string>
+    <string name="relay_switch_body">请退出并重新打开 CarrierPony 以连接到新的中继。你的身份会保留在本设备上，但你需要在新中继上与联系人重新配对。</string>
+    <string name="relay_saved">已保存中继</string>
+    <string name="relay_saved_body">请退出并重新打开 CarrierPony 以使更改生效。</string>
+
+    <!-- Relay setup during onboarding -->
+    <string name="relay_onb_use">使用自定义中继</string>
+    <string name="relay_onb_footer">必须是 https 地址。你的身份将注册到此中继，且只能联系使用同一中继的人。自托管中继无法发送推送通知。</string>
+    <string name="relay_onb_switch_body">创建身份时将注册到此中继。你可以稍后在设置中更改。</string>
+
+    <!-- Relay self-hosting links -->
+    <string name="relay_selfhost_header">自托管</string>
+    <string name="relay_selfhost_setup">搭建你自己的中继</string>
+    <string name="relay_selfhost_source">GitHub 上的中继源码</string>
+
+    <!-- Push gateway opt-in -->
+    <string name="relay_push_header">推送通知</string>
+    <string name="relay_push_toggle">使用 CarrierPony 推送服务</string>
+    <string name="relay_push_notice">自托管中继无法发送推送通知。开启此项可改为通过 CarrierPony 推送服务来唤醒。它只会收到有消息等待的信号，绝不会收到发件人或消息内容。关闭时，你将在应用打开时收到消息。</string>
+    <string name="settings_account_sub">个人资料、配对、备份、应用锁</string>
+    <string name="settings_relay_sub">选择或自建你的中继</string>
+    <string name="settings_more_from">更多来自 NorseHorse</string>
+    <string name="settings_more_sub">其他应用与我们的开源代码</string>
+    <string name="settings_support_sub">帮助、反馈与法律信息</string>
+    <string name="settings_reset_sub">重置引导、清除、退出登录</string>
+    <string name="settings_sub_burnpony">阅后即焚的消息</string>
+    <string name="settings_sub_scrubpony">清除文件元数据</string>
+    <string name="settings_sub_vaultpony">加密文件保险库</string>
+    <string name="settings_sub_passpony">密码管理器</string>
+    <string name="settings_pony_family">查看完整的 Pony 系列</string>
+    <string name="settings_pony_family_sub">所有 NorseHorse 应用集于一处</string>
+    <string name="settings_source_repo">GitHub 上的 CarrierPony</string>
+    <string name="settings_source_core">可审计的加密核心</string>
+    <string name="chat_sealed">已封装</string>
+    <string name="chat_standard">标准</string>
+
+    <!-- Multiple accounts -->
+    <string name="accounts_title">账户</string>
+    <string name="accounts_sub">切换、添加或移除账户</string>
+    <string name="accounts_active">当前</string>
+    <string name="accounts_add">添加账户</string>
+    <string name="accounts_remove">移除账户</string>
+    <string name="accounts_switch_cd">切换账户</string>
+    <string name="accounts_remove_q">移除此账户？</string>
+    <string name="accounts_remove_body">这会从本设备删除此账户的消息、联系人和密钥。此操作无法撤销。</string>
+    <string name="accounts_add_q">添加另一个账户？</string>
+    <string name="accounts_add_limit">各账户在本设备上分开保存各自的消息和联系人，但无法向中继隐藏两者来自同一设备和同一网络，因此监视中继的人仍可能看出它们是关联的。</string>
+    <string name="accounts_continue">继续</string>
+    <string name="settings_lan_title">局域网</string>
+    <string name="settings_lan_sub">附近的 CarrierPony 设备</string>
+    <string name="settings_lan_direct">在此网络直连</string>
+    <string name="settings_lan_reachable">可直接送达的联系人</string>
+    <string name="settings_lan_direct_sub">在此 Wi-Fi 上不经中继直接联系对方。这会把你设备的本地 IP 告知你直接发送的联系人。关闭后一切都走中继。</string>
+    <string name="chat_via_lan">已通过本地网络送达</string>
+    <string name="settings_lan_skip_relay">直连时跳过中继</string>
+    <string name="settings_lan_skip_relay_sub">直接送达的消息将不再经过中继。对方的其他设备和离线送达都收不到它。</string>
+    <string name="settings_wan_title">互联网直连</string>
+    <string name="settings_wan_toggle">通过互联网直连</string>
+    <string name="settings_wan_received">已收到的信令消息</string>
+    <string name="settings_wan_sub">早期测试（2.2）：通过互联网与联系人直接连接，中继只负责牵线。这会把你的 IP 告知你直接发送的联系人。关闭后一切都走中继。</string>
 </resources>
