@@ -352,6 +352,7 @@
     <string name="settings_lan_skip_relay_sub">A message delivered directly won\'t also go through the relay. The person\'s other devices and offline delivery won\'t receive it.</string>
     <string name="settings_wan_title">Internet direct</string>
     <string name="settings_wan_toggle">Direct over the internet</string>
+    <string name="settings_wan_connected">Connected directly (%1$d)</string>
     <string name="settings_wan_received">Signaling messages received</string>
     <string name="settings_wan_sub">Early test (2.2): connect to contacts directly over the internet, with the relay only introducing you. This shares your IP with a contact you message directly. Off keeps everything on the relay.</string>
 </resources>

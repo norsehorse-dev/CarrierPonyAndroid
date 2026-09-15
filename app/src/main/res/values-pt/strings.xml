@@ -352,6 +352,7 @@
     <string name="settings_lan_skip_relay_sub">Uma mensagem entregue diretamente deixa de passar também pelo relay. Os outros aparelhos da pessoa e a entrega offline não a recebem.</string>
     <string name="settings_wan_title">Direto pela internet</string>
     <string name="settings_wan_toggle">Direto pela internet</string>
+    <string name="settings_wan_connected">Conectado diretamente (%1$d)</string>
     <string name="settings_wan_received">Mensagens de sinalização recebidas</string>
     <string name="settings_wan_sub">Teste inicial (2.2): conecte-se a contatos diretamente pela internet, com o relay apenas apresentando vocês. Isso compartilha seu IP com o contato para quem você envia diretamente. Desativado, tudo passa pelo relay.</string>
 </resources>

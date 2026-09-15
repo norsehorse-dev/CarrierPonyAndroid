@@ -352,6 +352,7 @@
     <string name="settings_lan_skip_relay_sub">直接届いたメッセージはリレーを経由しなくなります。相手の他の端末やオフライン時の配信には届きません。</string>
     <string name="settings_wan_title">インターネット直接接続</string>
     <string name="settings_wan_toggle">インターネットで直接接続</string>
+    <string name="settings_wan_connected">直接接続済み (%1$d)</string>
     <string name="settings_wan_received">受信したシグナリングメッセージ</string>
     <string name="settings_wan_sub">早期テスト（2.2）: リレーは仲介のみで、連絡先とインターネット経由で直接つながります。直接やり取りする相手にあなたの IP が伝わります。オフにするとすべてリレー経由になります。</string>
 </resources>

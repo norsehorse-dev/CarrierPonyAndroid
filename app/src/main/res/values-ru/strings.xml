@@ -352,6 +352,7 @@
     <string name="settings_lan_skip_relay_sub">Сообщение, доставленное напрямую, больше не идёт и через ретранслятор. Другие устройства человека и доставка офлайн его не получат.</string>
     <string name="settings_wan_title">Прямое подключение через интернет</string>
     <string name="settings_wan_toggle">Напрямую через интернет</string>
+    <string name="settings_wan_connected">Подключено напрямую (%1$d)</string>
     <string name="settings_wan_received">Получено сообщений сигнализации</string>
     <string name="settings_wan_sub">Ранний тест (2.2): связь с контактами напрямую через интернет, ретранслятор только знакомит вас. При этом ваш IP станет виден контакту, которому вы пишете напрямую. Выключено — всё идёт через ретранслятор.</string>
 </resources>

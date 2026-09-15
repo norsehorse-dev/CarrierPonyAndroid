@@ -352,6 +352,7 @@
     <string name="settings_lan_skip_relay_sub">Eine direkt zugestellte Nachricht läuft dann nicht auch über das Relay. Die anderen Geräte der Person und die Zustellung bei Offline erhalten sie nicht.</string>
     <string name="settings_wan_title">Internet-Direktverbindung</string>
     <string name="settings_wan_toggle">Direkt über das Internet</string>
+    <string name="settings_wan_connected">Direkt verbunden (%1$d)</string>
     <string name="settings_wan_received">Empfangene Signalisierungsnachrichten</string>
     <string name="settings_wan_sub">Früher Test (2.2): Kontakte direkt über das Internet erreichen, wobei das Relay nur den Kontakt herstellt. Dabei wird deine IP-Adresse einem Kontakt mitgeteilt, den du direkt anschreibst. Aus lässt alles über das Relay laufen.</string>
 </resources>

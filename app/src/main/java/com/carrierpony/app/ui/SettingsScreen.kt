@@ -72,6 +72,7 @@ import com.carrierpony.app.ui.theme.CPTheme
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Apps
@@ -108,8 +109,6 @@ fun SettingsScreen(
     val lanReachable by app.lanDiscovery.reachable.collectAsState()
     var lanDirectOn by remember { mutableStateOf(AppConfig.lanDirectEnabled(context)) }
     var lanSkipRelayOn by remember { mutableStateOf(AppConfig.lanDirectSkipRelay(context)) }
-    val wanSignals by app.wanSignalsReceived.collectAsState()
-    val wanLast by app.lastWanSignal.collectAsState()
     val wanConnected by app.wanConnectedCount.collectAsState()
     var wanDirectOn by remember { mutableStateOf(AppConfig.wanDirectEnabled(context)) }
 
@@ -214,8 +213,6 @@ fun SettingsScreen(
                     )
                     WanDirectCard(
                         directOn = wanDirectOn,
-                        received = wanSignals,
-                        last = wanLast,
                         connectedCount = wanConnected,
                         onToggle = { on -> wanDirectOn = on; app.setWanDirectEnabled(on) },
                     )
@@ -478,9 +475,7 @@ private val languages = listOf(
 )
 
 @Composable
-private fun WanDirectCard(directOn: Boolean, received: Int, last: String?, connectedCount: Int, onToggle: (Boolean) -> Unit) {
-    // WAN-direct (2.2 M2) test surface: toggle, whether a direct path is up, and how
-    // many signaling ops have arrived from peers.
+private fun WanDirectCard(directOn: Boolean, connectedCount: Int, onToggle: (Boolean) -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -497,32 +492,15 @@ private fun WanDirectCard(directOn: Boolean, received: Int, last: String?, conne
                 )
                 Switch(checked = directOn, onCheckedChange = onToggle)
             }
-            if (directOn) {
+            if (directOn && connectedCount > 0) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(8.dp))
                     Text(
-                        "Direct path",
+                        stringResource(R.string.settings_wan_connected, connectedCount),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f)
+                        color = MaterialTheme.colorScheme.primary
                     )
-                    Text(
-                        if (connectedCount > 0) "connected ($connectedCount)" else "connecting",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (connectedCount > 0) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-                    Text(
-                        stringResource(R.string.settings_wan_received),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(received.toString(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                if (last != null) {
-                    Text("Last: $last", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             Text(

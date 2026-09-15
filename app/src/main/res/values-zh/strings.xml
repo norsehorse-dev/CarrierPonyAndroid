@@ -352,6 +352,7 @@
     <string name="settings_lan_skip_relay_sub">直接送达的消息将不再经过中继。对方的其他设备和离线送达都收不到它。</string>
     <string name="settings_wan_title">互联网直连</string>
     <string name="settings_wan_toggle">通过互联网直连</string>
+    <string name="settings_wan_connected">已直接连接 (%1$d)</string>
     <string name="settings_wan_received">已收到的信令消息</string>
     <string name="settings_wan_sub">早期测试（2.2）：通过互联网与联系人直接连接，中继只负责牵线。这会把你的 IP 告知你直接发送的联系人。关闭后一切都走中继。</string>
 </resources>

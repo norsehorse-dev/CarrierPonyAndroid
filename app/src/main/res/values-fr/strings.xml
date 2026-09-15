@@ -352,6 +352,7 @@
     <string name="settings_lan_skip_relay_sub">Un message remis en direct ne passe alors plus aussi par le relais. Les autres appareils de la personne et la remise hors ligne ne le reçoivent pas.</string>
     <string name="settings_wan_title">Direct par internet</string>
     <string name="settings_wan_toggle">Direct par internet</string>
+    <string name="settings_wan_connected">Connecté directement (%1$d)</string>
     <string name="settings_wan_received">Messages de signalisation reçus</string>
     <string name="settings_wan_sub">Test précoce (2.2) : joindre des contacts directement par internet, le relais ne faisant que la présentation. Cela partage ton IP avec un contact que tu contactes directement. Désactivé, tout passe par le relais.</string>
 </resources>
