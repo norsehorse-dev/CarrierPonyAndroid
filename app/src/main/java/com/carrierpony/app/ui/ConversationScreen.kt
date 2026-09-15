@@ -50,7 +50,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.CompareArrows
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MailOutline
@@ -547,7 +547,7 @@ private fun Metadata(message: ChatMessage, isOutgoing: Boolean) {
         )
         if (message.viaLan) {
             Icon(
-                imageVector = Icons.Default.Wifi,
+                imageVector = Icons.Default.CompareArrows,
                 contentDescription = stringResource(R.string.chat_via_lan),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(13.dp)

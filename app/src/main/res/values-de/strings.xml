@@ -347,7 +347,7 @@
     <string name="settings_lan_direct">Direkt in diesem Netzwerk</string>
     <string name="settings_lan_reachable">Direkt erreichbare Kontakte</string>
     <string name="settings_lan_direct_sub">Erreiche Kontakte in diesem WLAN ohne das Relay. Dabei wird deine lokale IP-Adresse einem Kontakt mitgeteilt, den du direkt anschreibst. Aus lässt alles über das Relay laufen.</string>
-    <string name="chat_via_lan">Über dein lokales Netzwerk zugestellt</string>
+    <string name="chat_via_lan">Direkt zugestellt</string>
     <string name="settings_lan_skip_relay">Relay überspringen bei Direktverbindung</string>
     <string name="settings_lan_skip_relay_sub">Eine direkt zugestellte Nachricht läuft dann nicht auch über das Relay. Die anderen Geräte der Person und die Zustellung bei Offline erhalten sie nicht.</string>
     <string name="settings_wan_title">Internet-Direktverbindung</string>

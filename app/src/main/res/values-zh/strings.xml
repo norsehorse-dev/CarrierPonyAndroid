@@ -347,7 +347,7 @@
     <string name="settings_lan_direct">在此网络直连</string>
     <string name="settings_lan_reachable">可直接送达的联系人</string>
     <string name="settings_lan_direct_sub">在此 Wi-Fi 上不经中继直接联系对方。这会把你设备的本地 IP 告知你直接发送的联系人。关闭后一切都走中继。</string>
-    <string name="chat_via_lan">已通过本地网络送达</string>
+    <string name="chat_via_lan">已直接送达</string>
     <string name="settings_lan_skip_relay">直连时跳过中继</string>
     <string name="settings_lan_skip_relay_sub">直接送达的消息将不再经过中继。对方的其他设备和离线送达都收不到它。</string>
     <string name="settings_wan_title">互联网直连</string>

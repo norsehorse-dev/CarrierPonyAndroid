@@ -347,7 +347,7 @@
     <string name="settings_lan_direct">Напрямую в этой сети</string>
     <string name="settings_lan_reachable">Контакты, доступные напрямую</string>
     <string name="settings_lan_direct_sub">Связывайтесь с контактами в этой сети Wi-Fi без ретранслятора. При этом локальный IP-адрес вашего устройства станет виден контакту, которому вы пишете напрямую. Выключено - всё идёт через ретранслятор.</string>
-    <string name="chat_via_lan">Доставлено по локальной сети</string>
+    <string name="chat_via_lan">Доставлено напрямую</string>
     <string name="settings_lan_skip_relay">Пропускать ретранслятор при прямой доставке</string>
     <string name="settings_lan_skip_relay_sub">Сообщение, доставленное напрямую, больше не идёт и через ретранслятор. Другие устройства человека и доставка офлайн его не получат.</string>
     <string name="settings_wan_title">Прямое подключение через интернет</string>

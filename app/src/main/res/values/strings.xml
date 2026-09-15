@@ -347,7 +347,7 @@
     <string name="settings_lan_direct">Direct on this network</string>
     <string name="settings_lan_reachable">Contacts reachable directly</string>
     <string name="settings_lan_direct_sub">Reach contacts on this Wi-Fi without the relay. This shares your device\'s local IP with a contact you message directly. Off keeps everything on the relay.</string>
-    <string name="chat_via_lan">Delivered over your local network</string>
+    <string name="chat_via_lan">Delivered directly</string>
     <string name="settings_lan_skip_relay">Skip the relay when direct</string>
     <string name="settings_lan_skip_relay_sub">A message delivered directly won\'t also go through the relay. The person\'s other devices and offline delivery won\'t receive it.</string>
     <string name="settings_wan_title">Internet direct</string>

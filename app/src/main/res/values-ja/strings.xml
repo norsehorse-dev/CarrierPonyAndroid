@@ -347,7 +347,7 @@
     <string name="settings_lan_direct">このネットワークで直接接続</string>
     <string name="settings_lan_reachable">直接つながる連絡先</string>
     <string name="settings_lan_direct_sub">リレーを使わずに、この Wi-Fi 上の連絡先に直接つながります。直接やり取りする相手に端末のローカル IP が伝わります。オフにするとすべてリレー経由になります。</string>
-    <string name="chat_via_lan">ローカルネットワークで配信</string>
+    <string name="chat_via_lan">直接配信</string>
     <string name="settings_lan_skip_relay">直接接続時はリレーを使わない</string>
     <string name="settings_lan_skip_relay_sub">直接届いたメッセージはリレーを経由しなくなります。相手の他の端末やオフライン時の配信には届きません。</string>
     <string name="settings_wan_title">インターネット直接接続</string>
