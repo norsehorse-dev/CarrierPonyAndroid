@@ -45,6 +45,9 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            // Reproducible builds: keep the git SHA AGP would otherwise stamp
+            // into the APK out, so F-Droid's rebuild matches.
+            vcsInfo.include = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -69,6 +72,11 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+    }
+    // Reproducible builds: keep Google's dependency-metadata blob out of the APK.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
     buildFeatures {
         compose = true
@@ -119,4 +127,14 @@ dependencies {
 // in and re-sync to light FCM up on the play build.
 if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
+}
+
+// Reproducible builds: AGP serializes the ART baseline profile from unordered
+// collections, so baseline.prof / baseline.profm are not byte-reproducible and
+// break F-Droid's clean-room comparison even when everything else matches.
+// Disabling the compile task drops both files; the only cost is first-run
+// startup speed. Verify with a CLEAN build (a stale prof is repackaged on an
+// incremental one). See obfusk gist 61046e09cee352ae6dd109911534b12e.
+tasks.configureEach {
+    if (name.matches(Regex("compile.*ArtProfile"))) enabled = false
 }

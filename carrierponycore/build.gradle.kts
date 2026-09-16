@@ -12,6 +12,8 @@
 // usage overlaps (key generation, SEIPD handling, issuer-fingerprint
 // subpackets), the patterns here mirror the ones proven in PGPony Android.
 
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.kotlin.jvm)
 }
@@ -21,8 +23,14 @@ java {
     targetCompatibility = JavaVersion.VERSION_17
 }
 
+// No kotlin { jvmToolchain(17) }: F-Droid's buildserver runs with Gradle
+// toolchain auto-provisioning disabled, so a jvmToolchain() request fails hard
+// there. sourceCompatibility/targetCompatibility above plus jvmTarget here emit
+// JVM 17 bytecode with no toolchain discovery step. Mirrors PonyDirect-Kotlin.
 kotlin {
-    jvmToolchain(17)
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+    }
 }
 
 dependencies {

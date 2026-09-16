@@ -11,9 +11,6 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
-}
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
@@ -29,4 +26,4 @@ include(":carrierponycore")
 // PonyDirect (WAN direct transport) as a local composite build, so the app can
 // consume the standalone library without a published artifact. F-Droid builds it
 // from source via the same include.
-includeBuild("../PonyDirect-Kotlin")
+includeBuild("PonyDirect-Kotlin")

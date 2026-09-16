@@ -1,0 +1,3 @@
+[submodule "PonyDirect-Kotlin"]
+	path = PonyDirect-Kotlin
+	url = https://github.com/norsehorse-dev/PonyDirect-Kotlin.git
