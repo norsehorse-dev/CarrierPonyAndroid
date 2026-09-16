@@ -39,6 +39,8 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -125,6 +127,7 @@ fun ConversationListScreen(
     var showingNewMessage by remember { mutableStateOf(false) }
     var showingNewGroup by remember { mutableStateOf(false) }
     var showingNewChannel by remember { mutableStateOf(false) }
+    var showingSubscribe by remember { mutableStateOf(false) }
     var showingComposeMenu by remember { mutableStateOf(false) }
     var pendingUnpair by remember { mutableStateOf<Fingerprint?>(null) }
     var showingAccounts by remember { mutableStateOf(false) }
@@ -178,6 +181,9 @@ fun ConversationListScreen(
                             })
                             DropdownMenuItem(text = { Text(stringResource(R.string.channel_new)) }, onClick = {
                                 showingComposeMenu = false; showingNewChannel = true
+                            })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.channel_subscribe)) }, onClick = {
+                                showingComposeMenu = false; showingSubscribe = true
                             })
                         }
                     }
@@ -303,6 +309,46 @@ fun ConversationListScreen(
                 showingNewGroup = false
                 scope.launch { store.createGroup(name, members) }
             }
+        )
+    }
+
+    if (showingSubscribe) {
+        var pasted by remember { mutableStateOf("") }
+        var bad by remember { mutableStateOf(false) }
+        val clip = LocalClipboardManager.current
+        AlertDialog(
+            onDismissRequest = { showingSubscribe = false },
+            title = { Text(stringResource(R.string.channel_subscribe)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.channel_subscribe_confirm_body))
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = pasted,
+                        onValueChange = { pasted = it; bad = false },
+                        placeholder = { Text(stringResource(R.string.channel_subscribe_paste)) },
+                        trailingIcon = {
+                            TextButton(onClick = {
+                                clip.getText()?.text?.let { pasted = it; bad = false }
+                            }) { Text(stringResource(R.string.common_paste)) }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (bad) Text(stringResource(R.string.channel_subscribe_bad),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val invite = com.carrierpony.app.pairing.ChannelInvite.decode(pasted.trim())
+                    if (invite == null) bad = true else {
+                        showingSubscribe = false
+                        scope.launch { store.subscribeToChannel(invite) }
+                    }
+                }) { Text(stringResource(R.string.channel_subscribe)) }
+            },
+            dismissButton = { TextButton(onClick = { showingSubscribe = false }) { Text(stringResource(R.string.common_cancel)) } }
         )
     }
 

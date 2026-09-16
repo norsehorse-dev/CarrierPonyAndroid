@@ -71,4 +71,14 @@ interface CryptoEngine {
      * the message cannot be opened at all. Plaintext is never returned unverified.
      */
     fun decryptAndVerify(message: ByteArray): VerifiedMessage
+
+    /**
+     * Decrypt to our key and enforce the integrity gate, WITHOUT verifying the
+     * signer. Returns the raw plaintext. Only for self-authenticating control
+     * ops (channel-subscribe) whose payload carries the sender's own public
+     * key; the caller must check fingerprint == hash(pubkey). Never use for
+     * message content. Throws CryptoException.DecryptionFailed if it cannot be
+     * opened to our key.
+     */
+    fun decryptOnly(message: ByteArray): ByteArray
 }

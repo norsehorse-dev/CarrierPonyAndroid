@@ -24,6 +24,9 @@ import com.carrierpony.app.crypto.Fingerprint
 import com.carrierpony.app.crypto.PublicKey
 import com.carrierpony.app.envelope.CPN1
 import com.carrierpony.app.envelope.Manifest
+import com.carrierpony.app.pairing.ChannelInvite
+import com.carrierpony.app.pairing.PairingSupport
+import com.carrierpony.core.CPKeyInfo
 import com.carrierpony.app.envelope.Threading
 import com.carrierpony.app.relay.RelayClient
 import com.carrierpony.app.relay.RelayException
@@ -56,6 +59,9 @@ class ChatStore(
     private val multiDevice: Boolean = true,
     private val defaultTTL: Long = 30L * 86_400,
     private val updatePeerName: (Fingerprint, String?) -> Unit = { _, _ -> },
+    // Add or replace a contact (used by channel subscribe: the admin adds a new
+    // subscriber, the subscriber adds the channel admin). Wired to ContactStore.
+    private val addContact: (Contact) -> Unit = {},
     storageDir: File,
     private val scope: CoroutineScope,
     private val groupKeys: GroupKeyStore? = null,
@@ -238,6 +244,9 @@ class ChatStore(
         val incoming = try {
             factory.open(envelope)
         } catch (e: Exception) {
+            // Before giving up: an un-verifiable envelope may be a self-authenticating
+            // channel-subscribe from a stranger (decrypt-only, no signer to verify yet).
+            if (tryChannelSubscribeLocked(envelope)) return true
             // A common cause is the sender not being paired on this device, so
             // their signature can't be verified. Surface it instead of dropping
             // the message silently — and log the precise failure for wire
@@ -712,7 +721,11 @@ class ChatStore(
         val mailboxKey: String? = null,
         // WAN-direct (2.2) signaling: SDP for webrtc-offer/answer, candidate for webrtc-ice.
         val sdp: String? = null,
-        val candidate: String? = null
+        val candidate: String? = null,
+        // Broadcast-channel subscribe/unsubscribe (2.x Phase 2).
+        val channelId: String? = null,
+        val pubkey: String? = null,     // subscriber armored public key (channel-subscribe)
+        val token: String? = null       // optional invite token (gated channels)
     ) {
         fun encoded(): ByteArray {
             val json = JSONObject()
@@ -723,6 +736,9 @@ class ChatStore(
             if (mailboxKey != null) json.put("mailbox_key", mailboxKey)
             if (sdp != null) json.put("sdp", sdp)
             if (candidate != null) json.put("candidate", candidate)
+            if (channelId != null) json.put("channel_id", channelId)
+            if (pubkey != null) json.put("pubkey", pubkey)
+            if (token != null) json.put("token", token)
             return json.toString().toByteArray(Charsets.UTF_8)
         }
 
@@ -736,7 +752,10 @@ class ChatStore(
                     name = json.optString("name").takeIf { it.isNotEmpty() },
                     mailboxKey = json.optString("mailbox_key").takeIf { it.isNotEmpty() },
                     sdp = json.optString("sdp").takeIf { it.isNotEmpty() },
-                    candidate = json.optString("candidate").takeIf { it.isNotEmpty() }
+                    candidate = json.optString("candidate").takeIf { it.isNotEmpty() },
+                    channelId = json.optString("channel_id").takeIf { it.isNotEmpty() },
+                    pubkey = json.optString("pubkey").takeIf { it.isNotEmpty() },
+                    token = json.optString("token").takeIf { it.isNotEmpty() }
                 )
             } catch (e: Exception) {
                 null
@@ -1093,10 +1112,143 @@ class ChatStore(
                 val key = try { Base64.Default.decode(b64) } catch (e: Exception) { return }
                 sealedApplyPeerKeyLocked(incoming.sender, key)
             }
+            "channel-unsubscribe" -> {
+                val cid = control.channelId ?: return
+                val group = _groups.value[cid] ?: return
+                if (!group.isAdmin(identity)) return
+                if (group.members.none { it.fingerprint == incoming.sender }) return
+                _groups.value = _groups.value + (cid to group.copy(
+                    members = group.members.filter { it.fingerprint != incoming.sender }))
+                persistLocked()
+                android.util.Log.d("CPCHAN", "unsubscribe-recv channel=${cid.takeLast(8)} from=${incoming.sender.hex.takeLast(8)}")
+            }
+            "channel-subscribe" -> {
+                // Also reached here (not only via the decrypt-only bootstrap) when the
+                // subscriber is already a known contact, so their envelope verifies and
+                // opens normally instead of failing.
+                val cid = control.channelId ?: return
+                val pk = control.pubkey ?: return
+                applyChannelSubscribeLocked(cid, incoming.sender, pk, control.token)
+            }
             "webrtc-offer", "webrtc-answer", "webrtc-ice" ->
                 onSignal?.invoke(incoming.sender.hex, control.op, control.sdp, control.candidate)
             else -> applyContactProfileLocked(incoming)
         }
+    }
+
+    // ── Broadcast channel subscribe links (2.x Phase 2) ────────────────
+    //
+    // A channel invite is a reusable CPCHAN1 link/QR the admin shares publicly.
+    // A stranger who opens it seals a self-authenticating channel-subscribe to
+    // the admin (decrypt-only on the admin side, since there is no pairing yet;
+    // the payload carries the subscriber's own key and its fingerprint must hash
+    // to it). The admin auto-accepts, adds the subscriber as a non-admin member,
+    // and returns the admins-only channel key. No epoch rekey on join.
+
+    /** Admin-only: a shareable CPCHAN1 invite string for a channel I broadcast. */
+    fun channelInvite(groupID: String, token: String? = null): String? {
+        val group = _groups.value[groupID] ?: return null
+        if (!group.isChannel || !group.isAdmin(identity)) return null
+        val mine = ownPublicKey() ?: return null
+        return ChannelInvite.create(groupID, identity, mine.armored, token, group.name).encoded()
+    }
+
+    /** Subscriber side: subscribe from an invite. Adds the admin as a contact so
+     *  we can verify the posts it sends back, then seals a channel-subscribe to
+     *  it. The channel appears once the admin returns its key. */
+    suspend fun subscribeToChannel(invite: ChannelInvite): Boolean {
+        val admin = PairingSupport.consistentContact(invite.f, invite.k, TrustLevel.UNVERIFIED) ?: return false
+        if (admin.fingerprint == identity) return false
+        // Only add the admin if we do not already know them; never overwrite an
+        // existing contact (that renames the existing conversation).
+        if (contacts().none { it.fingerprint == admin.fingerprint }) addContact(admin)
+        val mine = ownPublicKey() ?: return false
+        val op = ControlOp(op = "channel-subscribe", targetMessageID = "", at = now,
+            channelId = invite.c, pubkey = mine.armored, token = invite.t)
+        val outgoing = OutgoingMessage(
+            threadID = invite.c, text = null,
+            attachments = listOf(OutgoingMessage.Attachment("control", "application/json", op.encoded())),
+            expiresAt = now + defaultTTL
+        )
+        return try {
+            val messageID = UUID.randomUUID().toString().uppercase()
+            mutex.withLock { seenMessageIDs.add(messageID) }
+            val envelope = buildControl(outgoing, admin.publicKey, messageID)
+            relay.send(envelope, admin.fingerprint, outgoing.expiresAt, silent = true)
+            android.util.Log.d("CPCHAN", "subscribe-sent channel=${invite.c.takeLast(8)} to=${admin.fingerprint.hex.takeLast(8)}")
+            true
+        } catch (e: Exception) {
+            _lastError.value = describe(e); false
+        }
+    }
+
+    /** Subscriber side: unsubscribe. Best-effort tell each admin to drop us, then
+     *  leave the channel locally. */
+    suspend fun unsubscribeFromChannel(groupID: String) {
+        val group = _groups.value[groupID] ?: return
+        if (group.isAdmin(identity)) { leaveGroup(groupID); return }
+        for (adminMember in group.admins.filter { it.fingerprint != identity }) {
+            val op = ControlOp(op = "channel-unsubscribe", targetMessageID = "", at = now, channelId = groupID)
+            val outgoing = OutgoingMessage(
+                threadID = groupID, text = null,
+                attachments = listOf(OutgoingMessage.Attachment("control", "application/json", op.encoded())),
+                expiresAt = now + defaultTTL
+            )
+            try {
+                val messageID = UUID.randomUUID().toString().uppercase()
+                mutex.withLock { seenMessageIDs.add(messageID) }
+                val envelope = buildControl(outgoing, adminMember.publicKey, messageID)
+                deliverToPeer(envelope, adminMember.fingerprint, outgoing.expiresAt, silent = true)
+            } catch (e: Exception) { _lastError.value = describe(e) }
+        }
+        groupKeys?.deleteGroup(groupID, group.epoch + 1)
+        sealedKeys?.deleteGroupState(groupID)
+        mutex.withLock {
+            _groups.value = _groups.value - groupID
+            _groupMessages.value = _groupMessages.value - groupID
+            persistLocked()
+        }
+    }
+
+    /** Admin side: open an un-verifiable envelope as a self-authenticating
+     *  channel-subscribe (decrypt-only; the payload carries the subscriber's own
+     *  key). Returns true when consumed (valid shape) so the caller stops treating
+     *  it as a failed open. Runs under the receive lock. */
+    private fun tryChannelSubscribeLocked(envelope: ByteArray): Boolean {
+        val container = try { crypto.decryptOnly(envelope) } catch (e: Exception) { return false }
+        val decoded = try { CPN1.decode(container) } catch (e: Exception) { return false }
+        val manifest = try { Manifest.decode(decoded.manifest) } catch (e: Exception) { return false }
+        if (manifest.type != "control") return false
+        val part = decoded.parts.firstOrNull() ?: return false
+        val op = ControlOp.decode(part) ?: return false
+        if (op.op != "channel-subscribe") return false
+        if (seenMessageIDs.contains(manifest.messageID)) return true
+        val channelId = op.channelId ?: return true
+        val pubkey = op.pubkey ?: return true
+        val subFpr = CPKeyInfo.primaryFingerprint(pubkey)?.let { Fingerprint.from(it) } ?: return true
+        applyChannelSubscribeLocked(channelId, subFpr, pubkey, op.token)
+        seenMessageIDs.add(manifest.messageID)
+        return true
+    }
+
+    /** Admin auto-accept: add the subscriber (non-admin) and send it the admins-only
+     *  channel key. No rekey. Idempotent. Called under the receive lock. */
+    private fun applyChannelSubscribeLocked(channelId: String, subFpr: Fingerprint, subPubkey: String, token: String?) {
+        val group = _groups.value[channelId] ?: return
+        if (!group.isChannel || !group.isAdmin(identity)) return
+        if (subFpr == identity) return
+        val contact = PairingSupport.consistentContact(subFpr.hex, subPubkey, TrustLevel.UNVERIFIED) ?: return
+        if (contacts().none { it.fingerprint == subFpr }) addContact(contact)
+        android.util.Log.d("CPCHAN", "subscribe-recv channel=${channelId.takeLast(8)} from=${subFpr.hex.takeLast(8)}")
+        val gk = groupKeys ?: return
+        val updated = if (group.members.any { it.fingerprint == subFpr }) group
+            else group.copy(members = group.members + GroupMember(subFpr, subPubkey, contact.name, false))
+        _groups.value = _groups.value + (channelId to updated)
+        persistLocked()
+        val key = gk.key(channelId, updated.epoch) ?: return
+        val payload = GroupKeyPayload(channelId, updated.epoch, Base64.Default.encode(key.encoded),
+            updated.name, updated.admins, isChannel = true)
+        scope.launch { sendGroupKey(payload, contact.publicKey, subFpr) }
     }
 
     private fun sealedGroupSendAddress(groupID: String, epoch: Int, recipient: Fingerprint): String? {

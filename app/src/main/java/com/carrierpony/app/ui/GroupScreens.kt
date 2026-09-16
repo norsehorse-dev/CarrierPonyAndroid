@@ -46,6 +46,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -308,6 +311,9 @@ fun GroupDetailScreen(store: ChatStore, groupID: String, contacts: List<Contact>
     var renameDraft by remember { mutableStateOf("") }
     var showAddMembers by remember { mutableStateOf(false) }
     var showLeaveConfirm by remember { mutableStateOf(false) }
+    var showInvite by remember { mutableStateOf<String?>(null) }
+    val clipboard = LocalClipboardManager.current
+    val isChannelSub = group?.let { it.isChannel && !it.isAdmin(me) } == true
 
     LaunchedEffect(group == null) { if (group == null) onLeft() }
     if (group == null) return
@@ -335,6 +341,9 @@ fun GroupDetailScreen(store: ChatStore, groupID: String, contacts: List<Contact>
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(memberCountLabel(group.members.size), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 if (amAdmin) {
+                    if (group.isChannel) {
+                        TextButton(onClick = { showInvite = store.channelInvite(groupID) }) { Text(stringResource(R.string.channel_share_invite)) }
+                    }
                     TextButton(onClick = { showAddMembers = true }) { Text(stringResource(if (group.isChannel) R.string.channel_add_subscribers else R.string.group_add_members)) }
                 }
             }
@@ -374,7 +383,7 @@ fun GroupDetailScreen(store: ChatStore, groupID: String, contacts: List<Contact>
             TextButton(
                 onClick = { showLeaveConfirm = true },
                 modifier = Modifier.padding(16.dp)
-            ) { Text(stringResource(R.string.group_leave), color = androidx.compose.material3.MaterialTheme.colorScheme.error) }
+            ) { Text(stringResource(if (isChannelSub) R.string.channel_unsubscribe else R.string.group_leave), color = androidx.compose.material3.MaterialTheme.colorScheme.error) }
         }
     }
 
@@ -399,15 +408,35 @@ fun GroupDetailScreen(store: ChatStore, groupID: String, contacts: List<Contact>
     if (showLeaveConfirm) {
         AlertDialog(
             onDismissRequest = { showLeaveConfirm = false },
-            title = { Text(stringResource(R.string.group_leave_q)) },
-            text = { Text(stringResource(R.string.group_leave_body)) },
+            title = { Text(stringResource(if (isChannelSub) R.string.channel_unsubscribe_q else R.string.group_leave_q)) },
+            text = { Text(stringResource(if (isChannelSub) R.string.channel_unsubscribe_body else R.string.group_leave_body)) },
             confirmButton = {
                 TextButton(onClick = {
                     showLeaveConfirm = false
-                    scope.launch { store.leaveGroup(groupID) }
-                }) { Text(stringResource(R.string.group_leave), color = androidx.compose.material3.MaterialTheme.colorScheme.error) }
+                    scope.launch { if (isChannelSub) store.unsubscribeFromChannel(groupID) else store.leaveGroup(groupID) }
+                }) { Text(stringResource(if (isChannelSub) R.string.channel_unsubscribe else R.string.group_leave), color = androidx.compose.material3.MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { showLeaveConfirm = false }) { Text(stringResource(R.string.common_cancel)) } }
+        )
+    }
+
+    showInvite?.let { inviteText ->
+        AlertDialog(
+            onDismissRequest = { showInvite = null },
+            title = { Text(stringResource(R.string.channel_invite_title)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.channel_invite_body))
+                    Spacer(Modifier.height(12.dp))
+                    SelectionContainer {
+                        Text(inviteText, style = androidx.compose.material3.MaterialTheme.typography.bodySmall, maxLines = 4)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { clipboard.setText(AnnotatedString(inviteText)) }) { Text(stringResource(R.string.common_copy)) }
+            },
+            dismissButton = { TextButton(onClick = { showInvite = null }) { Text(stringResource(R.string.common_close)) } }
         )
     }
 

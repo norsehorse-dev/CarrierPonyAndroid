@@ -61,4 +61,11 @@ class PonyCryptoEngine(
             ?: throw CryptoException.NoValidSignature()
         return VerifiedMessage(sender, verified.plaintext)
     }
+
+    override fun decryptOnly(message: ByteArray): ByteArray =
+        try {
+            CPMessenger.decryptOnly(message, secretKey, passphrase())
+        } catch (e: CPCryptoError) {
+            throw CryptoException.DecryptionFailed(e.message, e)
+        }
 }

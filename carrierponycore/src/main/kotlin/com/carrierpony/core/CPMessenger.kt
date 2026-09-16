@@ -342,6 +342,67 @@ object CPMessenger {
         }
     }
 
+    /**
+     * Decrypt a message to our key and enforce the SEIPD integrity gate (MDC /
+     * AEAD), but do NOT resolve or verify the signer. Returns the literal
+     * plaintext only.
+     *
+     * This exists solely for self-authenticating control ops — specifically a
+     * channel-subscribe from a stranger, whose payload carries the sender's own
+     * public key and whose identity is the fingerprint of that key. The caller
+     * MUST check that the enclosed public key hashes to the claimed fingerprint
+     * before trusting anything in the payload. Never use this for message
+     * content or any op that grants a privilege: those require a verified
+     * signer via decryptAndVerify, which never returns unverified plaintext.
+     */
+    fun decryptOnly(
+        message: ByteArray,
+        secretKey: ByteArray,
+        passphrase: String? = null
+    ): ByteArray {
+        try {
+            val ring = loadSecretRing(secretKey)
+            val factory = BcPGPObjectFactory(PGPUtil.getDecoderStream(ByteArrayInputStream(message)))
+            val encryptedList = findEncryptedDataList(factory)
+                ?: throw CPCryptoError.DecryptionFailed("No encrypted data found in message")
+
+            var encryptedData: PGPPublicKeyEncryptedData? = null
+            var privateKey: PGPPrivateKey? = null
+            for (obj in encryptedList.encryptedDataObjects) {
+                if (obj !is PGPPublicKeyEncryptedData) continue
+                val candidate = ring.getSecretKey(obj.keyID) ?: continue
+                privateKey = unlockPrivateKey(candidate, passphrase)
+                encryptedData = obj
+                break
+            }
+            if (encryptedData == null || privateKey == null) {
+                throw CPCryptoError.DecryptionFailed("No matching decryption key found")
+            }
+
+            val clearStream = encryptedData.getDataStream(BcPublicKeyDataDecryptorFactory(privateKey))
+            val contents = readSignedContents(BcPGPObjectFactory(clearStream))
+
+            val isProtected = encryptedData.isIntegrityProtected
+            val intact = isProtected && try {
+                encryptedData.verify()
+            } catch (e: PGPException) {
+                false
+            }
+            if (!intact) {
+                throw CPCryptoError.IntegrityCheckFailed(
+                    if (!isProtected) "Message has no integrity protection and was rejected"
+                    else "Integrity check failed - the message may have been tampered with"
+                )
+            }
+
+            return contents.literal
+        } catch (e: CPCryptoError) {
+            throw e
+        } catch (e: Exception) {
+            throw CPCryptoError.DecryptionFailed(e.message ?: "Unknown error")
+        }
+    }
+
     // ── Inner-packet walk ──────────────────────────────────────────────
 
     private class SignedContents(val literal: ByteArray, val signature: PGPSignature?)
