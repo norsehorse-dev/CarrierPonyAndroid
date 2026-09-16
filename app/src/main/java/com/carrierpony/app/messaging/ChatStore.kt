@@ -1174,7 +1174,11 @@ class ChatStore(
             val messageID = UUID.randomUUID().toString().uppercase()
             mutex.withLock { seenMessageIDs.add(messageID) }
             val envelope = buildControl(outgoing, admin.publicKey, messageID)
-            relay.send(envelope, admin.fingerprint, outgoing.expiresAt, silent = true)
+            // Deliver over the sealed-first path (sealed mailbox + Nostr) when we
+            // already share a session with the admin, so they process it on Nostr
+            // arrival instead of their next inbox poll (cuts the join delay). Falls
+            // back to the legacy relay send for a brand-new admin contact.
+            deliverToPeer(envelope, admin.fingerprint, outgoing.expiresAt, silent = true)
             android.util.Log.d("CPCHAN", "subscribe-sent channel=${invite.c.takeLast(8)} to=${admin.fingerprint.hex.takeLast(8)}")
             true
         } catch (e: Exception) {
