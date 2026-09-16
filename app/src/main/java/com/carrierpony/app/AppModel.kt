@@ -29,7 +29,7 @@ import com.carrierpony.app.messaging.ContactStore
 import com.carrierpony.app.messaging.TrustLevel
 import com.carrierpony.app.pairing.Invite
 import com.carrierpony.app.pairing.PairingSupport
-import com.carrierpony.app.push.PushService
+import com.carrierpony.app.push.PushSupport
 import com.carrierpony.app.relay.RelayClient
 import com.carrierpony.app.relay.RelayException
 import com.carrierpony.app.relay.GatewayClient
@@ -122,20 +122,23 @@ class AppModel(context: Context) {
         //   adb logcat -s CarrierPony
         ChatStore.diagnostics = { message, error -> android.util.Log.w("CarrierPony", message, error) }
         AttachmentStore.directory = File(appContext.filesDir, "carrierpony-attachments")
-        PushService.ensureChannel(appContext)
-        // A rotated FCM token re-registers with the relay immediately.
-        PushService.onNewToken = { token -> submitPushToken(token) }
-        // A push wake with the app in the foreground refreshes in place and
-        // suppresses the notification; backgrounded, the generic banner shows.
-        PushService.onWake = {
-            val live = _store.value
-            if (live != null && inForeground) {
-                scope.launch { live.refresh() }
-                true
-            } else {
-                false
+        PushSupport.ensureChannel(appContext)
+        // A rotated FCM token re-registers with the relay immediately (play
+        // flavor). On the FOSS flavor install() is a no-op — polling covers it.
+        PushSupport.install(
+            onNewToken = { token -> submitPushToken(token) },
+            // A push wake with the app in the foreground refreshes in place and
+            // suppresses the notification; backgrounded, the generic banner shows.
+            onWake = {
+                val live = _store.value
+                if (live != null && inForeground) {
+                    scope.launch { live.refresh() }
+                    true
+                } else {
+                    false
+                }
             }
-        }
+        )
         try {
             val existing = identityStore.load()
             if (existing != null) {
@@ -417,20 +420,17 @@ class AppModel(context: Context) {
         }
     }
 
-    /** Fetch the FCM token and register it with the relay. A no-op until the
-     *  Firebase project exists (google-services.json absent => Firebase never
-     *  initializes and the fetch throws immediately). */
+    /** Fetch the push token and register it with the relay. On the play flavor
+     *  this is the FCM token (a no-op until google-services.json is present so
+     *  Firebase initializes); on the FOSS flavor PushSupport.fetchToken is a
+     *  no-op and polling covers delivery. */
     private fun registerPush() {
         if (relay == null) return
         // On a custom relay, push only makes sense if the user opted into the
         // gateway; the relay itself cannot push.
         if (AppConfig.usingCustomRelay(appContext) && !AppConfig.gatewayPushEnabled(appContext)) return
-        try {
-            com.google.firebase.messaging.FirebaseMessaging.getInstance().token
-                .addOnSuccessListener { token -> submitPushToken(token) }
-        } catch (e: Exception) {
-            // Firebase not configured on this build; polling covers delivery.
-        }
+        // play flavor: fetch the FCM token and register it. FOSS: no-op.
+        PushSupport.fetchToken { token -> submitPushToken(token) }
     }
 
     /** Route a push token: to the gateway on a custom relay (if opted in), or to
@@ -479,12 +479,7 @@ class AppModel(context: Context) {
     fun setGatewayPush(on: Boolean) {
         AppConfig.setGatewayPushEnabled(appContext, on)
         if (on) {
-            try {
-                com.google.firebase.messaging.FirebaseMessaging.getInstance().token
-                    .addOnSuccessListener { token -> scope.launch { registerWithGateway(token) } }
-            } catch (e: Exception) {
-                // Firebase not configured; nothing to register.
-            }
+            PushSupport.fetchToken { token -> scope.launch { registerWithGateway(token) } }
         } else {
             scope.launch { disableGateway() }
         }

@@ -90,8 +90,10 @@ dependencies {
     implementation(libs.androidx.fragment.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.browser)
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.messaging)
+    // Firebase (FCM) is scoped to the play flavor only, so the FOSS variant
+    // built by F-Droid carries no Google proprietary code on its classpath.
+    "playImplementation"(platform(libs.firebase.bom))
+    "playImplementation"(libs.firebase.messaging)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
@@ -110,9 +112,11 @@ dependencies {
 }
 
 // Push stays dormant until the Firebase project exists: the google-services
-// plugin only applies when app/google-services.json is present, so the build
-// is green before and after Firebase setup. Drop the json in and re-sync to
-// light FCM up.
+// plugin only applies when app/google-services.json is present, so the build is
+// green before and after Firebase setup. The json is gitignored and absent on
+// the F-Droid FOSS build, so the plugin never applies there — the FOSS variant
+// pulls in no Firebase dependency and no Google proprietary code. Drop the json
+// in and re-sync to light FCM up on the play build.
 if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 }

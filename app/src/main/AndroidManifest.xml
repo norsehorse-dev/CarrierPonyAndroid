@@ -37,14 +37,6 @@
             android:screenOrientation="portrait"
             android:theme="@style/Theme.CarrierPony" />
 
-        <service
-            android:name=".push.PushService"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT" />
-            </intent-filter>
-        </service>
-
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="com.carrierpony.app.fileprovider"
