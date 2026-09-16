@@ -34,3 +34,8 @@ build/
 **/build/
 *.bundle
 *.tgz
+
+# Release artifacts (built/signed locally, distributed via GitHub Releases)
+*.apk
+*.apk.asc
+/release-notes-*.md

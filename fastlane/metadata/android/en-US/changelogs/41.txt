@@ -1,0 +1,6 @@
+Group chats with text, photos, and files. Removed members stop receiving.
+Broadcast channels: admins post, everyone else reads. Share a subscribe link and anyone can join.
+Sealed sender: the relay no longer learns who is in a conversation or channel.
+Multiple accounts on one device.
+Direct delivery over your local network or peer to peer, skipping the relay when a path exists.
+Optional Nostr transport, and an SMS fallback on the F-Droid build.

@@ -24,8 +24,8 @@ android {
         applicationId = "com.carrierpony.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 6
-        versionName = "2.0.0"
+        versionCode = 41
+        versionName = "3.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
