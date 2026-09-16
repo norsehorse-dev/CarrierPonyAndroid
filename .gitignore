@@ -39,3 +39,4 @@ build/
 *.apk
 *.apk.asc
 /release-notes-*.md
+/reproducible/out/
