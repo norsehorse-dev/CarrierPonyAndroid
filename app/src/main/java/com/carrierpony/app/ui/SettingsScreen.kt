@@ -111,6 +111,7 @@ fun SettingsScreen(
     var lanSkipRelayOn by remember { mutableStateOf(AppConfig.lanDirectSkipRelay(context)) }
     val wanConnected by app.wanConnectedCount.collectAsState()
     var wanDirectOn by remember { mutableStateOf(AppConfig.wanDirectEnabled(context)) }
+    var nostrOn by remember { mutableStateOf(AppConfig.nostrEnabled(context)) }
 
     var showingProfile by remember { mutableStateOf(false) }
     var showingLanguage by remember { mutableStateOf(false) }
@@ -215,6 +216,10 @@ fun SettingsScreen(
                         directOn = wanDirectOn,
                         connectedCount = wanConnected,
                         onToggle = { on -> wanDirectOn = on; app.setWanDirectEnabled(on) },
+                    )
+                    NostrCard(
+                        nostrOn = nostrOn,
+                        onToggle = { on -> nostrOn = on; app.setNostrEnabled(on) },
                     )
                     CategoryCard(Icons.Default.Language, stringResource(R.string.settings_language), categoryLangSub) { showingLanguage = true }
                     CategoryCard(Icons.Default.Apps, stringResource(R.string.settings_more_from), stringResource(R.string.settings_more_sub)) { openCategory = SettingsCategory.MORE }
@@ -473,6 +478,34 @@ private val languages = listOf(
     "ja" to "日本語",
     "ru" to "Русский"
 )
+
+@Composable
+private fun NostrCard(nostrOn: Boolean, onToggle: (Boolean) -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Public, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.width(16.dp))
+                Text(
+                    stringResource(R.string.settings_nostr_toggle),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                Switch(checked = nostrOn, onCheckedChange = onToggle)
+            }
+            Text(
+                stringResource(R.string.settings_nostr_sub),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp)
+            )
+        }
+    }
+}
 
 @Composable
 private fun WanDirectCard(directOn: Boolean, connectedCount: Int, onToggle: (Boolean) -> Unit) {

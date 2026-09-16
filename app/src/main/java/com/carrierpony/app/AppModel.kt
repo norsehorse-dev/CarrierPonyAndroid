@@ -868,6 +868,7 @@ class AppModel(context: Context) {
             lanTransport = com.carrierpony.app.messaging.LanDirectTransport(lanDiscovery),
             wanTransport = com.carrierpony.app.messaging.WanDirectTransport(wanBridge),
             nostrTransport = com.carrierpony.app.nostr.NostrTransport(nostrManager) { AppConfig.nostrEnabled(appContext) },
+            nostrSubscribe = { addrs -> nostrManager.subscribe(addrs) },
             lanSkipRelay = { AppConfig.lanDirectSkipRelay(appContext) }
         )
         _store.value?.onSignal = { peerHex, op, sdp, candidate ->
@@ -880,6 +881,7 @@ class AppModel(context: Context) {
         }
         wanBridge.onConnectedChange = { count -> _wanConnectedCount.value = count }
         wanBridge.payloadSink = { _, data -> _store.value?.let { st -> scope.launch { st.ingestLanEnvelope(data) } } }
+        nostrManager.onNostrEvent = { mailbox, content -> _store.value?.let { st -> scope.launch { st.ingestNostrEnvelope(mailbox, content) } } }
         loadPendingInvites()
     }
 

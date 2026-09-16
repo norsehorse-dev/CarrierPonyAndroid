@@ -355,4 +355,6 @@
     <string name="settings_wan_connected">Connected directly (%1$d)</string>
     <string name="settings_wan_received">Signaling messages received</string>
     <string name="settings_wan_sub">Early test (2.2): connect to contacts directly over the internet, with the relay only introducing you. This shares your IP with a contact you message directly. Off keeps everything on the relay.</string>
+    <string name="settings_nostr_toggle">Also send over Nostr</string>
+    <string name="settings_nostr_sub">Also post each message to the peer\'s sealed mailbox on public Nostr relays, so delivery does not depend only on your relay. Those third-party relays see opaque content under a rotating tag, and they see this device\'s IP. Off by default.</string>
 </resources>

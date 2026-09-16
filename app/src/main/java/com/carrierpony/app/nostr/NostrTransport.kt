@@ -13,6 +13,7 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.ConcurrentHashMap
+import org.json.JSONObject
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -28,6 +29,10 @@ class NostrTransportManager {
     private var readers: List<Job> = emptyList()
     private val pending = ConcurrentHashMap<String, CompletableDeferred<Boolean>>()
 
+    /** Called with (mailbox address, base64 content) for each sealed event received on
+     *  the inbound subscription. AppModel routes it into ChatStore's ingest. */
+    var onNostrEvent: ((String, String) -> Unit)? = null
+
     /** True when at least one relay connection has been set up. */
     val isConnected: Boolean get() = clients.isNotEmpty()
 
@@ -37,6 +42,11 @@ class NostrTransportManager {
         val cs = relayUrls.map { url ->
             NostrRelayClient(url).also { c ->
                 c.onOk = { eventId, accepted, _ -> pending.remove(eventId)?.complete(accepted) }
+                c.onEvent = { _, ev ->
+                    val content = ev.optString("content", "")
+                    val addr = tagT(ev)
+                    if (content.isNotEmpty() && addr != null) onNostrEvent?.invoke(addr, content)
+                }
             }
         }
         readers = cs.map { c ->
@@ -45,6 +55,26 @@ class NostrTransportManager {
             }
         }
         clients = cs
+    }
+
+    /** Subscribe to our inbound mailbox addresses on every relay under a stable sub
+     *  id (so a window refresh replaces the filter). Matching events arrive via
+     *  onNostrEvent. A large window is one filter with many #t values. */
+    fun subscribe(addresses: List<String>) {
+        if (addresses.isEmpty()) return
+        val cs = clients
+        if (cs.isEmpty()) return
+        val filter = NostrRelayClient.mailboxFilter(addresses)
+        cs.forEach { c -> scope.launch { try { c.subscribe("cpin", filter) } catch (_: Exception) {} } }
+    }
+
+    private fun tagT(ev: JSONObject): String? {
+        val tags = ev.optJSONArray("tags") ?: return null
+        for (i in 0 until tags.length()) {
+            val t = tags.optJSONArray(i) ?: continue
+            if (t.length() >= 2 && t.optString(0) == "t") return t.optString(1)
+        }
+        return null
     }
 
     /** Drop all connections and fail any publish still waiting. */

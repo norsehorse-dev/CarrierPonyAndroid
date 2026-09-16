@@ -71,6 +71,9 @@ class ChatStore(
     // Optional best-effort store-and-forward transport over Nostr relays (2.3).
     // Concurrent with the relay; posts to the peer's sealed mailbox address.
     private val nostrTransport: Transport? = null,
+    // Push the current inbound mailbox-address window to the Nostr transport so it
+    // subscribes for events posted to us there. Wired by AppModel.
+    private val nostrSubscribe: ((List<String>) -> Unit)? = null,
     // When this returns true AND the LAN delivered, the relay copy is skipped
     // (opt-in "direct only on this network"). Default: never skip.
     private val lanSkipRelay: () -> Boolean = { false }
@@ -878,6 +881,42 @@ class ChatStore(
         Unit
     }
 
+    /** Ingest one sealed event received over Nostr. Its mailbox address (the event's
+     *  `t` tag) maps to the peer/counter through the same window the relay uses, so it
+     *  opens through the normal path and advances the high-water mark like a relay-
+     *  fetched item, minus the ack. Dedupe by message id is automatic, so a copy that
+     *  also arrives via the relay is filed once. */
+    suspend fun ingestNostrEnvelope(mailbox: String, content: String) = withContext(Dispatchers.Default) {
+        val sk = sealedKeys ?: return@withContext
+        val mapped = sealedAddressMap[mailbox] ?: return@withContext
+        val envelope = try { Base64.Default.decode(content) } catch (e: Exception) { return@withContext }
+        val isGroup = isGroupPayload(envelope)
+        val opened = mutex.withLock {
+            if (isGroup) handleGroupLocked(envelope.copyOfRange(groupMagic.size, envelope.size)) else handleLocked(envelope)
+        }
+        if (opened) {
+            when (mapped) {
+                is SealedRoute.PairRoute -> {
+                    val st = sk.pair(mapped.peer.hex)
+                    if (st != null && mapped.counter > st.receiveHigh) {
+                        sk.setPair(mapped.peer.hex, SealedPairState(st.myInboundKey, st.peerInboundKey, st.sendCounter, mapped.counter, st.sharedMine))
+                    }
+                }
+                is SealedRoute.GroupRoute -> {
+                    val gst = sk.group(mapped.groupID)
+                    if (gst != null) {
+                        val cur = gst.recvHighs[mapped.sender.hex] ?: 0L
+                        if (mapped.counter > cur) {
+                            gst.recvHighs[mapped.sender.hex] = mapped.counter
+                            sk.setGroup(mapped.groupID, gst)
+                        }
+                    }
+                }
+            }
+        }
+        Unit
+    }
+
     private suspend fun sealedRefreshWindows() {
         val sk = sealedKeys ?: return
         val window = 64L
@@ -934,6 +973,7 @@ class ChatStore(
         }
         sealedAddressMap.clear()
         sealedAddressMap.putAll(map)
+        nostrSubscribe?.invoke(map.keys.toList())
 
         var i = 0
         while (i < batch.length()) {
