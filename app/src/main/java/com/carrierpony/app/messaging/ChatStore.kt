@@ -68,13 +68,16 @@ class ChatStore(
     // this only accelerates delivery when the peer is reachable on this network.
     private val lanTransport: Transport? = null,
     private val wanTransport: Transport? = null,
+    // Optional best-effort store-and-forward transport over Nostr relays (2.3).
+    // Concurrent with the relay; posts to the peer's sealed mailbox address.
+    private val nostrTransport: Transport? = null,
     // When this returns true AND the LAN delivered, the relay copy is skipped
     // (opt-in "direct only on this network"). Default: never skip.
     private val lanSkipRelay: () -> Boolean = { false }
 ) {
 
     private val factory = EnvelopeFactory(crypto)
-    private val transports: List<Transport> = listOf(RelayTransport(relay, sealedKeys))
+    private val transports: List<Transport> = listOf(RelayTransport(relay))
 
     /** WAN-direct (2.2) signaling hook: (peerHex, op, sdp, candidate) when a
      *  webrtc-offer/answer/ice control op arrives. AppModel wires it to the WebRTC
@@ -803,40 +806,63 @@ class ChatStore(
         // devices and offline delivery won't get it) by enabling it.
         if (lanSkipRelay() && directs.isNotEmpty()) {
             for (d in directs) {
-                val ok = try { d.send(envelope, to, expiresAt, silent) } catch (e: Exception) { false }
+                val ok = try { d.send(envelope, to, null, expiresAt, silent) } catch (e: Exception) { false }
                 if (ok) return
             }
+            // No direct path delivered: fall back to the relay, computing the sealed
+            // address now so the counter only advances when a mailbox send happens.
+            val mailbox = nextSealedAddress(to)
             for (transport in transports) {
-                if (transport.canReach(to) && transport.send(envelope, to, expiresAt, silent)) return
+                if (transport.canReach(to) && transport.send(envelope, to, mailbox, expiresAt, silent)) return
             }
             return
         }
 
         // The relay is authoritative (store-and-forward, the peer's other devices,
-        // offline delivery). The direct transports run concurrently as best-effort
-        // accelerators on the store scope: all fire, the receiver dedupes by message
-        // id, and a relay failure is tolerated only if a direct path delivered. On
-        // relay success the send returns without waiting on the direct path (a WAN
-        // ARQ can take seconds); it keeps running in the background.
+        // offline delivery). The direct transports and Nostr run concurrently as
+        // best-effort accelerators on the store scope: all fire, the receiver dedupes
+        // by message id, and a relay failure is tolerated only if an accelerator
+        // delivered. On relay success the send returns without waiting (a WAN ARQ or a
+        // Nostr OK can take seconds); they keep running in the background. The sealed
+        // mailbox address is computed once here and shared by the relay and Nostr, so
+        // both post to the same slot and the send counter advances a single step.
+        val mailbox = nextSealedAddress(to)
         val directDeferred = scope.async {
             for (d in directs) {
-                val ok = try { d.send(envelope, to, expiresAt, silent) } catch (e: Exception) { false }
+                val ok = try { d.send(envelope, to, null, expiresAt, silent) } catch (e: Exception) { false }
                 if (ok) return@async true
             }
             false
         }
+        val nostrDeferred: kotlinx.coroutines.Deferred<Boolean>? =
+            nostrTransport?.takeIf { it.canReach(to) }?.let { n ->
+                scope.async { try { n.send(envelope, to, mailbox, expiresAt, silent) } catch (e: Exception) { false } }
+            }
         var relayError: Exception? = null
         var relayOk = false
         try {
             for (transport in transports) {
-                if (transport.canReach(to) && transport.send(envelope, to, expiresAt, silent)) { relayOk = true; break }
+                if (transport.canReach(to) && transport.send(envelope, to, mailbox, expiresAt, silent)) { relayOk = true; break }
             }
         } catch (e: Exception) {
             relayError = e
         }
         if (relayOk) return
         val directOk = directDeferred.await()
-        if (relayError != null && !directOk) throw relayError
+        val nostrOk = nostrDeferred?.await() ?: false
+        if (relayError != null && !directOk && !nostrOk) throw relayError
+    }
+
+    /** Next sealed mailbox address for a peer, advancing the shared send counter
+     *  once. Null when the pair is not sealed-capable yet (no peer inbound key), so
+     *  callers fall back to the legacy fingerprint-routed relay send. */
+    private fun nextSealedAddress(to: Fingerprint): String? {
+        val sk = sealedKeys ?: return null
+        val st = sk.pair(to.hex) ?: return null
+        val peerKey = st.peerInboundKey ?: return null
+        val address = com.carrierpony.app.relay.MailboxCrypto.address(peerKey, st.sendCounter)
+        sk.setPair(to.hex, SealedPairState(st.myInboundKey, st.peerInboundKey, st.sendCounter + 1, st.receiveHigh, st.sharedMine))
+        return address
     }
 
     /** Ingest one sealed envelope received over a direct transport (LAN), running

@@ -72,6 +72,7 @@ class AppModel(context: Context) {
     // many are nearby. Discovery only; no envelopes move yet.
     val lanDiscovery = com.carrierpony.app.net.LanDiscovery(appContext)
     val wanBridge = com.carrierpony.app.net.WanDirectBridge()
+    val nostrManager = com.carrierpony.app.nostr.NostrTransportManager()
     private val vault = PassphraseVault(appContext)
 
     private val _identity = MutableStateFlow<Identity?>(null)
@@ -172,6 +173,7 @@ class AppModel(context: Context) {
         // other caller, so without this an app that launches (or updates) with the
         // switch already on never sets up the transport. Idempotent on each foreground.
         if (AppConfig.wanDirectEnabled(appContext)) setWanDirectEnabled(true)
+        if (AppConfig.nostrEnabled(appContext)) setNostrEnabled(true)
     }
 
     fun stopMessaging() {
@@ -218,6 +220,17 @@ class AppModel(context: Context) {
         // The transport is up and can answer incoming offers. Outbound paths open
         // lazily on first activity with a peer (WanDirectBridge.canReach), so we do
         // not fan out a handshake to every contact the moment WAN is enabled.
+    }
+
+    /** Toggle the Nostr transport (2.3). Off by default. When on, connect to the
+     *  configured Nostr relays so each message is also posted to the peer's sealed
+     *  mailbox address there, giving delivery a path independent of the CarrierPony
+     *  relay. Third-party relays see opaque content under a rotating tag and this
+     *  device's IP. */
+    fun setNostrEnabled(enabled: Boolean) {
+        AppConfig.setNostrEnabled(appContext, enabled)
+        if (enabled) nostrManager.start(AppConfig.nostrRelays(appContext))
+        else nostrManager.stop()
     }
 
     // ── Background delivery for non-active accounts ─────────────────────
@@ -854,6 +867,7 @@ class AppModel(context: Context) {
             pairingSweep = { sweepPendingInvites() },
             lanTransport = com.carrierpony.app.messaging.LanDirectTransport(lanDiscovery),
             wanTransport = com.carrierpony.app.messaging.WanDirectTransport(wanBridge),
+            nostrTransport = com.carrierpony.app.nostr.NostrTransport(nostrManager) { AppConfig.nostrEnabled(appContext) },
             lanSkipRelay = { AppConfig.lanDirectSkipRelay(appContext) }
         )
         _store.value?.onSignal = { peerHex, op, sdp, candidate ->

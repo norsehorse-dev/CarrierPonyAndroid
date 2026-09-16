@@ -127,6 +127,35 @@ object AppConfig {
         prefs(context).edit().putBoolean(wanDirectKey, on).apply()
     }
 
+    private const val nostrKey = "cp.nostr"
+    private const val nostrRelaysKey = "cp.nostrRelays"
+
+    /** The default Nostr relays. A self-hoster can point this at their own relay. */
+    val defaultNostrRelays = listOf("wss://relay.damus.io", "wss://nos.lol")
+
+    /** Nostr transport (2.3): opt-in, off by default. On, each message is also posted
+     *  to the peer's sealed mailbox address on a set of Nostr relays, a delivery path
+     *  independent of your own relay. Third-party relays see opaque content under a
+     *  rotating tag, and this device's IP. */
+    fun nostrEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(nostrKey, false)
+
+    fun setNostrEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean(nostrKey, on).apply()
+    }
+
+    /** The Nostr relay set (ws/wss URLs), stored comma-separated. Defaults to a
+     *  couple of permissive public relays until the user sets their own. */
+    fun nostrRelays(context: Context): List<String> {
+        val raw = prefs(context).getString(nostrRelaysKey, null)
+        return if (raw.isNullOrBlank()) defaultNostrRelays
+        else raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
+    fun setNostrRelays(context: Context, relays: List<String>) {
+        prefs(context).edit().putString(nostrRelaysKey, relays.joinToString(",")).apply()
+    }
+
     private const val wanStunHostKey = "cp.wanStunHost"
     private const val wanStunPortKey = "cp.wanStunPort"
 

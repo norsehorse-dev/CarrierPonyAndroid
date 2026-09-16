@@ -10,10 +10,9 @@
 package com.carrierpony.app.messaging
 
 import com.carrierpony.app.crypto.Fingerprint
-import com.carrierpony.app.relay.MailboxCrypto
 import com.carrierpony.app.relay.RelayClient
 
-enum class TransportID { RELAY, LAN_DIRECT, WAN_DIRECT }
+enum class TransportID { RELAY, LAN_DIRECT, WAN_DIRECT, NOSTR }
 
 data class TransportCapabilities(
     val storeAndForward: Boolean,
@@ -31,16 +30,16 @@ interface Transport {
 
     /** Deliver one sealed envelope. Returns true if delivered, false to let the
      *  caller fall through to the next transport; throws on a hard error, which
-     *  the relay (the last transport) surfaces to the user exactly as before. */
-    suspend fun send(envelope: ByteArray, to: Fingerprint, expiresAt: Long, silent: Boolean): Boolean
+     *  the relay (the last transport) surfaces to the user exactly as before.
+     *  mailbox is the sealed address ChatStore computed once for this message; the
+     *  store-and-forward transports post to it and the direct transports ignore it. */
+    suspend fun send(envelope: ByteArray, to: Fingerprint, mailbox: String?, expiresAt: Long, silent: Boolean): Boolean
 }
 
-/** The default transport: the relay's store-and-forward path. It owns the sealed
- *  mailbox-address computation (the relay's routing model) so ChatStore no longer
- *  has to; it wraps the existing RelayClient. */
+/** The default transport: the relay's store-and-forward path. It takes the sealed
+ *  mailbox address ChatStore computed for the message and posts the envelope to it. */
 class RelayTransport(
     private val relay: RelayClient,
-    private val sealedKeys: SealedKeyStore?,
 ) : Transport {
 
     override val id = TransportID.RELAY
@@ -48,26 +47,13 @@ class RelayTransport(
 
     override fun canReach(peer: Fingerprint) = true
 
-    override suspend fun send(envelope: ByteArray, to: Fingerprint, expiresAt: Long, silent: Boolean): Boolean {
-        val mailbox = nextSealedAddress(to)
+    override suspend fun send(envelope: ByteArray, to: Fingerprint, mailbox: String?, expiresAt: Long, silent: Boolean): Boolean {
         if (mailbox != null) {
             relay.sealedSend(mailbox, envelope, expiresAt, silent)
         } else {
             relay.send(envelope, to, expiresAt, silent)
         }
         return true
-    }
-
-    /** The next sealed address for a peer, advancing the send counter. Returns
-     *  null when the pair is not sealed-capable yet (no peer inbound key), so the
-     *  caller falls back to the legacy fingerprint-routed send. */
-    private fun nextSealedAddress(to: Fingerprint): String? {
-        val sk = sealedKeys ?: return null
-        val st = sk.pair(to.hex) ?: return null
-        val peerKey = st.peerInboundKey ?: return null
-        val address = MailboxCrypto.address(peerKey, st.sendCounter)
-        sk.setPair(to.hex, SealedPairState(st.myInboundKey, st.peerInboundKey, st.sendCounter + 1, st.receiveHigh, st.sharedMine))
-        return address
     }
 }
 
@@ -83,7 +69,7 @@ class LanDirectTransport(
 
     override fun canReach(peer: Fingerprint): Boolean = discovery.canReachLan(peer.hex)
 
-    override suspend fun send(envelope: ByteArray, to: Fingerprint, expiresAt: Long, silent: Boolean): Boolean =
+    override suspend fun send(envelope: ByteArray, to: Fingerprint, mailbox: String?, expiresAt: Long, silent: Boolean): Boolean =
         discovery.deliver(to.hex, envelope)
 }
 
@@ -99,6 +85,6 @@ class WanDirectTransport(
 
     override fun canReach(peer: Fingerprint): Boolean = bridge.canReach(peer.hex)
 
-    override suspend fun send(envelope: ByteArray, to: Fingerprint, expiresAt: Long, silent: Boolean): Boolean =
+    override suspend fun send(envelope: ByteArray, to: Fingerprint, mailbox: String?, expiresAt: Long, silent: Boolean): Boolean =
         bridge.sendDirect(envelope, to.hex)
 }
