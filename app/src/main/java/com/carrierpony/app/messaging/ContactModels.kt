@@ -26,7 +26,8 @@ data class Contact(
     val publicKey: PublicKey,
     val name: String? = null,       // display name the peer told us (travels via pairing)
     val trust: TrustLevel = TrustLevel.UNVERIFIED,
-    val nickname: String? = null    // local override you set; wins over `name`
+    val nickname: String? = null,   // local override you set; wins over `name`
+    val smsNumber: String? = null   // phone number for the SMS transport (foss); set locally
 ) {
     val id: String get() = fingerprint.hex
 

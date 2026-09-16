@@ -78,6 +78,13 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Sms
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -120,12 +127,18 @@ fun SettingsScreen(
     var confirmResetApp by remember { mutableStateOf(false) }
     var appLockEnabled by remember { mutableStateOf(app.appLock.appLockEnabled) }
     var showingRelay by remember { mutableStateOf(false) }
+    var showingNostrRelays by remember { mutableStateOf(false) }
     var openCategory by remember { mutableStateOf<SettingsCategory?>(null) }
     var accountsList by remember { mutableStateOf(app.accounts()) }
     var pendingRemove by remember { mutableStateOf<AppModel.AccountSummary?>(null) }
 
     if (showingRelay) {
         RelayScreen(app = app, onBack = { showingRelay = false })
+        return
+    }
+
+    if (showingNostrRelays) {
+        NostrRelaysScreen(app = app, onBack = { showingNostrRelays = false })
         return
     }
 
@@ -219,8 +232,14 @@ fun SettingsScreen(
                     )
                     NostrCard(
                         nostrOn = nostrOn,
+                        relayCount = AppConfig.nostrRelays(context).size,
                         onToggle = { on -> nostrOn = on; app.setNostrEnabled(on) },
+                        onEditRelays = { showingNostrRelays = true },
                     )
+                    if (app.smsSupport.available) {
+                        SmsCard(app)
+                    }
+                    SealedResyncCard(app)
                     CategoryCard(Icons.Default.Language, stringResource(R.string.settings_language), categoryLangSub) { showingLanguage = true }
                     CategoryCard(Icons.Default.Apps, stringResource(R.string.settings_more_from), stringResource(R.string.settings_more_sub)) { openCategory = SettingsCategory.MORE }
                     CategoryCard(Icons.Default.Info, stringResource(R.string.settings_support), stringResource(R.string.settings_support_sub)) { openCategory = SettingsCategory.SUPPORT }
@@ -480,7 +499,54 @@ private val languages = listOf(
 )
 
 @Composable
-private fun NostrCard(nostrOn: Boolean, onToggle: (Boolean) -> Unit) {
+private fun SmsCard(app: AppModel) {
+    val context = LocalContext.current
+    var smsOn by remember { mutableStateOf(AppConfig.smsEnabled(context)) }
+
+    val permLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        val ok = grants[Manifest.permission.SEND_SMS] == true && grants[Manifest.permission.RECEIVE_SMS] == true
+        smsOn = ok
+        app.setSmsEnabled(ok)
+    }
+
+    fun setOn(on: Boolean) {
+        if (!on) { smsOn = false; app.setSmsEnabled(false); return }
+        val haveSend = ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED
+        val haveRecv = ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
+        if (haveSend && haveRecv) { smsOn = true; app.setSmsEnabled(true) }
+        else permLauncher.launch(arrayOf(Manifest.permission.SEND_SMS, Manifest.permission.RECEIVE_SMS))
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Sms, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.width(16.dp))
+                Text(
+                    stringResource(R.string.settings_sms_toggle),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                Switch(checked = smsOn, onCheckedChange = { setOn(it) })
+            }
+            Text(
+                stringResource(R.string.settings_sms_sub),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun NostrCard(nostrOn: Boolean, relayCount: Int, onToggle: (Boolean) -> Unit, onEditRelays: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -503,6 +569,23 @@ private fun NostrCard(nostrOn: Boolean, onToggle: (Boolean) -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp)
             )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onEditRelays).padding(top = 12.dp)
+            ) {
+                Text(
+                    stringResource(R.string.nostr_relays_count, relayCount),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }
@@ -718,6 +801,191 @@ private fun CategoryCard(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
             )
+        }
+    }
+}
+
+@Composable
+private fun SealedResyncCard(app: AppModel) {
+    val scope = rememberCoroutineScope()
+    var confirming by remember { mutableStateOf(false) }
+    var running by remember { mutableStateOf(false) }
+    var done by remember { mutableStateOf(false) }
+
+    Card(
+        onClick = { if (!running) confirming = true },
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        )
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)
+        ) {
+            Icon(
+                Icons.Default.Refresh,
+                contentDescription = null,
+                tint = CPTheme.accent,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(Modifier.width(16.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.settings_sealed_resync),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    stringResource(R.string.settings_sealed_resync_sub),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (running) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            } else {
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+
+    if (confirming) {
+        AlertDialog(
+            onDismissRequest = { confirming = false },
+            title = { Text(stringResource(R.string.settings_sealed_resync_confirm_title)) },
+            text = { Text(stringResource(R.string.settings_sealed_resync_confirm_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirming = false
+                    scope.launch {
+                        running = true
+                        app.resyncSealedAwait()
+                        running = false
+                        done = true
+                    }
+                }) { Text(stringResource(R.string.settings_sealed_resync_confirm_action)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.common_cancel)) }
+            }
+        )
+    }
+
+    if (done) {
+        AlertDialog(
+            onDismissRequest = { done = false },
+            title = { Text(stringResource(R.string.settings_sealed_resync_done_title)) },
+            text = { Text(stringResource(R.string.settings_sealed_resync_done_body)) },
+            confirmButton = {
+                TextButton(onClick = { done = false }) { Text(stringResource(R.string.common_done)) }
+            }
+        )
+    }
+}
+
+private fun isValidNostrRelay(url: String): Boolean {
+    val u = try { java.net.URI(url.trim()) } catch (e: Exception) { return false }
+    val scheme = u.scheme?.lowercase()
+    return (scheme == "wss" || scheme == "ws") && !u.host.isNullOrEmpty()
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NostrRelaysScreen(app: AppModel, onBack: () -> Unit) {
+    val context = LocalContext.current
+    var relays by remember { mutableStateOf(AppConfig.nostrRelays(context)) }
+    var newUrl by remember { mutableStateOf("") }
+
+    val trimmed = newUrl.trim()
+    val validNew = isValidNostrRelay(trimmed) && !relays.contains(trimmed)
+
+    fun apply(updated: List<String>) {
+        relays = updated
+        app.setNostrRelays(updated)
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.settings_nostr_relays)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_done))
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState())) {
+            SettingsHeader(stringResource(R.string.nostr_relays_current))
+            if (relays.isEmpty()) {
+                Text(
+                    stringResource(R.string.nostr_relays_empty),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+                )
+            }
+            for (relay in relays) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 2.dp, bottom = 2.dp)
+                ) {
+                    Text(
+                        relay,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { apply(relays.filterNot { it == relay }) }) {
+                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.common_remove), tint = MaterialTheme.colorScheme.error)
+                    }
+                }
+                HorizontalDivider(Modifier.padding(start = 20.dp))
+            }
+
+            SettingsHeader(stringResource(R.string.nostr_relays_add))
+            OutlinedTextField(
+                value = newUrl,
+                onValueChange = { newUrl = it },
+                singleLine = true,
+                placeholder = { Text("wss://relay.example.com") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp)
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = validNew) { apply(relays + trimmed); newUrl = "" }
+                    .padding(horizontal = 20.dp, vertical = 13.dp)
+            ) {
+                Text(
+                    stringResource(R.string.nostr_relays_add_action),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (validNew) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            HorizontalDivider(Modifier.padding(start = 20.dp))
+
+            Text(
+                stringResource(R.string.nostr_relays_footer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
+            )
+
+            SettingsHeader("")
+            SettingsRow(stringResource(R.string.nostr_relays_reset), destructive = true) {
+                apply(AppConfig.defaultNostrRelays)
+                newUrl = ""
+            }
         }
     }
 }

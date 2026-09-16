@@ -32,6 +32,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -111,7 +113,9 @@ fun ConversationScreen(
     contact: Contact,
     onBack: () -> Unit,
     onSetNickname: ((String?) -> Unit)? = null,
-    onReport: (() -> Unit)? = null
+    onReport: (() -> Unit)? = null,
+    smsAvailable: Boolean = false,
+    onSetSmsNumber: ((String?) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -127,6 +131,8 @@ fun ConversationScreen(
     var showingClearConfirm by remember { mutableStateOf(false) }
     var showingExport by remember { mutableStateOf(false) }
     var nicknameDraft by remember { mutableStateOf("") }
+    var showingSmsPrompt by remember { mutableStateOf(false) }
+    var smsDraft by remember { mutableStateOf("") }
 
     // Mark read on open and whenever new messages arrive.
     LaunchedEffect(conversation?.threadID, messages.size) {
@@ -216,6 +222,25 @@ fun ConversationScreen(
                                         onClick = {
                                             showingMenu = false
                                             onSetNickname(null)
+                                        }
+                                    )
+                                }
+                            }
+                            if (smsAvailable && onSetSmsNumber != null) {
+                                DropdownMenuItem(
+                                    text = { Text(if (contact.smsNumber == null) stringResource(R.string.chat_set_sms_number) else stringResource(R.string.chat_edit_sms_number)) },
+                                    onClick = {
+                                        showingMenu = false
+                                        smsDraft = contact.smsNumber ?: ""
+                                        showingSmsPrompt = true
+                                    }
+                                )
+                                if (contact.smsNumber != null) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.chat_remove_sms_number)) },
+                                        onClick = {
+                                            showingMenu = false
+                                            onSetSmsNumber(null)
                                         }
                                     )
                                 }
@@ -387,6 +412,35 @@ fun ConversationScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showingNicknamePrompt = false }) { Text(stringResource(R.string.common_cancel)) }
+            }
+        )
+    }
+
+    if (showingSmsPrompt) {
+        AlertDialog(
+            onDismissRequest = { showingSmsPrompt = false },
+            title = { Text(stringResource(R.string.chat_sms_number)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.chat_sms_number_body))
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = smsDraft,
+                        onValueChange = { smsDraft = it },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        placeholder = { Text("+15555550123") }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onSetSmsNumber?.invoke(smsDraft)
+                    showingSmsPrompt = false
+                }) { Text(stringResource(R.string.common_save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showingSmsPrompt = false }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }

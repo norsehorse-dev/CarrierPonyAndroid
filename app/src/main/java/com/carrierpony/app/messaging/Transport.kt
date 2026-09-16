@@ -12,7 +12,7 @@ package com.carrierpony.app.messaging
 import com.carrierpony.app.crypto.Fingerprint
 import com.carrierpony.app.relay.RelayClient
 
-enum class TransportID { RELAY, LAN_DIRECT, WAN_DIRECT, NOSTR }
+enum class TransportID { RELAY, LAN_DIRECT, WAN_DIRECT, NOSTR, SMS }
 
 data class TransportCapabilities(
     val storeAndForward: Boolean,

@@ -112,7 +112,10 @@ fun ConversationListScreen(
             InboxItem.Conv(c, c.lastMessage?.sentAt ?: 0L)
         }
         val groupItems = groupsMap.values.map { g ->
-            InboxItem.Grp(g, groupThreads[g.groupID]?.maxOfOrNull { m -> m.sentAt } ?: 0L)
+            // Sort by the newest message, or by when we created/joined when it has no
+            // messages yet, so a freshly made channel appears at the top instead of the bottom.
+            val latest = groupThreads[g.groupID]?.maxOfOrNull { m -> m.sentAt } ?: 0L
+            InboxItem.Grp(g, maxOf(latest, g.createdAt))
         }
         (convItems + groupItems).sortedWith(
             compareByDescending<InboxItem> { it.activity }.thenBy { it.sortName.lowercase() }
@@ -121,6 +124,7 @@ fun ConversationListScreen(
 
     var showingNewMessage by remember { mutableStateOf(false) }
     var showingNewGroup by remember { mutableStateOf(false) }
+    var showingNewChannel by remember { mutableStateOf(false) }
     var showingComposeMenu by remember { mutableStateOf(false) }
     var pendingUnpair by remember { mutableStateOf<Fingerprint?>(null) }
     var showingAccounts by remember { mutableStateOf(false) }
@@ -171,6 +175,9 @@ fun ConversationListScreen(
                             })
                             DropdownMenuItem(text = { Text(stringResource(R.string.group_new)) }, onClick = {
                                 showingComposeMenu = false; showingNewGroup = true
+                            })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.channel_new)) }, onClick = {
+                                showingComposeMenu = false; showingNewChannel = true
                             })
                         }
                     }
@@ -295,6 +302,18 @@ fun ConversationListScreen(
             onCreate = { name, members ->
                 showingNewGroup = false
                 scope.launch { store.createGroup(name, members) }
+            }
+        )
+    }
+
+    if (showingNewChannel) {
+        NewGroupSheet(
+            contacts = contacts,
+            channel = true,
+            onDismiss = { showingNewChannel = false },
+            onCreate = { name, members ->
+                showingNewChannel = false
+                scope.launch { store.createChannel(name, members) }
             }
         )
     }

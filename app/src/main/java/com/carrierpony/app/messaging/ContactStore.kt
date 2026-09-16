@@ -89,6 +89,12 @@ class ContactStore(private val storageDir: File) {
         update(fingerprint) { it.copy(nickname = trimmed) }
     }
 
+    /** Set the phone number used for the SMS transport (foss). Local only. */
+    fun setSmsNumber(fingerprint: Fingerprint, number: String?) {
+        val trimmed = number?.trim()?.takeIf { it.isNotEmpty() }
+        update(fingerprint) { it.copy(smsNumber = trimmed) }
+    }
+
     private fun update(fingerprint: Fingerprint, transform: (Contact) -> Contact) {
         val current = _contacts.value
         val index = current.indexOfFirst { it.fingerprint == fingerprint }
@@ -126,7 +132,8 @@ class ContactStore(private val storageDir: File) {
                     publicKey = PublicKey(fingerprint, record.getString("armored")),
                     name = record.optString("name").takeIf { it.isNotEmpty() },
                     trust = TrustLevel.from(record.optString("trust", "unverified")),
-                    nickname = record.optString("nickname").takeIf { it.isNotEmpty() }
+                    nickname = record.optString("nickname").takeIf { it.isNotEmpty() },
+                    smsNumber = record.optString("smsNumber").takeIf { it.isNotEmpty() }
                 )
             }
         } catch (e: Exception) {
@@ -145,6 +152,7 @@ class ContactStore(private val storageDir: File) {
             if (contact.name != null) record.put("name", contact.name)
             record.put("trust", contact.trust.wire)
             if (contact.nickname != null) record.put("nickname", contact.nickname)
+            if (contact.smsNumber != null) record.put("smsNumber", contact.smsNumber)
             array.put(record)
         }
         try {

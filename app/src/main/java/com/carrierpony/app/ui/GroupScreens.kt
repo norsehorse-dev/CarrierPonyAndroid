@@ -75,7 +75,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NewGroupSheet(contacts: List<Contact>, onDismiss: () -> Unit, onCreate: (String, List<Contact>) -> Unit) {
+fun NewGroupSheet(contacts: List<Contact>, channel: Boolean = false, onDismiss: () -> Unit, onCreate: (String, List<Contact>) -> Unit) {
     var name by remember { mutableStateOf("") }
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
     val sorted = remember(contacts) { contacts.sortedBy { (it.displayName ?: it.fingerprint.hex).lowercase() } }
@@ -85,9 +85,9 @@ fun NewGroupSheet(contacts: List<Contact>, onDismiss: () -> Unit, onCreate: (Str
             // Create stays in the header so it is always visible without scrolling,
             // even with a long contact list or the keyboard up.
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.group_new), style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(stringResource(if (channel) R.string.channel_new else R.string.group_new), style = androidx.compose.material3.MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 TextButton(
-                    enabled = name.isNotBlank() && selected.isNotEmpty(),
+                    enabled = name.isNotBlank() && (channel || selected.isNotEmpty()),
                     onClick = { onCreate(name.trim(), sorted.filter { it.fingerprint.hex in selected }) }
                 ) { Text(stringResource(R.string.group_create)) }
             }
@@ -101,7 +101,7 @@ fun NewGroupSheet(contacts: List<Contact>, onDismiss: () -> Unit, onCreate: (Str
             if (sorted.isEmpty()) {
                 Text(stringResource(R.string.group_need_contacts), color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
-                Text(stringResource(R.string.group_members), style = androidx.compose.material3.MaterialTheme.typography.labelLarge)
+                Text(stringResource(if (channel) R.string.channel_subscribers else R.string.group_members), style = androidx.compose.material3.MaterialTheme.typography.labelLarge)
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
                     items(sorted.size, key = { sorted[it].fingerprint.hex }) { i ->
                         val c = sorted[i]
@@ -141,6 +141,7 @@ fun GroupConversationScreen(store: ChatStore, groupID: String, contacts: List<Co
     // Group vanished (left/deleted): pop back out.
     LaunchedEffect(group == null) { if (group == null) onBack() }
     if (group == null) return
+    val readOnly = group.isChannel && !group.isAdmin(store.identityFingerprint)
 
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { readAttachment(context, it)?.let { a -> pending = pending + a } }
@@ -214,7 +215,14 @@ fun GroupConversationScreen(store: ChatStore, groupID: String, contacts: List<Co
                     }
                     Spacer(Modifier.height(8.dp))
                 }
-                Row(verticalAlignment = Alignment.Bottom) {
+                if (readOnly) {
+                    Text(
+                        stringResource(R.string.channel_readonly),
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().padding(16.dp)
+                    )
+                } else Row(verticalAlignment = Alignment.Bottom) {
                     var showAttach by remember { mutableStateOf(false) }
                     Box {
                         IconButton(onClick = { showAttach = true }) {
@@ -327,7 +335,7 @@ fun GroupDetailScreen(store: ChatStore, groupID: String, contacts: List<Contact>
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(memberCountLabel(group.members.size), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 if (amAdmin) {
-                    TextButton(onClick = { showAddMembers = true }) { Text(stringResource(R.string.group_add_members)) }
+                    TextButton(onClick = { showAddMembers = true }) { Text(stringResource(if (group.isChannel) R.string.channel_add_subscribers else R.string.group_add_members)) }
                 }
             }
             HorizontalDivider()
@@ -411,7 +419,9 @@ fun GroupDetailScreen(store: ChatStore, groupID: String, contacts: List<Contact>
             onDismiss = { showAddMembers = false },
             onAdd = { chosen ->
                 showAddMembers = false
-                if (chosen.isNotEmpty()) scope.launch { store.addMembers(chosen, groupID) }
+                if (chosen.isNotEmpty()) scope.launch {
+                    if (group.isChannel) store.addSubscribers(chosen, groupID) else store.addMembers(chosen, groupID)
+                }
             }
         )
     }

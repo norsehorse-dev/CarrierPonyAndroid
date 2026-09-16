@@ -54,6 +54,18 @@ android {
             }
         }
     }
+    flavorDimensions += "distribution"
+    productFlavors {
+        // play -> Google Play. No SMS transport: SEND_SMS/RECEIVE_SMS are Play
+        //         restricted permissions, so the Play listing stays clean.
+        // foss -> F-Droid / IzzyOnDroid / direct site APK. Carries the SMS transport.
+        create("play") {
+            dimension = "distribution"
+        }
+        create("foss") {
+            dimension = "distribution"
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11

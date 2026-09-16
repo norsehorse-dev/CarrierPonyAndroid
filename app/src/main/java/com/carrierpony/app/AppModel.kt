@@ -73,6 +73,7 @@ class AppModel(context: Context) {
     val lanDiscovery = com.carrierpony.app.net.LanDiscovery(appContext)
     val wanBridge = com.carrierpony.app.net.WanDirectBridge()
     val nostrManager = com.carrierpony.app.nostr.NostrTransportManager()
+    val smsSupport = com.carrierpony.app.sms.SmsSupport(appContext)
     private val vault = PassphraseVault(appContext)
 
     private val _identity = MutableStateFlow<Identity?>(null)
@@ -231,6 +232,43 @@ class AppModel(context: Context) {
         AppConfig.setNostrEnabled(appContext, enabled)
         if (enabled) nostrManager.start(AppConfig.nostrRelays(appContext))
         else nostrManager.stop()
+    }
+
+    /** Persist a new Nostr relay set. If Nostr is on, restart the manager on the new
+     *  set (an empty set stops it, since there is nowhere to post). */
+    fun setNostrRelays(relays: List<String>) {
+        AppConfig.setNostrRelays(appContext, relays)
+        if (AppConfig.nostrEnabled(appContext)) {
+            if (relays.isEmpty()) nostrManager.stop() else nostrManager.start(relays)
+        }
+    }
+
+    /** SMS transport (foss): persist the toggle and start or stop receiving. Sending
+     *  needs a per-contact number; see setContactSmsNumber. No-op in the play build. */
+    fun setSmsEnabled(enabled: Boolean) {
+        AppConfig.setSmsEnabled(appContext, enabled)
+        if (enabled) {
+            smsSupport.start { data -> _store.value?.let { st -> scope.launch { st.ingestLanEnvelope(data) } } }
+        } else {
+            smsSupport.stop()
+        }
+    }
+
+    /** Save a contact's phone number for the SMS transport. Local only. */
+    fun setContactSmsNumber(fingerprint: Fingerprint, number: String?) {
+        contactStore.setSmsNumber(fingerprint, number)
+    }
+
+    /** Recover sealed delivery if it desynced (e.g. a contact reinstalled): regenerate
+     *  this account's sealed keys and re-sync with contacts. */
+    fun resyncSealed() {
+        scope.launch { _store.value?.resyncSealedKeys() }
+    }
+
+    /** Same recovery as resyncSealed, but suspends until the regenerate, window
+     *  refresh and inbox poll finish, so the UI can show progress and a result. */
+    suspend fun resyncSealedAwait() {
+        _store.value?.resyncSealedKeys()
     }
 
     // ── Background delivery for non-active accounts ─────────────────────
@@ -868,6 +906,7 @@ class AppModel(context: Context) {
             lanTransport = com.carrierpony.app.messaging.LanDirectTransport(lanDiscovery),
             wanTransport = com.carrierpony.app.messaging.WanDirectTransport(wanBridge),
             nostrTransport = com.carrierpony.app.nostr.NostrTransport(nostrManager) { AppConfig.nostrEnabled(appContext) },
+            smsTransport = smsSupport.transport({ fpr -> contactStore.contact(fpr)?.smsNumber }, { AppConfig.smsEnabled(appContext) }),
             nostrSubscribe = { addrs -> nostrManager.subscribe(addrs) },
             lanSkipRelay = { AppConfig.lanDirectSkipRelay(appContext) }
         )
@@ -882,6 +921,9 @@ class AppModel(context: Context) {
         wanBridge.onConnectedChange = { count -> _wanConnectedCount.value = count }
         wanBridge.payloadSink = { _, data -> _store.value?.let { st -> scope.launch { st.ingestLanEnvelope(data) } } }
         nostrManager.onNostrEvent = { mailbox, content -> _store.value?.let { st -> scope.launch { st.ingestNostrEnvelope(mailbox, content) } } }
+        if (AppConfig.smsEnabled(appContext)) {
+            smsSupport.start { data -> _store.value?.let { st -> scope.launch { st.ingestLanEnvelope(data) } } }
+        }
         loadPendingInvites()
     }
 

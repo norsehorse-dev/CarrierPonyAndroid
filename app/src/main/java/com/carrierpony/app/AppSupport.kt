@@ -144,6 +144,14 @@ object AppConfig {
         prefs(context).edit().putBoolean(nostrKey, on).apply()
     }
 
+    /** SMS transport (foss flavor): opt-in, off by default. */
+    fun smsEnabled(context: Context): Boolean =
+        prefs(context).getBoolean("cp.smsEnabled", false)
+
+    fun setSmsEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("cp.smsEnabled", on).apply()
+    }
+
     /** The Nostr relay set (ws/wss URLs), stored comma-separated. Defaults to a
      *  couple of permissive public relays until the user sets their own. */
     fun nostrRelays(context: Context): List<String> {

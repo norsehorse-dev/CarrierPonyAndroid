@@ -59,6 +59,10 @@
     <string name="export_share_chooser">Share export</string>
     <string name="groups_section">Groups</string>
     <string name="group_new">New group</string>
+    <string name="channel_new">New channel</string>
+    <string name="channel_subscribers">Subscribers</string>
+    <string name="channel_add_subscribers">Add subscribers</string>
+    <string name="channel_readonly">This is a broadcast channel. Only its admins can post.</string>
     <string name="group_new_message">New message</string>
     <string name="group_name">Group name</string>
     <string name="group_need_contacts">Pair with someone first to add them to a group.</string>
@@ -357,4 +361,26 @@
     <string name="settings_wan_sub">Early test (2.2): connect to contacts directly over the internet, with the relay only introducing you. This shares your IP with a contact you message directly. Off keeps everything on the relay.</string>
     <string name="settings_nostr_toggle">Also send over Nostr</string>
     <string name="settings_nostr_sub">Also post each message to the peer\'s sealed mailbox on public Nostr relays, so delivery does not depend only on your relay. Those third-party relays see opaque content under a rotating tag, and they see this device\'s IP. Off by default.</string>
+    <string name="settings_sealed_resync">Resync sealed delivery</string>
+    <string name="settings_sealed_resync_sub">Regenerate this account\'s sealed keys and re-sync with your contacts. Use it if messages stop arriving after you or a contact reinstalled.</string>
+    <string name="settings_sealed_resync_confirm_title">Resync sealed delivery?</string>
+    <string name="settings_sealed_resync_confirm_body">This regenerates your sealed keys and re-syncs with every contact. Your messages and identity are not affected. If a single pair is stuck, run this on both devices.</string>
+    <string name="settings_sealed_resync_confirm_action">Resync</string>
+    <string name="settings_sealed_resync_done_title">Resync complete</string>
+    <string name="settings_sealed_resync_done_body">Your sealed keys were regenerated and shared with your contacts. Give it about a minute, then try sending again.</string>
+    <string name="settings_nostr_relays">Nostr relays</string>
+    <string name="nostr_relays_count">Relays (%1$d)</string>
+    <string name="nostr_relays_current">Current relays</string>
+    <string name="nostr_relays_empty">No relays set. Nostr delivery stays off until you add at least one.</string>
+    <string name="nostr_relays_add">Add a relay</string>
+    <string name="nostr_relays_add_action">Add relay</string>
+    <string name="nostr_relays_footer">These are the public Nostr relays this app posts to and reads from for the extra delivery path. Each one sees opaque content under a rotating tag, plus this device\'s IP. Add relays you trust, or point them at your own.</string>
+    <string name="nostr_relays_reset">Reset to defaults</string>
+    <string name="settings_sms_toggle">Also send over SMS</string>
+    <string name="settings_sms_sub">Deliver to a contact over SMS when you have their number, for when there is no internet. Messages are chunked across silent data SMS. Your carrier sees that data messages went to that number, and standard SMS rates apply. Off by default.</string>
+    <string name="chat_set_sms_number">Set SMS number</string>
+    <string name="chat_edit_sms_number">Edit SMS number</string>
+    <string name="chat_remove_sms_number">Remove SMS number</string>
+    <string name="chat_sms_number">SMS number</string>
+    <string name="chat_sms_number_body">Messages to this contact can also go over SMS to this number when the other paths are down. It is stored only on this device. Include the country code.</string>
 </resources>

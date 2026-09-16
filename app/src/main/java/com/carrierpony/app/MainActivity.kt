@@ -310,7 +310,9 @@ private fun Root(
             contact = resolveContact(peer, contacts, currentStore),
             onBack = { openPeer = null },
             onSetNickname = { nickname -> app.contactStore.setNickname(peer, nickname) },
-            onReport = { reportPeer = peer }
+            onReport = { reportPeer = peer },
+            smsAvailable = app.smsSupport.available,
+            onSetSmsNumber = { number -> app.setContactSmsNumber(peer, number) }
         )
         return
     }

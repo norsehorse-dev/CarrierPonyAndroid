@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- SMS transport, foss build only. These are Google Play restricted
+         permissions, which is why they are scoped to this flavor and never reach
+         the Play build. -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+
+    <application>
+        <!-- Captures our port-addressed data SMS even when the app is not running.
+             Guarded by BROADCAST_SMS (only the system can send this broadcast). -->
+        <receiver
+            android:name="com.carrierpony.app.sms.SmsReceiver"
+            android:permission="android.permission.BROADCAST_SMS"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.DATA_SMS_RECEIVED" />
+                <data android:scheme="sms" android:host="localhost" android:port="51966" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>

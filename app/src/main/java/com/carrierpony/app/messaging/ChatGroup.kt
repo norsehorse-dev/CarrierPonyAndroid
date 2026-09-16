@@ -25,7 +25,9 @@ data class ChatGroup(
     val groupID: String,   // 16 random bytes, hex; also the group thread's ID
     val name: String,
     val members: List<GroupMember>,
-    val epoch: Int         // current key epoch; bumped on every membership change
+    val epoch: Int,        // current key epoch; bumped on every membership change
+    val isChannel: Boolean = false,  // broadcast channel: admins post, others subscribe
+    val createdAt: Long = 0L         // local epoch-seconds this device created/joined; sorts empty groups by recency
 ) {
     fun member(fpr: Fingerprint): GroupMember? = members.firstOrNull { it.fingerprint == fpr }
     fun isAdmin(fpr: Fingerprint): Boolean = member(fpr)?.isAdmin == true

@@ -10,6 +10,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.ConcurrentHashMap
@@ -28,6 +30,14 @@ class NostrTransportManager {
     @Volatile private var clients: List<NostrRelayClient> = emptyList()
     private var readers: List<Job> = emptyList()
     private val pending = ConcurrentHashMap<String, CompletableDeferred<Boolean>>()
+    @Volatile private var running = false
+    @Volatile private var lastAddresses: List<String> = emptyList()
+    // Relays cap the size of a single REQ filter, so a window of many hundreds of
+    // #t values in one filter gets silently truncated and some mailboxes are never
+    // actually subscribed. Split the window across several REQ sub ids, each a
+    // bounded filter, and close any sub ids left over when the window shrinks.
+    @Volatile private var activeSubCount: Int = 0
+    private val subChunk = 200
 
     /** Called with (mailbox address, base64 content) for each sealed event received on
      *  the inbound subscription. AppModel routes it into ChatStore's ingest. */
@@ -39,33 +49,72 @@ class NostrTransportManager {
     /** Connect to the given relays, replacing any existing connections. */
     fun start(relayUrls: List<String>) {
         stop()
+        running = true
         val cs = relayUrls.map { url ->
             NostrRelayClient(url).also { c ->
                 c.onOk = { eventId, accepted, _ -> pending.remove(eventId)?.complete(accepted) }
                 c.onEvent = { _, ev ->
                     val content = ev.optString("content", "")
                     val addr = tagT(ev)
-                    if (content.isNotEmpty() && addr != null) onNostrEvent?.invoke(addr, content)
+                    if (content.isNotEmpty() && addr != null) {
+                        android.util.Log.d("CPNOSTR", "RX event mailbox=${addr.takeLast(8)} relay=${c.url}")
+                        onNostrEvent?.invoke(addr, content)
+                    }
                 }
             }
         }
+        clients = cs
         readers = cs.map { c ->
             scope.launch {
-                try { c.connect(); c.readLoop() } catch (_: Exception) {}
+                var attempt = 0
+                while (running && isActive) {
+                    val startedAt = System.currentTimeMillis()
+                    android.util.Log.d("CPNOSTR", "CONNECT relay=${c.url} attempt=$attempt")
+                    try {
+                        c.connect()
+                        resubscribe(c)
+                        c.readLoop()
+                    } catch (e: Exception) { android.util.Log.d("CPNOSTR", "CONNECT-ERR relay=${c.url} ${e.message}") }
+                    if (!running || !isActive) break
+                    attempt = if (System.currentTimeMillis() - startedAt >= NostrReconnect.STABLE_MS) 0
+                              else minOf(attempt + 1, NostrReconnect.MAX_ATTEMPT)
+                    val backoff = NostrReconnect.delayMs(attempt)
+                    android.util.Log.d("CPNOSTR", "RECONNECT relay=${c.url} in ${backoff}ms attempt=$attempt")
+                    try { delay(backoff) } catch (_: Exception) { break }
+                }
             }
         }
-        clients = cs
     }
 
     /** Subscribe to our inbound mailbox addresses on every relay under a stable sub
      *  id (so a window refresh replaces the filter). Matching events arrive via
      *  onNostrEvent. A large window is one filter with many #t values. */
     fun subscribe(addresses: List<String>) {
-        if (addresses.isEmpty()) return
+        lastAddresses = addresses
         val cs = clients
         if (cs.isEmpty()) return
-        val filter = NostrRelayClient.mailboxFilter(addresses)
-        cs.forEach { c -> scope.launch { try { c.subscribe("cpin", filter) } catch (_: Exception) {} } }
+        val chunks = addresses.chunked(subChunk)
+        val prevCount = activeSubCount
+        activeSubCount = chunks.size
+        android.util.Log.d("CPNOSTR", "SUB addresses=${addresses.size} chunks=${chunks.size} relays=${cs.size}")
+        cs.forEach { c -> scope.launch {
+            try {
+                chunks.forEachIndexed { i, chunk -> c.subscribe("cpin$i", NostrRelayClient.mailboxFilter(chunk)) }
+                for (i in chunks.size until prevCount) c.closeSub("cpin$i")
+            } catch (_: Exception) {}
+        } }
+    }
+
+    /** Re-send the current inbound window to one relay after it (re)connects, so the
+     *  receive path survives a dropped socket. Runs on the reader's IO coroutine. */
+    private fun resubscribe(c: NostrRelayClient) {
+        val addrs = lastAddresses
+        if (addrs.isEmpty()) return
+        val chunks = addrs.chunked(subChunk)
+        android.util.Log.d("CPNOSTR", "RESUB relay=${c.url} addresses=${addrs.size} chunks=${chunks.size}")
+        try {
+            chunks.forEachIndexed { i, chunk -> c.subscribe("cpin$i", NostrRelayClient.mailboxFilter(chunk)) }
+        } catch (_: Exception) {}
     }
 
     private fun tagT(ev: JSONObject): String? {
@@ -79,6 +128,7 @@ class NostrTransportManager {
 
     /** Drop all connections and fail any publish still waiting. */
     fun stop() {
+        running = false
         clients.forEach { try { it.close() } catch (_: Exception) {} }
         readers.forEach { it.cancel() }
         clients = emptyList()
@@ -101,13 +151,16 @@ class NostrTransportManager {
         val deferred = CompletableDeferred<Boolean>()
         pending[event.id] = deferred
         val json = event.json()
+        android.util.Log.d("CPNOSTR", "TX mailbox=${mailbox.takeLast(8)} event=${event.id.takeLast(8)} relays=${cs.size}")
         cs.forEach { c -> scope.launch { try { c.publish(json) } catch (_: Exception) {} } }
-        return try {
+        val accepted = try {
             withTimeout(6000L) { deferred.await() }
         } catch (e: TimeoutCancellationException) {
             pending.remove(event.id)
             false
         }
+        android.util.Log.d("CPNOSTR", "TX result mailbox=${mailbox.takeLast(8)} accepted=$accepted")
+        return accepted
     }
 }
 

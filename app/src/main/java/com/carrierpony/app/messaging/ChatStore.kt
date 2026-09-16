@@ -68,6 +68,7 @@ class ChatStore(
     // this only accelerates delivery when the peer is reachable on this network.
     private val lanTransport: Transport? = null,
     private val wanTransport: Transport? = null,
+    private val smsTransport: Transport? = null,
     // Optional best-effort store-and-forward transport over Nostr relays (2.3).
     // Concurrent with the relay; posts to the peer's sealed mailbox address.
     private val nostrTransport: Transport? = null,
@@ -801,7 +802,7 @@ class ChatStore(
 
     private suspend fun deliverToPeer(envelope: ByteArray, to: Fingerprint, expiresAt: Long, silent: Boolean) {
         // The direct transports (LAN, then WAN) that can reach this peer right now.
-        val directs = listOfNotNull(lanTransport, wanTransport).filter { it.canReach(to) }
+        val directs = listOfNotNull(lanTransport, wanTransport, smsTransport).filter { it.canReach(to) }
 
         // Direct-only mode (opt-in): deliver over a direct path and skip the relay
         // entirely. Fall back to the relay only if no direct path actually delivered,
@@ -830,6 +831,7 @@ class ChatStore(
         // mailbox address is computed once here and shared by the relay and Nostr, so
         // both post to the same slot and the send counter advances a single step.
         val mailbox = nextSealedAddress(to)
+        android.util.Log.d("CPSEAL", "TX to=${to.hex.takeLast(8)} mailbox=${mailbox?.takeLast(6) ?: "NULL-legacy"} newSendCtr=${sealedKeys?.pair(to.hex)?.sendCounter} peerKey=${if (sealedKeys?.pair(to.hex)?.peerInboundKey != null) "set" else "MISSING"}")
         val directDeferred = scope.async {
             for (d in directs) {
                 val ok = try { d.send(envelope, to, null, expiresAt, silent) } catch (e: Exception) { false }
@@ -850,6 +852,7 @@ class ChatStore(
         } catch (e: Exception) {
             relayError = e
         }
+        android.util.Log.d("CPSEAL", "TX relayOk=$relayOk relayErr=${relayError?.message}")
         if (relayOk) return
         val directOk = directDeferred.await()
         val nostrOk = nostrDeferred?.await() ?: false
@@ -888,12 +891,18 @@ class ChatStore(
      *  also arrives via the relay is filed once. */
     suspend fun ingestNostrEnvelope(mailbox: String, content: String) = withContext(Dispatchers.Default) {
         val sk = sealedKeys ?: return@withContext
-        val mapped = sealedAddressMap[mailbox] ?: return@withContext
+        val mapped = sealedAddressMap[mailbox] ?: run {
+            android.util.Log.d("CPNOSTR", "INGEST mailbox=${mailbox.takeLast(8)} mapped=no")
+            return@withContext
+        }
         val envelope = try { Base64.Default.decode(content) } catch (e: Exception) { return@withContext }
         val isGroup = isGroupPayload(envelope)
-        val opened = mutex.withLock {
-            if (isGroup) handleGroupLocked(envelope.copyOfRange(groupMagic.size, envelope.size)) else handleLocked(envelope)
+        val (opened, newlyFiled) = mutex.withLock {
+            val before = seenMessageIDs.size
+            val ok = if (isGroup) handleGroupLocked(envelope.copyOfRange(groupMagic.size, envelope.size)) else handleLocked(envelope)
+            ok to (seenMessageIDs.size > before)
         }
+        android.util.Log.d("CPNOSTR", "INGEST mailbox=${mailbox.takeLast(8)} opened=$opened newlyFiled=$newlyFiled")
         if (opened) {
             when (mapped) {
                 is SealedRoute.PairRoute -> {
@@ -915,6 +924,24 @@ class ChatStore(
             }
         }
         Unit
+    }
+
+    /** Recover sealed delivery when a pair has desynced (a peer reinstalled before the
+     *  self-heal shipped, so counters drifted past the window with no key change left to
+     *  trip the realign). Regenerate our inbound key for every contact and reset our
+     *  counters; peers see the new key and self-heal to zero, so delivery resumes with no
+     *  re-pairing and no lost identity. */
+    suspend fun resyncSealedKeys() {
+        val sk = sealedKeys ?: return
+        for (contact in contacts()) {
+            if (contact.fingerprint == DemoMode.fingerprint) continue
+            val st = sk.pair(contact.fingerprint.hex) ?: SealedPairState(sk.newPairKey(), null, 0, 0, false)
+            sk.setPair(contact.fingerprint.hex, SealedPairState(sk.newPairKey(), st.peerInboundKey, 0, 0, false))
+        }
+        android.util.Log.d("CPSEAL", "RESYNC regenerated my inbound keys and zeroed my send counters for all contacts")
+        sealedAddressMap.clear()
+        sealedRefreshWindows()
+        sealedPollInbox()
     }
 
     private suspend fun sealedRefreshWindows() {
@@ -1089,7 +1116,17 @@ class ChatStore(
     private fun sealedApplyPeerKeyLocked(sender: Fingerprint, key: ByteArray) {
         val sk = sealedKeys ?: return
         val st = sk.pair(sender.hex) ?: SealedPairState(sk.newPairKey(), null, 0, 0, false)
-        sk.setPair(sender.hex, SealedPairState(st.myInboundKey, key, st.sendCounter, st.receiveHigh, st.sharedMine))
+        // A changed peer inbound key means the peer reset its sealed state (e.g. a
+        // reinstall): its receive window restarted at 0 and it no longer holds our key.
+        // Realign both counters to 0 so our sends land in its fresh window, and re-share
+        // our own key so it can seal to us again. Without this a reset peer deadlocks.
+        val prev = st.peerInboundKey
+        val reset = prev != null && !prev.contentEquals(key)
+        val sendCounter = if (reset) 0L else st.sendCounter
+        val receiveHigh = if (reset) 0L else st.receiveHigh
+        val sharedMine = if (reset) false else st.sharedMine
+        sk.setPair(sender.hex, SealedPairState(st.myInboundKey, key, sendCounter, receiveHigh, sharedMine))
+        android.util.Log.d("CPSEAL", "KEY from=${sender.hex.takeLast(8)} healed=$reset (my sendCounter now $sendCounter)")
     }
 
     // ── Helpers ────────────────────────────────────────────────────────
@@ -1197,12 +1234,53 @@ class ChatStore(
         val groupID = ChatGroup.newID()
         val key = gk.newKey()
         gk.store(key, groupID, 0)
-        val group = ChatGroup(groupID, name, roster, 0)
+        val group = ChatGroup(groupID, name, roster, 0, createdAt = now)
         mutex.withLock {
             _groups.value = _groups.value + (groupID to group)
             persistLocked()
         }
         distributeGroupKey(group, key)
+    }
+
+    /** Create a broadcast channel: like a group, but the creator is the sole admin
+     *  (broadcaster) and everyone else is a subscriber (receive-only). */
+    suspend fun createChannel(name: String, subscribers: List<Contact>) {
+        val gk = groupKeys ?: return
+        val mine = ownPublicKey() ?: return
+        val roster = mutableListOf(GroupMember(identity, mine.armored, contactName(identity), true))
+        for (c in subscribers) roster.add(GroupMember(c.fingerprint, c.publicKey.armored, c.name, false))
+        val groupID = ChatGroup.newID()
+        val key = gk.newKey()
+        gk.store(key, groupID, 0)
+        val group = ChatGroup(groupID, name, roster, 0, isChannel = true, createdAt = now)
+        mutex.withLock {
+            _groups.value = _groups.value + (groupID to group)
+            persistLocked()
+        }
+        android.util.Log.d("CPCHAN", "created channel=${groupID.takeLast(8)} subs=${subscribers.size} groupsNow=${_groups.value.size}")
+        distributeGroupKey(group, key)
+    }
+
+    /** Admin only: add subscribers to a channel WITHOUT a rekey (subscribers only
+     *  receive, so there is nothing to hide from a new one). The current epoch key
+     *  goes to the new subscribers only, with the admins-only roster. */
+    suspend fun addSubscribers(contacts: List<Contact>, groupID: String) {
+        val gk = groupKeys ?: return
+        val group = _groups.value[groupID] ?: return
+        if (!group.isChannel || !group.isAdmin(identity)) return
+        val present = group.members.map { it.fingerprint.hex }.toSet()
+        val additions = contacts
+            .filter { it.fingerprint.hex !in present }
+            .map { GroupMember(it.fingerprint, it.publicKey.armored, it.name, false) }
+        if (additions.isEmpty()) return
+        val updated = group.copy(members = group.members + additions)
+        mutex.withLock {
+            _groups.value = _groups.value + (groupID to updated)
+            persistLocked()
+        }
+        val key = gk.key(groupID, group.epoch) ?: return
+        val payload = GroupKeyPayload(groupID, group.epoch, Base64.Default.encode(key.encoded), group.name, updated.admins, isChannel = true)
+        for (c in additions) sendGroupKey(payload, c.publicKey, c.fingerprint)
     }
 
     /** Admin only: add paired contacts, rekey, and redistribute to all. */
@@ -1285,22 +1363,24 @@ class ChatStore(
     }
 
     private suspend fun distributeGroupKey(group: ChatGroup, key: SecretKey, includeSelf: Boolean = true) {
-        val payload = GroupKeyPayload(
-            groupID = group.groupID,
-            epoch = group.epoch,
-            keyB64 = Base64.Default.encode(key.encoded),
-            name = group.name,
-            members = group.members
-        )
+        val keyB64 = Base64.Default.encode(key.encoded)
+        // In a channel, a subscriber receives the admins-only roster (enough to verify
+        // who may post) and never the other subscribers.
+        fun payloadFor(recipient: Fingerprint): GroupKeyPayload {
+            val roster = if (group.isChannel && !group.isAdmin(recipient)) group.admins else group.members
+            return GroupKeyPayload(group.groupID, group.epoch, keyB64, group.name, roster, group.isChannel)
+        }
+        android.util.Log.d("CPCHAN", "distribute group=${group.groupID.takeLast(8)} members=${group.members.size} isChannel=${group.isChannel} multiDevice=$multiDevice")
         for (member in group.members) {
-            if (member.fingerprint != identity) sendGroupKey(payload, member.publicKey, member.fingerprint)
+            if (member.fingerprint != identity) sendGroupKey(payloadFor(member.fingerprint), member.publicKey, member.fingerprint)
         }
         if (multiDevice && includeSelf) {
-            ownPublicKey()?.let { sendGroupKey(payload, it, identity) }
+            ownPublicKey()?.let { sendGroupKey(payloadFor(identity), it, identity) }
         }
     }
 
     private suspend fun sendGroupKey(payload: GroupKeyPayload, to: PublicKey, recipient: Fingerprint) {
+        android.util.Log.d("CPCHAN", "key-send-enter to=${recipient.hex.takeLast(8)} group=${payload.groupID.takeLast(8)}")
         val outgoing = OutgoingMessage(
             threadID = payload.groupID,
             text = null,
@@ -1311,8 +1391,14 @@ class ChatStore(
             val messageID = UUID.randomUUID().toString().uppercase()
             mutex.withLock { seenMessageIDs.add(messageID) }
             val envelope = buildGroupEnvelope(outgoing, "group-key", payload.groupID, payload.epoch, to, messageID)
-            relay.send(envelope, recipient, outgoing.expiresAt, silent = true)
+            // Deliver over the same sealed-first path as messages: it posts to the
+            // recipient's sealed mailbox (no relay identity auth, sender hidden) and
+            // fires the Nostr/direct accelerators, falling back to the legacy
+            // fingerprint-routed relay send only when the pair is not sealed yet.
+            deliverToPeer(envelope, recipient, outgoing.expiresAt, silent = true)
+            android.util.Log.d("CPCHAN", "key-send group=${payload.groupID.takeLast(8)} to=${recipient.hex.takeLast(8)} isChannel=${payload.isChannel}")
         } catch (e: Exception) {
+            android.util.Log.d("CPCHAN", "key-send-FAIL to=${recipient.hex.takeLast(8)} err=${describe(e)}")
             _lastError.value = describe(e)
         }
     }
@@ -1339,6 +1425,7 @@ class ChatStore(
         val keyData = try { Base64.Default.decode(payload.keyB64) } catch (e: Exception) { return }
         val senderIsSelf = incoming.sender == identity
         val existing = _groups.value[payload.groupID]
+        android.util.Log.d("CPCHAN", "key-recv group=${payload.groupID.takeLast(8)} isChannel=${payload.isChannel} from=${incoming.sender.hex.takeLast(8)} known=${existing != null}")
         if (existing != null) {
             if (!(senderIsSelf || existing.isAdmin(incoming.sender))) return
             if (payload.epoch < existing.epoch) return
@@ -1346,7 +1433,14 @@ class ChatStore(
             if (!(senderIsSelf || payload.members.any { it.fingerprint == incoming.sender && it.isAdmin })) return
         }
         gk.store(gk.keyFromRaw(keyData), payload.groupID, payload.epoch)
-        _groups.value = _groups.value + (payload.groupID to ChatGroup(payload.groupID, payload.name, payload.members, payload.epoch))
+        _groups.value = _groups.value + (payload.groupID to ChatGroup(payload.groupID, payload.name, payload.members, payload.epoch, payload.isChannel, createdAt = existing?.createdAt ?: now))
+        android.util.Log.d("CPCHAN", "key-stored group=${payload.groupID.takeLast(8)} isChannel=${payload.isChannel}")
+        // A newly joined group/channel (or a rekey) means our receive window for
+        // this group's sealed address is not registered on the relay yet, and the
+        // relay drops deposits to unregistered mailboxes. Force the next maintain
+        // pass to re-register now instead of waiting up to 30s, so the admin's
+        // first message is not lost to an unregistered mailbox.
+        if (existing == null || payload.epoch > existing.epoch) lastSealedWindowRefresh = 0
         persistLocked()
     }
 
@@ -1357,6 +1451,7 @@ class ChatStore(
         val trimmed = text.trim()
         if (trimmed.isEmpty() && attachments.isEmpty()) return
         val group = _groups.value[groupID] ?: return
+        if (group.isChannel && !group.isAdmin(identity)) return
         val key = gk.key(groupID, group.epoch) ?: return
         val messageID = UUID.randomUUID().toString().uppercase()
         val expiresAt = now + defaultTTL
@@ -1383,13 +1478,28 @@ class ChatStore(
             val payload = groupMagic + box
             val recipients = group.members.map { it.fingerprint }.filter { it != identity }.toMutableList()
             if (multiDevice) recipients.add(identity)
+            android.util.Log.d("CPCHAN", "send group=${groupID.takeLast(8)} isChannel=${group.isChannel} recipients=${recipients.size}")
             for (recipient in recipients) {
                 val silent = recipient == identity
                 val address = sealedGroupSendAddress(groupID, group.epoch, recipient)
                 if (address != null) {
-                    relay.sealedSend(address, payload, expiresAt, silent)
+                    // The relay is authoritative, but Nostr and the direct transports
+                    // run as best-effort accelerators so a channel/group message still
+                    // lands when the relay is down or unreachable, the same model 1:1
+                    // and group-key delivery already use. Each transport is isolated so
+                    // one failing (e.g. relay identity 403) does not skip the others or
+                    // abort the remaining recipients.
+                    try { relay.sealedSend(address, payload, expiresAt, silent) } catch (e: Exception) { _lastError.value = describe(e) }
+                    val directs = listOfNotNull(lanTransport, wanTransport, smsTransport).filter { it.canReach(recipient) }
+                    for (d in directs) { try { d.send(payload, recipient, null, expiresAt, silent) } catch (e: Exception) {} }
+                    nostrTransport?.takeIf { it.canReach(recipient) }?.let { n ->
+                        try { n.send(payload, recipient, address, expiresAt, silent) } catch (e: Exception) {}
+                    }
                 } else {
-                    relay.send(payload, recipient, expiresAt, silent)
+                    // No sealed group stream for this recipient yet: fall back to the
+                    // shared per-peer delivery path (sealed pair address + Nostr/direct,
+                    // legacy relay only as a last resort) instead of a relay-only send.
+                    try { deliverToPeer(payload, recipient, expiresAt, silent) } catch (e: Exception) { _lastError.value = describe(e) }
                 }
             }
         } catch (e: Exception) {
@@ -1436,6 +1546,12 @@ class ChatStore(
         val manifest = try { Manifest.decode(decoded.manifest) } catch (e: Exception) { diagnostics("group manifest decode failed for $groupID: ${e.message}", e); return true }
         if (seenMessageIDs.contains(manifest.messageID)) return true
         if (manifest.expiresAt <= now) { seenMessageIDs.add(manifest.messageID); return true }
+        android.util.Log.d("CPCHAN", "msg-recv group=${groupID.takeLast(8)} isChannel=${group.isChannel} from=${sender.hex.takeLast(8)} adminOK=${group.isAdmin(sender)}")
+        if (group.isChannel && sender != identity && !group.isAdmin(sender)) {
+            // Channel: only admins may post. Drop anything else (consume, do not retry).
+            seenMessageIDs.add(manifest.messageID)
+            return true
+        }
         var text: String? = null
         val atts = mutableListOf<ChatMessage.Attachment>()
         for ((i, part) in manifest.parts.withIndex()) {
@@ -1515,6 +1631,8 @@ class ChatStore(
                 .put("groupID", group.groupID)
                 .put("name", group.name)
                 .put("epoch", group.epoch)
+                .put("isChannel", group.isChannel)
+                .put("createdAt", group.createdAt)
                 .put("members", membersToJson(group.members)))
         }
         val groupThreadsArray = JSONArray()
@@ -1622,7 +1740,9 @@ class ChatStore(
                         groupID = g.getString("groupID"),
                         name = g.getString("name"),
                         members = membersFromJson(g.getJSONArray("members")),
-                        epoch = g.getInt("epoch")
+                        epoch = g.getInt("epoch"),
+                        isChannel = g.optBoolean("isChannel", false),
+                        createdAt = g.optLong("createdAt", 0L)
                     )
                 }
                 _groups.value = restoredGroups

@@ -19,7 +19,8 @@ data class GroupKeyPayload(
     val epoch: Int,
     val keyB64: String,
     val name: String,
-    val members: List<GroupMember>
+    val members: List<GroupMember>,
+    val isChannel: Boolean = false
 ) {
     fun encoded(): ByteArray {
         val o = JSONObject()
@@ -28,6 +29,7 @@ data class GroupKeyPayload(
         o.put("key_b64", keyB64)
         o.put("name", name)
         o.put("members", membersToJson(members))
+        if (isChannel) o.put("is_channel", true)
         return o.toString().toByteArray(Charsets.UTF_8)
     }
 
@@ -39,7 +41,8 @@ data class GroupKeyPayload(
                 epoch = o.getInt("epoch"),
                 keyB64 = o.getString("key_b64"),
                 name = o.getString("name"),
-                members = membersFromJson(o.getJSONArray("members"))
+                members = membersFromJson(o.getJSONArray("members")),
+                isChannel = o.optBoolean("is_channel", false)
             )
         } catch (e: Exception) {
             null

@@ -7,6 +7,23 @@ import org.json.JSONObject
 object NostrKind { const val MAILBOX = 1314 }
 
 /**
+ * Reconnect backoff shared with the read loops: a capped exponential delay with jitter.
+ * A drop after a healthy stretch (>= STABLE_MS up) resets the backoff so a normal
+ * disconnect reconnects promptly; rapid flapping backs off. Mirrors iOS NostrReconnect.
+ */
+object NostrReconnect {
+    const val BASE_MS = 1000L
+    const val CAP_MS = 30000L
+    const val STABLE_MS = 20000L
+    const val MAX_ATTEMPT = 5
+
+    fun delayMs(attempt: Int): Long {
+        val capped = minOf(BASE_MS shl attempt, CAP_MS)
+        return (capped * (0.8 + Math.random() * 0.4)).toLong()
+    }
+}
+
+/**
  * A relay connection speaking the NIP-01 client messages over [NostrWebSocket]:
  * EVENT to publish, REQ/CLOSE to subscribe, and a blocking read loop that dispatches
  * EVENT / OK / EOSE / NOTICE / CLOSED to callbacks. One instance per relay. The socket
