@@ -135,6 +135,9 @@ if (file("google-services.json").exists()) {
 // Disabling the compile task drops both files; the only cost is first-run
 // startup speed. Verify with a CLEAN build (a stale prof is repackaged on an
 // incremental one). See obfusk gist 61046e09cee352ae6dd109911534b12e.
+// Scoped to the foss flavor: the ART baseline profile is not byte-reproducible,
+// so it must be gone from the F-Droid (foss) build, but the play build keeps it
+// for faster cold starts.
 tasks.configureEach {
-    if (name.matches(Regex("compile.*ArtProfile"))) enabled = false
+    if (name.matches(Regex("compileFoss.*ArtProfile"))) enabled = false
 }
