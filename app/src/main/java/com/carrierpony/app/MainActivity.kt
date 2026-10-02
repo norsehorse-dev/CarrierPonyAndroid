@@ -160,6 +160,7 @@ private fun Root(
     val identity by app.identity.collectAsState()
     val store by app.store.collectAsState()
     val contacts by app.contactStore.contactsFlow.collectAsState()
+    val awaitingPeers by app.awaitingPeers.collectAsState()
     val isLocked by app.appLock.isLocked.collectAsState()
     val onboarded by app.onboarded.collectAsState()
     val accountUnread by app.accountUnread.collectAsState()
@@ -312,7 +313,8 @@ private fun Root(
             onSetNickname = { nickname -> app.contactStore.setNickname(peer, nickname) },
             onReport = { reportPeer = peer },
             smsAvailable = app.smsSupport.available,
-            onSetSmsNumber = { number -> app.setContactSmsNumber(peer, number) }
+            onSetSmsNumber = { number -> app.setContactSmsNumber(peer, number) },
+            awaitingPeer = peer.hex in awaitingPeers
         )
         return
     }

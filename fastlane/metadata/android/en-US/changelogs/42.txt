@@ -1,0 +1,3 @@
+Pairing finishes reliably: if your app was closed when someone accepted your invite, it now completes the next time you open it, for up to 30 days.
+Messages from someone whose pairing has not finished on your phone are kept and open once it does, instead of being dropped.
+A conversation now says when the other side has not finished pairing yet.

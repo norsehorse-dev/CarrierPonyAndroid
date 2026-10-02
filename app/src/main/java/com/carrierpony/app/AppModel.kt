@@ -29,6 +29,8 @@ import com.carrierpony.app.messaging.ContactStore
 import com.carrierpony.app.messaging.TrustLevel
 import com.carrierpony.app.pairing.Invite
 import com.carrierpony.app.pairing.PairingSupport
+import com.carrierpony.app.pairing.PairingRetention
+import com.carrierpony.core.CPKeyInfo
 import com.carrierpony.app.push.PushSupport
 import com.carrierpony.app.relay.RelayClient
 import com.carrierpony.app.relay.RelayException
@@ -89,6 +91,13 @@ class AppModel(context: Context) {
 
     private val _lastError = MutableStateFlow<String?>(null)
     val lastError: StateFlow<String?> = _lastError.asStateFlow()
+
+    /** Contacts added by accepting THEIR invite whose side has not confirmed yet
+     *  (no envelope from them has opened here). Their half of the pairing finishes
+     *  only when their app checks in, so the conversation says so instead of
+     *  implying the messages are being read. Fingerprint hex, per identity. */
+    private val _awaitingPeers = MutableStateFlow<Set<String>>(emptySet())
+    val awaitingPeers: StateFlow<Set<String>> = _awaitingPeers.asStateFlow()
 
     var appLanguage: String
         get() = defaults.getString("cp.lang", "en") ?: "en"
@@ -359,7 +368,8 @@ class AppModel(context: Context) {
             scope = scope,
             groupKeys = GroupKeyStore(appContext),
             sealedKeys = com.carrierpony.app.messaging.SealedKeyStore(appContext, id.fingerprint.hex),
-            pairingSweep = null
+            pairingSweep = null,
+            pairComplete = { token, pubkey -> completeBackgroundInvite(id, tContacts, token, pubkey) }
         )
         return try {
             sweepBackgroundInvites(id, tContacts, relay, store)
@@ -388,7 +398,10 @@ class AppModel(context: Context) {
             val token = o.getString("token")
             val inPerson = o.optBoolean("inPerson", false)
             val expiresAt = if (o.isNull("expiresAt")) null else o.optLong("expiresAt")
-            if (expiresAt != null && expiresAt <= nowSec) { changed = true; continue }
+            val createdAt = o.optLong("createdAt", nowSec)
+            if (!o.has("createdAt")) { o.put("createdAt", createdAt); changed = true }
+            if (PairingRetention.isStale(expiresAt, createdAt, nowSec)) { changed = true; continue }
+            if (o.optBoolean("relayGone", false)) { keep.put(o); continue }
             try {
                 val status = relay.pairStatus(token = token)
                 when (status.state) {
@@ -409,7 +422,10 @@ class AppModel(context: Context) {
                     else -> keep.put(o)
                 }
             } catch (e: RelayException) {
-                if (e.status in 400..499) changed = true else keep.put(o)
+                // The relay forgot the offer. Keep the token for the grace window so
+                // the responder's pair-complete op can still finish it from the inbox.
+                if (e.status in 400..499) { o.put("relayGone", true); changed = true }
+                keep.put(o)
             } catch (e: Exception) {
                 keep.put(o)
             }
@@ -708,6 +724,32 @@ class AppModel(context: Context) {
         return contact
     }
 
+    /** Background account: finish a pairing offer from the responder's pair-complete
+     *  op, matching the token against the persisted pending list. Mirrors
+     *  completeInviteFromPeer for a stack that is not the active one. */
+    private fun completeBackgroundInvite(id: Identity, contacts: ContactStore, token: String, pubkey: String): Boolean {
+        val key = "cp.pendinginvites.${id.fingerprint.hex}"
+        val raw = defaults.getString(key, null) ?: return false
+        val arr = try { org.json.JSONArray(raw) } catch (e: Exception) { return false }
+        val keep = org.json.JSONArray()
+        var match: org.json.JSONObject? = null
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            if (match == null && o.optString("token") == token) match = o else keep.put(o)
+        }
+        val o = match ?: return false
+        val inPerson = o.optBoolean("inPerson", false)
+        val fpr = CPKeyInfo.primaryFingerprint(pubkey) ?: return false
+        val trust = if (inPerson) TrustLevel.VERIFIED else TrustLevel.UNVERIFIED
+        val contact = PairingSupport.consistentContact(fpr, pubkey, trust) ?: return false
+        if (contact.fingerprint == id.fingerprint) return false
+        contacts.add(contact)
+        if (inPerson) contacts.markVerified(contact.fingerprint)
+        if (keep.length() == 0) defaults.edit().remove(key).apply()
+        else defaults.edit().putString(key, keep.toString()).apply()
+        return true
+    }
+
     /** Publish a pairing offer and remember it, so the offerer's side completes
      *  even after the invite screen closes: the pending list is swept on every
      *  inbox refresh and at the next launch. Both the in-person live QR
@@ -719,7 +761,7 @@ class AppModel(context: Context) {
         val response = relay.pairOffer(pubkey = identity.armoredPublicKey)
         val expiresAt = if (response.expiresIn > 0) System.currentTimeMillis() / 1000 + response.expiresIn else null
         synchronized(pendingInvitesLock) {
-            pendingInvites.add(PendingInvite(response.token, _profileName.value, expiresAt, inPerson))
+            pendingInvites.add(PendingInvite(response.token, _profileName.value, expiresAt, inPerson, System.currentTimeMillis() / 1000))
             savePendingInvites()
         }
         return Invite.create(token = response.token, fingerprint = identity.fingerprint, name = _profileName.value) to expiresAt
@@ -775,13 +817,20 @@ class AppModel(context: Context) {
         }
         val nowSec = System.currentTimeMillis() / 1000
         for (pending in snapshot) {
-            if (pending.expiresAt != null && pending.expiresAt <= nowSec) { forgetPendingInvite(pending.token); continue }
+            // Past its expiry an offer may still have been ACCEPTED while this app was
+            // closed, so keep asking the relay (which keeps accepted offers for a
+            // completion window) and only give up after the grace period.
+            if (PairingRetention.isStale(pending.expiresAt, pending.createdAt, nowSec)) { forgetPendingInvite(pending.token); continue }
+            if (pending.relayGone) continue
             try {
                 pollInvite(Invite.create(pending.token, identity.fingerprint, pending.name))
             } catch (e: PairingException.KeyMismatch) {
                 forgetPendingInvite(pending.token)   // can never become valid
             } catch (e: RelayException) {
-                if (e.status in 400..499) forgetPendingInvite(pending.token)   // relay forgot the token
+                // The relay forgot the token (or never had it). Stop polling but keep
+                // it for the grace window: the responder's pair-complete op can still
+                // finish the pairing from the inbox.
+                if (e.status in 400..499) markPendingRelayGone(pending.token)
             } catch (e: Exception) {
                 // transient (offline / 5xx): keep for the next sweep
             }
@@ -790,7 +839,14 @@ class AppModel(context: Context) {
 
     // Remembered pairing offers this identity created but has not yet collected
     // the acceptance for. Persisted per identity so the sweep survives restarts.
-    data class PendingInvite(val token: String, val name: String?, val expiresAt: Long?, val inPerson: Boolean)
+    data class PendingInvite(
+        val token: String,
+        val name: String?,
+        val expiresAt: Long?,
+        val inPerson: Boolean,
+        val createdAt: Long,
+        val relayGone: Boolean = false
+    )
     private val pendingInvites = mutableListOf<PendingInvite>()
     private val pendingInvitesLock = Any()
     private val completedInviteContacts = mutableMapOf<String, Contact>()
@@ -811,7 +867,9 @@ class AppModel(context: Context) {
                         o.getString("token"),
                         if (o.isNull("name")) null else o.optString("name"),
                         if (o.isNull("expiresAt")) null else o.getLong("expiresAt"),
-                        o.optBoolean("inPerson", false)
+                        o.optBoolean("inPerson", false),
+                        o.optLong("createdAt", System.currentTimeMillis() / 1000),
+                        o.optBoolean("relayGone", false)
                     ))
                 }
             } catch (e: Exception) { }
@@ -827,6 +885,8 @@ class AppModel(context: Context) {
             o.put("name", p.name)
             o.put("expiresAt", p.expiresAt)
             o.put("inPerson", p.inPerson)
+            o.put("createdAt", p.createdAt)
+            o.put("relayGone", p.relayGone)
             arr.put(o)
         }
         if (pendingInvites.isEmpty()) defaults.edit().remove(pendingInvitesKey(identity)).apply()
@@ -837,6 +897,53 @@ class AppModel(context: Context) {
         synchronized(pendingInvitesLock) {
             if (pendingInvites.removeAll { it.token == token }) savePendingInvites()
         }
+    }
+
+    private fun markPendingRelayGone(token: String) {
+        synchronized(pendingInvitesLock) {
+            val i = pendingInvites.indexOfFirst { it.token == token }
+            if (i >= 0 && !pendingInvites[i].relayGone) {
+                pendingInvites[i] = pendingInvites[i].copy(relayGone = true)
+                savePendingInvites()
+            }
+        }
+    }
+
+    /** Offerer side, from the responder's pair-complete op (ChatStore's decrypt-only
+     *  bootstrap). Adds the contact only for a token this identity issued and still
+     *  holds, with the same trust the relay path would give. Runs under ChatStore's
+     *  receive lock, so it must not call back into the store synchronously: the
+     *  profile reply is launched. */
+    fun completeInviteFromPeer(token: String, responderPubkey: String): Boolean {
+        val pending = synchronized(pendingInvitesLock) { pendingInvites.firstOrNull { it.token == token } } ?: return false
+        val identity = _identity.value ?: return false
+        val fpr = CPKeyInfo.primaryFingerprint(responderPubkey) ?: return false
+        val trust = if (pending.inPerson) TrustLevel.VERIFIED else TrustLevel.UNVERIFIED
+        val contact = PairingSupport.consistentContact(fpr, responderPubkey, trust) ?: return false
+        if (contact.fingerprint == identity.fingerprint) return false
+        completedInviteContacts[token] = contact
+        contactStore.add(contact)
+        if (pending.inPerson) contactStore.markVerified(contact.fingerprint)
+        forgetPendingInvite(token)
+        val name = _profileName.value
+        scope.launch { _store.value?.sendProfile(name = name, to = contact) }
+        return true
+    }
+
+    private fun awaitingKey(identity: Identity) = "cp.awaitingpeers.${identity.fingerprint.hex}"
+
+    private fun loadAwaitingPeers() {
+        val identity = _identity.value ?: run { _awaitingPeers.value = emptySet(); return }
+        _awaitingPeers.value = defaults.getStringSet(awaitingKey(identity), emptySet())?.toSet() ?: emptySet()
+    }
+
+    private fun setAwaiting(fingerprintHex: String, waiting: Boolean) {
+        val identity = _identity.value ?: return
+        val current = _awaitingPeers.value
+        val next = if (waiting) current + fingerprintHex else current - fingerprintHex
+        if (next == current) return
+        _awaitingPeers.value = next
+        defaults.edit().putStringSet(awaitingKey(identity), next).apply()
     }
 
     /** Accept an invite: fetch the offerer's key and require it to match the
@@ -855,6 +962,11 @@ class AppModel(context: Context) {
             ?: throw PairingException.KeyMismatch()
         val named = contact.copy(name = invite.n)
         contactStore.add(named)
+        if (contactStore.contact(named.fingerprint) != null) setAwaiting(named.fingerprint.hex, true)
+        // The offerer only learns of this accept when its app next sweeps the relay;
+        // the pair-complete op also lets it finish from its inbox. Sent first so it
+        // is processed before the profile and any message that follows.
+        _store.value?.sendPairComplete(token = invite.t, to = named)
         _store.value?.sendProfile(name = _profileName.value, to = named)
         return named
     }
@@ -900,6 +1012,8 @@ class AppModel(context: Context) {
             groupKeys = GroupKeyStore(appContext),
             sealedKeys = com.carrierpony.app.messaging.SealedKeyStore(appContext, identity.fingerprint.hex),
             pairingSweep = { sweepPendingInvites() },
+            pairComplete = { token, pubkey -> completeInviteFromPeer(token, pubkey) },
+            peerSeen = { fpr -> if (fpr.hex in _awaitingPeers.value) setAwaiting(fpr.hex, false) },
             lanTransport = com.carrierpony.app.messaging.LanDirectTransport(lanDiscovery),
             wanTransport = com.carrierpony.app.messaging.WanDirectTransport(wanBridge),
             nostrTransport = com.carrierpony.app.nostr.NostrTransport(nostrManager) { AppConfig.nostrEnabled(appContext) },
@@ -922,6 +1036,7 @@ class AppModel(context: Context) {
             smsSupport.start { data -> _store.value?.let { st -> scope.launch { st.ingestLanEnvelope(data) } } }
         }
         loadPendingInvites()
+        loadAwaitingPeers()
     }
 
     // ── Profile ────────────────────────────────────────────────────────

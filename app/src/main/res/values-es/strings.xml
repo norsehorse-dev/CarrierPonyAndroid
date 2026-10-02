@@ -396,4 +396,6 @@
     <string name="settings_sealed_resync_sub">Regenera las claves selladas de esta cuenta y resincroniza con tus contactos. Úsalo si dejan de llegar mensajes después de que tú o un contacto reinstalarais.</string>
     <string name="settings_sms_sub">Entrega a un contacto por SMS cuando tengas su número, para cuando no haya internet. Los mensajes se dividen en SMS de datos silenciosos. Tu operador ve que se enviaron mensajes de datos a ese número, y se aplican las tarifas de SMS estándar. Desactivado por defecto.</string>
     <string name="settings_sms_toggle">Enviar también por SMS</string>
+    <string name="chat_awaiting_pairing">%1$s aún no ha terminado el emparejamiento. Tus mensajes se abrirán en su lado cuando su app se conecte.</string>
+    <string name="inbox_held_messages">%1$d mensaje(s) en espera de alguien cuyo emparejamiento no ha terminado en este dispositivo. Se abrirán solos cuando termine.</string>
 </resources>

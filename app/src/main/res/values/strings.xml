@@ -396,4 +396,6 @@
     <string name="chat_remove_sms_number">Remove SMS number</string>
     <string name="chat_sms_number">SMS number</string>
     <string name="chat_sms_number_body">Messages to this contact can also go over SMS to this number when the other paths are down. It is stored only on this device. Include the country code.</string>
+    <string name="chat_awaiting_pairing">%1$s hasn\'t finished pairing yet. Your messages will open on their side once their app checks in.</string>
+    <string name="inbox_held_messages">%1$d waiting from someone whose pairing hasn\'t finished on this device. They open on their own once it does.</string>
 </resources>

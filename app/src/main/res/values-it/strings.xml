@@ -396,4 +396,6 @@
     <string name="settings_sealed_resync_sub">Rigenera le chiavi sigillate di questo account e risincronizza con i tuoi contatti. Usalo se i messaggi smettono di arrivare dopo che tu o un contatto avete reinstallato.</string>
     <string name="settings_sms_sub">Consegna a un contatto via SMS quando hai il suo numero, per quando non c\'è internet. I messaggi vengono suddivisi in SMS dati silenziosi. Il tuo operatore vede che sono stati inviati messaggi dati a quel numero e si applicano le normali tariffe SMS. Disattivato per impostazione predefinita.</string>
     <string name="settings_sms_toggle">Invia anche via SMS</string>
+    <string name="chat_awaiting_pairing">%1$s non ha ancora completato l\'abbinamento. I tuoi messaggi si apriranno dalla sua parte quando la sua app si collega.</string>
+    <string name="inbox_held_messages">%1$d messaggio/i in attesa da qualcuno il cui abbinamento non è completo su questo dispositivo. Si apriranno da soli quando lo sarà.</string>
 </resources>

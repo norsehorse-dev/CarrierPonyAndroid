@@ -10,6 +10,7 @@ package com.carrierpony.app.messaging
 
 import com.carrierpony.app.crypto.Fingerprint
 import com.carrierpony.app.crypto.PublicKey
+import com.carrierpony.app.storage.AtRest
 import com.carrierpony.core.CPArmor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -117,7 +118,7 @@ class ContactStore(private val storageDir: File) {
 
     private fun load() {
         val text = try {
-            fileURL.takeIf { it.exists() }?.readText()
+            fileURL.takeIf { it.exists() }?.let { AtRest.readText(it) }
         } catch (e: Exception) {
             null
         } ?: run { _contacts.value = emptyList(); return }   // no file: this account has no contacts yet
@@ -157,7 +158,7 @@ class ContactStore(private val storageDir: File) {
         }
         try {
             fileURL.parentFile?.mkdirs()
-            fileURL.writeText(array.toString())
+            AtRest.writeText(fileURL, array.toString())
         } catch (e: Exception) {
             // Mirrors iOS's try? — persistence failure never crashes the app.
         }

@@ -29,3 +29,18 @@ object PairingSupport {
         )
     }
 }
+
+/** How long an offerer keeps a pairing offer it created. Expiry only ends the window
+ *  for a NEW accept; an offer accepted while the offerer's app was closed must still
+ *  be collectable afterwards, from the relay (which keeps accepted offers for 30
+ *  days) or from the responder's pair-complete op. So an offer is dropped only once
+ *  it is past expiry plus this grace period. Times are epoch seconds. */
+object PairingRetention {
+    const val GRACE_SECONDS: Long = 30L * 86_400
+    /** Offers the relay gave no expiry for are kept this long after creation. */
+    const val NO_EXPIRY_KEEP_SECONDS: Long = 31L * 86_400
+
+    fun isStale(expiresAt: Long?, createdAt: Long, nowSec: Long): Boolean =
+        if (expiresAt != null) nowSec > expiresAt + GRACE_SECONDS
+        else nowSec > createdAt + NO_EXPIRY_KEEP_SECONDS
+}

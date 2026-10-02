@@ -24,8 +24,8 @@ android {
         applicationId = "com.carrierpony.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 41
-        versionName = "3.0.0"
+        versionCode = 42
+        versionName = "3.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -77,6 +77,20 @@ android {
     dependenciesInfo {
         includeInApk = false
         includeInBundle = false
+    }
+    packaging {
+        resources {
+            // Bouncy Castle 1.85 ships the same license files in bcprov, bcpg and bcutil, which
+            // collide in the APK. Excluding them (rather than pickFirst) keeps the merge
+            // independent of input order, so it cannot cost reproducibility.
+            excludes += setOf("META-INF/LICENSE.md", "META-INF/NOTICE.md")
+        }
+    }
+    testOptions {
+        // ChatStore and NostrTransport trace with android.util.Log. In a JVM unit test the
+        // android.jar stubs throw "not mocked" from Log.d, which ChatStore catches and turns into
+        // lastError, so every ChatStoreTest fails on a log line. Default values make Log a no-op.
+        unitTests.isReturnDefaultValues = true
     }
     buildFeatures {
         compose = true

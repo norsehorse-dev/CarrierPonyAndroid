@@ -384,6 +384,99 @@ class ChatStoreTest {
         assertTrue(store(bob, knows = listOf(alice), deviceID = "b".repeat(32)).conversations.value.isEmpty())
     }
 
+    // ── Pairing completion and held envelopes ─────────────────────────
+
+    /** A store whose contact list (and so its signature resolver) can grow during
+     *  the test, the way AppModel adds a contact mid-refresh. */
+    private fun growingStore(
+        own: CPGeneratedIdentity,
+        known: MutableList<CPGeneratedIdentity>,
+        deviceID: String,
+        pairComplete: ((String, String) -> Boolean)? = null
+    ): ChatStore {
+        val crypto = PonyCryptoEngine(
+            fingerprint = Fingerprint.from(own.fingerprint)!!,
+            secretKey = own.secretKey,
+            armored = own.armoredPublicKey,
+            publicKeyResolver = { fpr ->
+                (listOf(own) + known.toList()).firstOrNull { it.fingerprint == fpr.hex }?.let { publicKey(it) }
+            }
+        )
+        val relay = RelayClient("http://127.0.0.1:${server.address.port}", crypto, deviceID)
+        return ChatStore(
+            identity = Fingerprint.from(own.fingerprint)!!,
+            relay = relay,
+            crypto = crypto,
+            contacts = { known.toList().map { contact(it) } },
+            storageDir = workDir,
+            scope = scope,
+            pairComplete = pairComplete
+        )
+    }
+
+    @Test
+    fun pairCompleteFinishesOfferAndOpensFollowingMessage() = runBlocking {
+        // Charlie accepted Bob's invite (so Charlie knows Bob), but Bob's app never
+        // collected the accept from the relay. Charlie's pair-complete op lets Bob
+        // finish from the inbox, and Charlie's next message opens on the same pass.
+        val bobKnows = mutableListOf<CPGeneratedIdentity>()
+        var offeredToken: String? = null
+        var offeredKey: String? = null
+        val bobStore = growingStore(bob, bobKnows, "b".repeat(32)) { token, pubkey ->
+            if (token != "a1b2c3d4e5f60718293a4b5c6d7e8f90") return@growingStore false
+            offeredToken = token; offeredKey = pubkey
+            bobKnows.add(charlie)
+            true
+        }
+        val charlieStore = store(charlie, knows = listOf(bob), deviceID = "e".repeat(32))
+
+        charlieStore.sendPairComplete(token = "a1b2c3d4e5f60718293a4b5c6d7e8f90", to = contact(bob))
+        charlieStore.send(text = "made it", to = contact(bob))
+        bobStore.refresh()
+
+        assertEquals("a1b2c3d4e5f60718293a4b5c6d7e8f90", offeredToken)
+        assertEquals(charlie.armoredPublicKey, offeredKey)
+        val threadID = Threading.pairwise(bob.fingerprint, charlie.fingerprint)
+        assertEquals("made it", bobStore.conversations.value[threadID]!!.messages.single().text)
+        assertEquals(0, bobStore.heldCount.value)
+    }
+
+    @Test
+    fun pairCompleteWithUnknownTokenIsConsumedNotHeld() = runBlocking {
+        val bobKnows = mutableListOf<CPGeneratedIdentity>()
+        val bobStore = growingStore(bob, bobKnows, "b".repeat(32)) { _, _ -> false }
+        val charlieStore = store(charlie, knows = listOf(bob), deviceID = "e".repeat(32))
+
+        charlieStore.sendPairComplete(token = "00000000000000000000000000000000", to = contact(bob))
+        repeat(12) { bobStore.refresh() }
+
+        assertTrue(bobKnows.isEmpty())
+        assertEquals(0, bobStore.heldCount.value)
+        assertTrue(bobStore.conversations.value.isEmpty())
+    }
+
+    @Test
+    fun unopenableMessageIsHeldThenOpensOnceSenderIsPaired() = runBlocking {
+        val bobKnows = mutableListOf<CPGeneratedIdentity>()
+        val bobStore = growingStore(bob, bobKnows, "b".repeat(32))
+        val charlieStore = store(charlie, knows = listOf(bob), deviceID = "e".repeat(32))
+
+        charlieStore.send(text = "before you knew me", to = contact(bob))
+        repeat(10) { bobStore.refresh() }
+        assertEquals(1, bobStore.heldCount.value)
+        assertTrue(bobStore.conversations.value.isEmpty())
+
+        // Held across a restart, then opened once the pairing lands.
+        val restarted = growingStore(bob, bobKnows, "b".repeat(32))
+        assertEquals(1, restarted.heldCount.value)
+        bobKnows.add(charlie)
+        restarted.refresh()
+
+        val threadID = Threading.pairwise(bob.fingerprint, charlie.fingerprint)
+        assertEquals("before you knew me", restarted.conversations.value[threadID]!!.messages.single().text)
+        assertEquals(0, restarted.heldCount.value)
+    }
+
     @Test
     fun demoContactAutoReplies() = runBlocking {
         val aliceStore = store(alice, knows = emptyList(), deviceID = "a".repeat(32))

@@ -115,7 +115,8 @@ fun ConversationScreen(
     onSetNickname: ((String?) -> Unit)? = null,
     onReport: (() -> Unit)? = null,
     smsAvailable: Boolean = false,
-    onSetSmsNumber: ((String?) -> Unit)? = null
+    onSetSmsNumber: ((String?) -> Unit)? = null,
+    awaitingPeer: Boolean = false
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -281,6 +282,18 @@ fun ConversationScreen(
         // imePadding + adjustResize (manifest) make the keyboard RESIZE this
         // column, so the thread stays visible above the composer.
         Column(Modifier.padding(padding).fillMaxSize().imePadding()) {
+
+            // Accepted their invite, but their side has not confirmed the pairing yet.
+            if (awaitingPeer) {
+                Surface(color = MaterialTheme.colorScheme.secondaryContainer) {
+                    Text(
+                        text = stringResource(R.string.chat_awaiting_pairing, title),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+            }
 
             // ── Message list ───────────────────────────────────────────
             Box(Modifier.weight(1f)) {

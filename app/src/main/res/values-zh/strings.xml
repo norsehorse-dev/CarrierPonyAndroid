@@ -396,4 +396,6 @@
     <string name="settings_sealed_resync_sub">重新生成此账户的密封密钥并与联系人重新同步。如果在你或联系人重新安装后消息不再到达，请使用此功能。</string>
     <string name="settings_sms_sub">当你有联系人的号码时，通过短信送达，以备没有网络时使用。消息会分块通过静默数据短信发送。你的运营商会看到数据消息发送到了该号码，并按标准短信资费收费。默认关闭。</string>
     <string name="settings_sms_toggle">同时通过短信发送</string>
+    <string name="chat_awaiting_pairing">%1$s 尚未完成配对。对方的应用连接后，你的消息即可在对方那边打开。</string>
+    <string name="inbox_held_messages">有 %1$d 条消息来自尚未在此设备上完成配对的人。配对完成后会自动打开。</string>
 </resources>

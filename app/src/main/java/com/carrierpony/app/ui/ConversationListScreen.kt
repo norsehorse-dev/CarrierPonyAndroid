@@ -106,6 +106,7 @@ fun ConversationListScreen(
     val conversations by store.conversations.collectAsState()
     val groupsMap by store.groups.collectAsState()
     val groupThreads by store.groupMessages.collectAsState()
+    val heldCount by store.heldCount.collectAsState()
     // One inbox, sorted by most-recent activity: groups and 1:1 threads share a
     // single list instead of groups pinning to the top. A group rises only when
     // it holds the newest message.
@@ -207,6 +208,16 @@ fun ConversationListScreen(
                         TextButton(onClick = onEnableNotifications) { Text(stringResource(R.string.common_enable)) }
                         TextButton(onClick = onDismissNotificationsHint) { Text(stringResource(R.string.common_dismiss)) }
                     }
+                }
+            }
+            if (heldCount > 0) {
+                Surface(color = MaterialTheme.colorScheme.secondaryContainer) {
+                    Text(
+                        text = stringResource(R.string.inbox_held_messages, heldCount),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
                 }
             }
             Box(Modifier.fillMaxSize()) {

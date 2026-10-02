@@ -396,4 +396,6 @@
     <string name="settings_sealed_resync_sub">Erzeuge die versiegelten Schlüssel dieses Kontos neu und synchronisiere mit deinen Kontakten. Nutze dies, wenn nach einer Neuinstallation bei dir oder einem Kontakt keine Nachrichten mehr ankommen.</string>
     <string name="settings_sms_sub">Stelle einem Kontakt per SMS zu, wenn du seine Nummer hast – für den Fall ohne Internet. Nachrichten werden in stille Daten-SMS aufgeteilt. Dein Anbieter sieht, dass Daten-SMS an diese Nummer gingen, und es gelten die üblichen SMS-Gebühren. Standardmäßig aus.</string>
     <string name="settings_sms_toggle">Auch per SMS senden</string>
+    <string name="chat_awaiting_pairing">%1$s hat das Koppeln noch nicht abgeschlossen. Deine Nachrichten werden dort geöffnet, sobald die App sich meldet.</string>
+    <string name="inbox_held_messages">%1$d Nachricht(en) warten von jemandem, dessen Koppeln auf diesem Gerät noch nicht abgeschlossen ist. Sie öffnen sich von selbst, sobald es fertig ist.</string>
 </resources>

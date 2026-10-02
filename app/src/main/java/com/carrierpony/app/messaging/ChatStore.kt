@@ -29,6 +29,7 @@ import com.carrierpony.app.pairing.PairingSupport
 import com.carrierpony.core.CPKeyInfo
 import com.carrierpony.app.envelope.Threading
 import com.carrierpony.app.relay.RelayClient
+import com.carrierpony.app.storage.AtRest
 import com.carrierpony.app.relay.RelayException
 import com.carrierpony.app.relay.MailboxCrypto
 import com.carrierpony.app.relay.SealedInboxMessage
@@ -83,7 +84,19 @@ class ChatStore(
     private val nostrSubscribe: ((List<String>) -> Unit)? = null,
     // When this returns true AND the LAN delivered, the relay copy is skipped
     // (opt-in "direct only on this network"). Default: never skip.
-    private val lanSkipRelay: () -> Boolean = { false }
+    private val lanSkipRelay: () -> Boolean = { false },
+    // The label this device registers with the relay. The phones keep the default;
+    // the desktop client, which compiles this file verbatim, passes its own.
+    private val deviceLabel: String = "android",
+    // Completes a pairing offer this identity created, from the responder's own
+    // pair-complete control op: (invite token, responder armored public key),
+    // true when the token matched an offer we issued and the contact was added.
+    // The relay's pair/status record is the primary path; this one keeps working
+    // when the offerer's app was closed until that record was gone. Wired by AppModel.
+    private val pairComplete: ((String, String) -> Boolean)? = null,
+    // Called under the receive lock whenever an envelope from a peer opens, so
+    // AppModel can clear the "waiting for them to finish pairing" state. Keep it cheap.
+    private val peerSeen: ((Fingerprint) -> Unit)? = null
 ) {
 
     private val factory = EnvelopeFactory(crypto)
@@ -109,6 +122,17 @@ class ChatStore(
     private val _lastError = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
     val lastError: kotlinx.coroutines.flow.StateFlow<String?> = _lastError
 
+    /** Envelopes that never opened (usually a sender whose pairing has not finished
+     *  on this device), held locally instead of being dropped. Retried whenever the
+     *  contact list changes. The count drives the "messages waiting" banner. */
+    private val heldURL = File(storageDir, "carrierpony-held-${identity.hex}.json")
+    private val held = mutableListOf<HeldEnvelope>()
+    private val _heldCount = kotlinx.coroutines.flow.MutableStateFlow(0)
+    val heldCount: kotlinx.coroutines.flow.StateFlow<Int> = _heldCount
+    private var heldContactsSeen = -1
+
+    private class HeldEnvelope(val id: String, val envelope: String, val heldAt: Long)
+
     private val seenMessageIDs = mutableSetOf<String>()
     private var pollJob: Job? = null
     private val mutex = Mutex()
@@ -124,13 +148,14 @@ class ChatStore(
 
     init {
         load()
+        loadHeld()
     }
 
     // ── Lifecycle ──────────────────────────────────────────────────────
 
     suspend fun start(pollIntervalSeconds: Long = 5) {
         try {
-            relay.registerDevice(label = "android")
+            relay.registerDevice(label = deviceLabel)
         } catch (e: Exception) {
             _lastError.value = describe(e)
         }
@@ -170,6 +195,9 @@ class ChatStore(
         sealedKeys?.purge()
         synchronized(seenMessageIDs) { seenMessageIDs.clear() }
         fileURL.delete()
+        synchronized(held) { held.clear() }
+        _heldCount.value = 0
+        heldURL.delete()
     }
 
     fun clearError() {
@@ -185,11 +213,20 @@ class ChatStore(
     private val failedOpenCounts = mutableMapOf<String, Int>()
     private val maxOpenAttempts = 10
     private val maxPerRefresh = 50
+    private val maxHeld = 200
+    private val heldMaxAgeSeconds = 30L * 86_400
 
     suspend fun refresh() = withContext(Dispatchers.Default) {
         // Complete any accepted pairing offers first, so a new contact exists
         // before their messages are opened this pass.
         try { pairingSweep?.invoke() } catch (e: Exception) { }
+        // A contact appeared since the last pass (pairing finished by the sweep,
+        // a pair-complete op, or a manual add): held envelopes may open now.
+        val contactCount = contacts().size
+        if (contactCount != heldContactsSeen) {
+            heldContactsSeen = contactCount
+            mutex.withLock { retryHeldLocked() }
+        }
         // The PGP decrypt of every inbox envelope is CPU-heavy and used to run on
         // the caller's Main dispatcher while holding the mutex across the whole
         // loop, so a backlog (e.g. after the app was offline) froze the UI for
@@ -217,7 +254,11 @@ class ChatStore(
                 } else {
                     val failures = (failedOpenCounts[item.messageId] ?: 0) + 1
                     if (failures >= maxOpenAttempts) {
-                        diagnostics("giving up on envelope ${item.messageId} after $failures failed opens", null)
+                        // Hold it locally rather than dropping it: the usual cause is a
+                        // sender whose pairing has not finished here yet, and the message
+                        // opens once it does. Acked on the relay either way.
+                        diagnostics("giving up on envelope ${item.messageId} after $failures failed opens (held=${!isGroup})", null)
+                        if (!isGroup) mutex.withLock { holdLocked(item.messageId, item.envelope) }
                         ackIDs.add(item.messageId)
                         failedOpenCounts.remove(item.messageId)
                     } else {
@@ -247,6 +288,9 @@ class ChatStore(
             // Before giving up: an un-verifiable envelope may be a self-authenticating
             // channel-subscribe from a stranger (decrypt-only, no signer to verify yet).
             if (tryChannelSubscribeLocked(envelope)) return true
+            // Or the responder of a pairing offer we created, announcing itself
+            // before this device has its key.
+            if (tryPairCompleteLocked(envelope)) return true
             // A common cause is the sender not being paired on this device, so
             // their signature can't be verified. Surface it instead of dropping
             // the message silently — and log the precise failure for wire
@@ -266,6 +310,7 @@ class ChatStore(
         }
 
         val senderIsSelf = incoming.sender == identity
+        if (!senderIsSelf) peerSeen?.invoke(incoming.sender)
         when {
             manifest.type == "group-key" -> applyGroupKeyLocked(incoming)
             senderIsSelf && manifest.type == "control" -> applyControlLocked(incoming)
@@ -646,6 +691,31 @@ class ChatStore(
             text = null,
             attachments = listOf(OutgoingMessage.Attachment("control", "application/json", body.encoded())),
             expiresAt = now + 86_400
+        )
+        try {
+            val messageID = UUID.randomUUID().toString().uppercase()
+            mutex.withLock { seenMessageIDs.add(messageID) }
+            val envelope = buildControl(controlMessage, to.publicKey, messageID)
+            deliverToPeer(envelope, to.fingerprint, controlMessage.expiresAt, silent = true)
+        } catch (e: Exception) {
+            _lastError.value = describe(e)
+        }
+    }
+
+    /** Responder side of remote pairing: tell the offerer we accepted, carrying our
+     *  own key and the invite token. The offerer usually learns this from the relay's
+     *  pair/status record, but only while its app sweeps before that record is
+     *  gone; this op lets the offerer finish from its inbox instead. Sent before the
+     *  profile so it is processed first. */
+    suspend fun sendPairComplete(token: String, to: Contact) {
+        val mine = ownPublicKey() ?: return
+        val threadID = Threading.pairwise(identity.hex, to.fingerprint.hex)
+        val body = ControlOp(op = "pair-complete", targetMessageID = "", at = now, pubkey = mine.armored, token = token)
+        val controlMessage = OutgoingMessage(
+            threadID = threadID,
+            text = null,
+            attachments = listOf(OutgoingMessage.Attachment("control", "application/json", body.encoded())),
+            expiresAt = now + defaultTTL
         )
         try {
             val messageID = UUID.randomUUID().toString().uppercase()
@@ -1235,6 +1305,93 @@ class ChatStore(
         return true
     }
 
+    /** Decrypt-only bootstrap for a pairing offer's responder. The envelope is
+     *  encrypted to us but signed by a key we do not hold yet; the payload carries
+     *  that key and the invite token. AppModel adds the contact only if the token is
+     *  one this identity issued and the key hashes to a valid fingerprint, the same
+     *  trust-on-first-use the relay's pair/status path gives. An op whose token we
+     *  never issued is consumed, since it can never open. */
+    private fun tryPairCompleteLocked(envelope: ByteArray): Boolean {
+        val container = try { crypto.decryptOnly(envelope) } catch (e: Exception) { return false }
+        val decoded = try { CPN1.decode(container) } catch (e: Exception) { return false }
+        val manifest = try { Manifest.decode(decoded.manifest) } catch (e: Exception) { return false }
+        if (manifest.type != "control") return false
+        val part = decoded.parts.firstOrNull() ?: return false
+        val op = ControlOp.decode(part) ?: return false
+        if (op.op != "pair-complete") return false
+        if (seenMessageIDs.contains(manifest.messageID)) return true
+        seenMessageIDs.add(manifest.messageID)
+        val token = op.token ?: return true
+        val pubkey = op.pubkey ?: return true
+        val matched = try { pairComplete?.invoke(token, pubkey) ?: false } catch (e: Exception) { false }
+        diagnostics("pair-complete token=${token.takeLast(6)} matched=$matched", null)
+        if (matched) {
+            lastSealedWindowRefresh = 0
+            retryHeldLocked()
+        }
+        return true
+    }
+
+    // ── Held envelopes ─────────────────────────────────────────────────
+
+    private fun holdLocked(id: String, envelopeB64: String) {
+        synchronized(held) {
+            if (held.any { it.id == id }) return
+            held.add(HeldEnvelope(id, envelopeB64, now))
+            while (held.size > maxHeld) held.removeAt(0)
+            _heldCount.value = held.size
+        }
+        persistHeld()
+    }
+
+    /** Try every held envelope again; drop the ones that open or have aged out. */
+    private fun retryHeldLocked() {
+        val snapshot = synchronized(held) { held.toList() }
+        if (snapshot.isEmpty()) return
+        val cutoff = now - heldMaxAgeSeconds
+        val done = mutableSetOf<String>()
+        for (h in snapshot) {
+            if (h.heldAt < cutoff) { done.add(h.id); continue }
+            val bytes = try { Base64.Default.decode(h.envelope) } catch (e: Exception) { done.add(h.id); continue }
+            val opened = try { handleLocked(bytes) } catch (e: Exception) { false }
+            if (opened) done.add(h.id)
+        }
+        if (done.isEmpty()) return
+        synchronized(held) {
+            held.removeAll { it.id in done }
+            _heldCount.value = held.size
+        }
+        _lastError.value = null
+        persistHeld()
+        persistLocked()
+    }
+
+    private fun persistHeld() {
+        val arr = JSONArray()
+        synchronized(held) {
+            for (h in held) arr.put(JSONObject().put("id", h.id).put("envelope", h.envelope).put("heldAt", h.heldAt))
+        }
+        try {
+            if (arr.length() == 0) heldURL.delete()
+            else { heldURL.parentFile?.mkdirs(); AtRest.writeText(heldURL, arr.toString()) }
+        } catch (e: Exception) { }
+    }
+
+    private fun loadHeld() {
+        val text = try { heldURL.takeIf { it.exists() }?.let { AtRest.readText(it) } } catch (e: Exception) { null } ?: return
+        try {
+            val arr = JSONArray(text)
+            synchronized(held) {
+                held.clear()
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    held.add(HeldEnvelope(o.getString("id"), o.getString("envelope"), o.optLong("heldAt", now)))
+                }
+                _heldCount.value = held.size
+            }
+        } catch (e: Exception) { }
+    }
+
     /** Admin auto-accept: add the subscriber (non-admin) and send it the admins-only
      *  channel key. No rekey. Idempotent. Called under the receive lock. */
     private fun applyChannelSubscribeLocked(channelId: String, subFpr: Fingerprint, subPubkey: String, token: String?) {
@@ -1249,6 +1406,7 @@ class ChatStore(
             else group.copy(members = group.members + GroupMember(subFpr, subPubkey, contact.name, false))
         _groups.value = _groups.value + (channelId to updated)
         persistLocked()
+        lastSealedWindowRefresh = 0          // register an inbound window for the new subscriber on the next refresh
         val key = gk.key(channelId, updated.epoch) ?: return
         val payload = GroupKeyPayload(channelId, updated.epoch, Base64.Default.encode(key.encoded),
             updated.name, updated.admins, isChannel = true)
@@ -1395,6 +1553,11 @@ class ChatStore(
             _groups.value = _groups.value + (groupID to group)
             persistLocked()
         }
+        // A local roster or epoch change needs new inbound windows on the relay before any
+        // member can reach us on the new streams. Without this the creator's windows were
+        // only registered on the next 30-second refresh, and a reply sent before that went
+        // to an unregistered mailbox, which the relay accepts and drops.
+        lastSealedWindowRefresh = 0
         distributeGroupKey(group, key)
     }
 
@@ -1413,6 +1576,11 @@ class ChatStore(
             _groups.value = _groups.value + (groupID to group)
             persistLocked()
         }
+        // A local roster or epoch change needs new inbound windows on the relay before any
+        // member can reach us on the new streams. Without this the creator's windows were
+        // only registered on the next 30-second refresh, and a reply sent before that went
+        // to an unregistered mailbox, which the relay accepts and drops.
+        lastSealedWindowRefresh = 0
         android.util.Log.d("CPCHAN", "created channel=${groupID.takeLast(8)} subs=${subscribers.size} groupsNow=${_groups.value.size}")
         distributeGroupKey(group, key)
     }
@@ -1434,6 +1602,7 @@ class ChatStore(
             _groups.value = _groups.value + (groupID to updated)
             persistLocked()
         }
+        lastSealedWindowRefresh = 0
         val key = gk.key(groupID, group.epoch) ?: return
         val payload = GroupKeyPayload(groupID, group.epoch, Base64.Default.encode(key.encoded), group.name, updated.admins, isChannel = true)
         for (c in additions) sendGroupKey(payload, c.publicKey, c.fingerprint)
@@ -1457,6 +1626,7 @@ class ChatStore(
             _groups.value = _groups.value + (groupID to updated)
             persistLocked()
         }
+        lastSealedWindowRefresh = 0
         distributeGroupKey(updated, key)
     }
 
@@ -1474,6 +1644,7 @@ class ChatStore(
             _groups.value = _groups.value + (groupID to updated)
             persistLocked()
         }
+        lastSealedWindowRefresh = 0
         distributeGroupKey(updated, key)
     }
 
@@ -1608,7 +1779,11 @@ class ChatStore(
         if (trimmed.isEmpty() && attachments.isEmpty()) return
         val group = _groups.value[groupID] ?: return
         if (group.isChannel && !group.isAdmin(identity)) return
-        val key = gk.key(groupID, group.epoch) ?: return
+        val key = gk.key(groupID, group.epoch) ?: run {
+            // Silent before: the message vanished with no trace. Now the user sees why.
+            _lastError.value = "No key for this group's current epoch yet. Wait for an admin's update and try again."
+            return
+        }
         val messageID = UUID.randomUUID().toString().uppercase()
         val expiresAt = now + defaultTTL
         val container = try {
@@ -1645,7 +1820,16 @@ class ChatStore(
                     // and group-key delivery already use. Each transport is isolated so
                     // one failing (e.g. relay identity 403) does not skip the others or
                     // abort the remaining recipients.
-                    try { relay.sealedSend(address, payload, expiresAt, silent) } catch (e: Exception) { _lastError.value = describe(e) }
+                    try {
+                        relay.sealedSend(address, payload, expiresAt, silent)
+                    } catch (e: RelayException) {
+                        // 404: this member has no window for our stream yet (it has not polled
+                        // since it got the key). Deliver over the per-peer path instead, which
+                        // opens group payloads too, rather than lose the post.
+                        if (e.status == 404) {
+                            try { deliverToPeer(payload, recipient, expiresAt, silent) } catch (e2: Exception) { _lastError.value = describe(e2) }
+                        } else _lastError.value = describe(e)
+                    } catch (e: Exception) { _lastError.value = describe(e) }
                     val directs = listOfNotNull(lanTransport, wanTransport, smsTransport).filter { it.canReach(recipient) }
                     for (d in directs) { try { d.send(payload, recipient, null, expiresAt, silent) } catch (e: Exception) {} }
                     nostrTransport?.takeIf { it.canReach(recipient) }?.let { n ->
@@ -1826,7 +2010,7 @@ class ChatStore(
             .put("groupThreads", groupThreadsArray)
         try {
             fileURL.parentFile?.mkdirs()
-            fileURL.writeText(snapshot.toString())
+            AtRest.writeText(fileURL, snapshot.toString())
         } catch (e: Exception) {
             // Mirrors iOS's try? — persistence failure never crashes the app.
         }
@@ -1834,7 +2018,7 @@ class ChatStore(
 
     private fun load() {
         val text = try {
-            fileURL.takeIf { it.exists() }?.readText()
+            fileURL.takeIf { it.exists() }?.let { AtRest.readText(it) }
         } catch (e: Exception) {
             null
         } ?: return

@@ -12,6 +12,7 @@
 
 package com.carrierpony.app.attachments
 
+import com.carrierpony.app.storage.AtRest
 import java.io.File
 import java.util.UUID
 
@@ -28,7 +29,7 @@ object AttachmentStore {
         directory.mkdirs()
         val name = UUID.randomUUID().toString() + "_" + sanitize(suggestedName)
         try {
-            File(directory, name).writeBytes(data)
+            AtRest.writeBytes(File(directory, name), data)
         } catch (e: Exception) {
             // Mirrors iOS's try? — a failed write yields a dangling path, never a crash.
         }
@@ -38,7 +39,7 @@ object AttachmentStore {
     fun file(localPath: String): File = File(directory, localPath)
 
     fun data(localPath: String): ByteArray? =
-        try { file(localPath).takeIf { it.exists() }?.readBytes() } catch (e: Exception) { null }
+        try { file(localPath).takeIf { it.exists() }?.let { AtRest.readBytes(it) } } catch (e: Exception) { null }
 
     fun delete(localPath: String) {
         file(localPath).delete()

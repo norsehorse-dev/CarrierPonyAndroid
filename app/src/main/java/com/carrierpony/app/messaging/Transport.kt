@@ -11,6 +11,7 @@ package com.carrierpony.app.messaging
 
 import com.carrierpony.app.crypto.Fingerprint
 import com.carrierpony.app.relay.RelayClient
+import com.carrierpony.app.relay.RelayException
 
 enum class TransportID { RELAY, LAN_DIRECT, WAN_DIRECT, NOSTR, SMS }
 
@@ -49,10 +50,18 @@ class RelayTransport(
 
     override suspend fun send(envelope: ByteArray, to: Fingerprint, mailbox: String?, expiresAt: Long, silent: Boolean): Boolean {
         if (mailbox != null) {
-            relay.sealedSend(mailbox, envelope, expiresAt, silent)
-        } else {
-            relay.send(envelope, to, expiresAt, silent)
+            try {
+                relay.sealedSend(mailbox, envelope, expiresAt, silent)
+                return true
+            } catch (e: RelayException) {
+                // The peer has not registered that address (it has not polled since it learned
+                // our key, or we ran past its window). A relay that reports this lets the message
+                // fall back to the fingerprint path instead of vanishing; a relay that still
+                // answers ok for unknown mailboxes never reaches here.
+                if (e.status != 404) throw e
+            }
         }
+        relay.send(envelope, to, expiresAt, silent)
         return true
     }
 }

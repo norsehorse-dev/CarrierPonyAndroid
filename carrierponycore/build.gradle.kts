@@ -34,8 +34,8 @@ kotlin {
 }
 
 dependencies {
-    api("org.bouncycastle:bcprov-jdk18on:1.84")
-    api("org.bouncycastle:bcpg-jdk18on:1.84")
+    api("org.bouncycastle:bcprov-jdk18on:1.85")
+    api("org.bouncycastle:bcpg-jdk18on:1.85")
 
     testImplementation("junit:junit:4.13.2")
 }
