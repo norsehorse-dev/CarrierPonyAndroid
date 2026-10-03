@@ -31,6 +31,11 @@ STAY IN CONTROL
 * Private, per-contact nicknames only you can see
 * Reset and erase everything, any time
 
+RELAYS AND NETWORK
+* By default, sealed messages go through the CarrierPony relay at api.carrierpony.com
+* Run your own CarrierPony-Relay and point the app at it in Settings > Relay
+* Optional Nostr transport, off by default: when turned on, each sealed message is also posted to third-party Nostr relays (relay.damus.io and nos.lol by default). Those relays see opaque content and your IP address
+
 CarrierPony is part of the Pony family of privacy apps, alongside PGPony (OpenPGP for your phone), AgePony, QuorumPony, and RelayPony.
 
 Questions? support@carrierpony.com
