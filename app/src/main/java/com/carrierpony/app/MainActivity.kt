@@ -51,6 +51,8 @@ import com.carrierpony.app.ui.TermsScreen
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import com.carrierpony.app.ui.theme.CarrierPonyTheme
+import com.carrierpony.app.lock.LocalAppLock
+import androidx.compose.runtime.CompositionLocalProvider
 
 // AppCompatActivity: FragmentActivity underneath (so androidx.biometric's
 // BiometricPrompt still attaches) plus per-app locale support for the
@@ -89,22 +91,24 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         setContent {
             CarrierPonyTheme {
-                Root(
-                    app = app,
-                    onUnlock = { app.unlock(this) },
-                    notificationsOff = notificationsOff,
-                    onEnableNotifications = {
-                        startActivity(
-                            android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
-                        )
-                    },
-                    onDismissNotificationsHint = {
-                        getSharedPreferences("cp.prefs", MODE_PRIVATE)
-                            .edit().putBoolean("cp.notifHintDismissed", true).apply()
-                        notificationsOff = false
-                    }
-                )
+                CompositionLocalProvider(LocalAppLock provides app.appLock) {
+                    Root(
+                        app = app,
+                        onUnlock = { app.unlock(this) },
+                        notificationsOff = notificationsOff,
+                        onEnableNotifications = {
+                            startActivity(
+                                android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
+                            )
+                        },
+                        onDismissNotificationsHint = {
+                            getSharedPreferences("cp.prefs", MODE_PRIVATE)
+                                .edit().putBoolean("cp.notifHintDismissed", true).apply()
+                            notificationsOff = false
+                        }
+                    )
+                }
             }
         }
     }
@@ -113,6 +117,7 @@ class MainActivity : AppCompatActivity() {
     // not — and engage the lock when leaving the foreground.
     override fun onStart() {
         super.onStart()
+        app.appLock.enforceExternalGrace()
         app.startMessaging()
         requestNotificationPermissionOnce()
     }

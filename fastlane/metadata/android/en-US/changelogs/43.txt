@@ -1,0 +1,2 @@
+A new install can reach the relay right away. Before, invites and Show my code stayed offline until you left the app and came back.
+With App Lock on, saving a backup or a file and picking attachments or scanning a QR code work again. The lock used to engage while the picker was open and the result was lost.

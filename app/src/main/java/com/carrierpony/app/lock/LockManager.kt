@@ -11,6 +11,7 @@
 package com.carrierpony.app.lock
 
 import android.content.Context
+import android.os.SystemClock
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
@@ -40,9 +41,48 @@ class LockManager(context: Context) {
         BiometricManager.from(context)
             .canAuthenticate(BIOMETRIC_WEAK or DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS
 
-    /** Engage the lock (called on launch and when entering the background). */
+    // A system picker (save/open a document, pick photos) or the QR scanner
+    // covers the activity, so onStop fires while the user is still mid-task.
+    // Locking there replaced the screen that launched it with LockScreen, its
+    // result launcher went away with it, and the result was lost: a backup
+    // saved through the system dialog came out as an empty file. So the lock
+    // holds off while one of these is open, for EXTERNAL_GRACE_MS at most. A
+    // user who leaves the picker open and walks away gets the lock when the
+    // picker closes, and the result is dropped so nobody else can use it.
+    private var externalSince = 0L
+    private var externalExpired = false
+
+    /** A picker or scanner is about to open (see rememberLockSafeLauncher). */
+    fun externalActivityStarting() {
+        externalSince = SystemClock.elapsedRealtime()
+        externalExpired = false
+    }
+
+    /** Called from onStart: lock now if a picker stayed open past the grace period. */
+    fun enforceExternalGrace() {
+        if (externalSince == 0L) return
+        if (SystemClock.elapsedRealtime() - externalSince <= EXTERNAL_GRACE_MS) return
+        externalSince = 0L
+        if (appLockEnabled) {
+            externalExpired = true
+            lockNow()
+        }
+    }
+
+    /** The picker returned. True when its result may be used. */
+    fun externalActivityFinished(): Boolean {
+        enforceExternalGrace()
+        val usable = !externalExpired && !_isLocked.value
+        externalSince = 0L
+        externalExpired = false
+        return usable
+    }
+
+    /** Engage the lock (called on launch and when entering the background).
+     *  Skipped while a picker or scanner launched by the app is open. */
     fun lockIfEnabled() {
         if (!appLockEnabled) return
+        if (externalSince != 0L) return
         _isLocked.value = true
         sessionPassphrase = null
     }
@@ -94,5 +134,6 @@ class LockManager(context: Context) {
 
     private companion object {
         const val ENABLED_KEY = "cp.appLock.enabled"
+        const val EXTERNAL_GRACE_MS = 2 * 60 * 1000L
     }
 }

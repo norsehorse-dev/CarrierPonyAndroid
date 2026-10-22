@@ -11,9 +11,9 @@
 
 package com.carrierpony.app.ui
 
+import com.carrierpony.app.lock.rememberLockSafeLauncher
 import com.carrierpony.app.R
 import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -160,7 +160,7 @@ private fun TransferRow(transfer: FileTransfer, contactName: String) {
     var showingMenu by remember { mutableStateOf(false) }
 
     // System document creator for stringResource(R.string.files_save_device).
-    val saver = rememberLauncherForActivityResult(
+    val saver = rememberLockSafeLauncher(
         ActivityResultContracts.CreateDocument(attachment.mime.ifEmpty { "application/octet-stream" })
     ) { uri: Uri? ->
         if (uri != null) {
@@ -295,11 +295,11 @@ private fun SendFileSheet(store: ChatStore, contacts: List<Contact>, onDone: () 
     var selected by remember { mutableStateOf<Contact?>(null) }
     var sending by remember { mutableStateOf(false) }
 
-    val filePicker = rememberLauncherForActivityResult(
+    val filePicker = rememberLockSafeLauncher(
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
-        val contact = selected ?: return@rememberLauncherForActivityResult
-        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        val contact = selected ?: return@rememberLockSafeLauncher
+        if (uris.isEmpty()) return@rememberLockSafeLauncher
         sending = true
         scope.launch {
             val attachments = withContext(Dispatchers.IO) {

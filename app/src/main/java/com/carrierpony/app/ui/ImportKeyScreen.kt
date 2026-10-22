@@ -8,9 +8,9 @@
 
 package com.carrierpony.app.ui
 
+import com.carrierpony.app.lock.rememberLockSafeLauncher
 import com.carrierpony.app.R
 import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -75,10 +75,10 @@ fun ImportKeyScreen(app: AppModel, onDone: () -> Unit) {
     val strFileUnreadable = stringResource(R.string.import_file_unreadable)
     val strImportFailed = stringResource(R.string.import_failed)
 
-    val filePicker = rememberLauncherForActivityResult(
+    val filePicker = rememberLockSafeLauncher(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
-        if (uri == null) return@rememberLauncherForActivityResult
+        if (uri == null) return@rememberLockSafeLauncher
         try {
             val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             val text = bytes?.toString(Charsets.UTF_8)

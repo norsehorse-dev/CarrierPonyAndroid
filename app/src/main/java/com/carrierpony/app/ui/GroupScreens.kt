@@ -8,7 +8,7 @@
 
 package com.carrierpony.app.ui
 
-import androidx.activity.compose.rememberLauncherForActivityResult
+import com.carrierpony.app.lock.rememberLockSafeLauncher
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -146,10 +146,10 @@ fun GroupConversationScreen(store: ChatStore, groupID: String, contacts: List<Co
     if (group == null) return
     val readOnly = group.isChannel && !group.isAdmin(store.identityFingerprint)
 
-    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    val filePicker = rememberLockSafeLauncher(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { readAttachment(context, it)?.let { a -> pending = pending + a } }
     }
-    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+    val photoPicker = rememberLockSafeLauncher(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let { readAttachment(context, it)?.let { a -> pending = pending + a } }
     }
 

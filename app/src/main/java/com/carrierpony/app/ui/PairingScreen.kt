@@ -22,6 +22,7 @@
 
 package com.carrierpony.app.ui
 
+import com.carrierpony.app.lock.rememberLockSafeLauncher
 import com.carrierpony.app.R
 import android.content.Intent
 import androidx.activity.compose.BackHandler
@@ -202,8 +203,8 @@ private fun PairHub(
     val strBadQr = stringResource(R.string.pair_bad_qr)
     val strScanPrompt = stringResource(R.string.pair_scan_prompt)
 
-    val scanner = rememberLauncherForActivityResult(ScanContract()) { result ->
-        val code = result.contents ?: return@rememberLauncherForActivityResult
+    val scanner = rememberLockSafeLauncher(ScanContract()) { result ->
+        val code = result.contents ?: return@rememberLockSafeLauncher
         scanError = null
 
         // A live or remote invite (one-scan pairing).
@@ -224,7 +225,7 @@ private fun PairHub(
                     accepting = false
                 }
             }
-            return@rememberLauncherForActivityResult
+            return@rememberLockSafeLauncher
         }
 
         // A static key QR (offline fallback; one-way — they must scan yours too).
@@ -577,7 +578,7 @@ private fun InviteEnterView(app: AppModel, onPaired: (Contact) -> Unit) {
     val strCouldntPairInvite = stringResource(R.string.pair_couldnt_pair_invite)
     val strScanPromptEnter = stringResource(R.string.pair_scan_prompt)
 
-    val scanner = rememberLauncherForActivityResult(ScanContract()) { result ->
+    val scanner = rememberLockSafeLauncher(ScanContract()) { result ->
         result.contents?.let { text = it }
     }
 

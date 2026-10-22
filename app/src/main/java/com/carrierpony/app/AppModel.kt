@@ -593,9 +593,12 @@ class AppModel(context: Context) {
         _identity.value = identity
         loadProfileName()
         buildStore(identity)
-        // Adding an account happens past onboarding, so bring the new account live
-        // now. During first-run this stays false until the final step starts it.
-        if (onboardingComplete) startMessaging()
+        // Bring the new identity live right away when the app is on screen. This
+        // covers adding an account past onboarding and first run: onboarding's
+        // Pair Now step and the first invite need the device registered with the
+        // relay, and waiting for the next onStart left a fresh install offline
+        // until the user left the app and came back.
+        if (onboardingComplete || inForeground) startMessaging()
     }
 
     // ── Multiple accounts ──────────────────────────────────────────────

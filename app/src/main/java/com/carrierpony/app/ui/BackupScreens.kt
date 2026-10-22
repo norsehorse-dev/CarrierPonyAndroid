@@ -7,9 +7,9 @@
 
 package com.carrierpony.app.ui
 
+import com.carrierpony.app.lock.rememberLockSafeLauncher
 import com.carrierpony.app.R
 import android.content.Intent
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -86,7 +86,7 @@ fun BackupScreen(identity: Identity, onDone: () -> Unit) {
     val suggestedName = "carrierpony-backup-" + identity.fingerprint.hex.takeLast(8).lowercase() + ".txt"
 
     // System document creator: the reliable "save to a file" on Android.
-    val saver = rememberLauncherForActivityResult(
+    val saver = rememberLockSafeLauncher(
         ActivityResultContracts.CreateDocument("text/plain")
     ) { uri ->
         val text = blob

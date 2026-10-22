@@ -11,10 +11,10 @@
 
 package com.carrierpony.app.ui
 
+import com.carrierpony.app.lock.rememberLockSafeLauncher
 import com.carrierpony.app.R
 import android.content.Intent
 import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -156,14 +156,14 @@ fun ConversationScreen(
 
     // ── Pickers ────────────────────────────────────────────────────────
 
-    val filePicker = rememberLauncherForActivityResult(
+    val filePicker = rememberLockSafeLauncher(
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
         val loaded = uris.mapNotNull { uri -> readAttachment(context, uri) }
         pending = pending + loaded
     }
 
-    val photoPicker = rememberLauncherForActivityResult(
+    val photoPicker = rememberLockSafeLauncher(
         ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)
     ) { uris ->
         val loaded = uris.mapNotNull { uri -> readAttachment(context, uri) }
