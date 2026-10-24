@@ -7,6 +7,12 @@
 // sessionPassphrase seam exists for imported passphrase-protected identities
 // (key-import phase): a successful unlock will load the passphrase for the
 // session, and locking drops it, so it is never resident while locked.
+//
+// One instance per process (LockManager.get). MainActivity is rebuilt on
+// rotation, dark mode or font size changes, split screen, and when the
+// process is restored after the system killed it. A per-activity lock forgot
+// that a picker was open and locked the rebuilt activity, which dropped the
+// picked attachment (3.2.0 fix).
 
 package com.carrierpony.app.lock
 
@@ -22,12 +28,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class LockManager(context: Context) {
+class LockManager private constructor(context: Context) {
 
     private val prefs = context.applicationContext
         .getSharedPreferences("cp.prefs", Context.MODE_PRIVATE)
 
-    private val _isLocked = MutableStateFlow(false)
+    // A new process starts locked when App Lock is on: no unlocked session
+    // exists yet, and a protected identity's passphrase only comes back
+    // through unlock().
+    private val _isLocked = MutableStateFlow(prefs.getBoolean(ENABLED_KEY, false))
     val isLocked: StateFlow<Boolean> = _isLocked.asStateFlow()
 
     var sessionPassphrase: String? = null
@@ -58,6 +67,19 @@ class LockManager(context: Context) {
         externalExpired = false
     }
 
+    /** A share sheet or link is about to open (see startActivityHoldingLock).
+     *  Same grace as a picker, but nothing comes back, so the hold ends when
+     *  the app is in front again (externalHoldEnded). */
+    fun holdForExternal() = externalActivityStarting()
+
+    /** Called from onResume: the app is in front again, so any hold is over.
+     *  A picker's result has already been delivered by then, and a share sheet
+     *  the user cancelled (which only pauses the app) no longer leaves the lock
+     *  held for the next trip to the background. */
+    fun externalHoldEnded() {
+        externalSince = 0L
+    }
+
     /** Called from onStart: lock now if a picker stayed open past the grace period. */
     fun enforceExternalGrace() {
         if (externalSince == 0L) return
@@ -82,7 +104,9 @@ class LockManager(context: Context) {
      *  Skipped while a picker or scanner launched by the app is open. */
     fun lockIfEnabled() {
         if (!appLockEnabled) return
-        if (externalSince != 0L) return
+        if (externalSince != 0L &&
+            SystemClock.elapsedRealtime() - externalSince <= EXTERNAL_GRACE_MS
+        ) return
         _isLocked.value = true
         sessionPassphrase = null
     }
@@ -132,8 +156,16 @@ class LockManager(context: Context) {
         prompt.authenticate(info)
     }
 
-    private companion object {
-        const val ENABLED_KEY = "cp.appLock.enabled"
-        const val EXTERNAL_GRACE_MS = 2 * 60 * 1000L
+    companion object {
+        private const val ENABLED_KEY = "cp.appLock.enabled"
+        private const val EXTERNAL_GRACE_MS = 2 * 60 * 1000L
+
+        @Volatile private var instance: LockManager? = null
+
+        /** The process-wide lock. */
+        fun get(context: Context): LockManager =
+            instance ?: synchronized(this) {
+                instance ?: LockManager(context.applicationContext).also { instance = it }
+            }
     }
 }

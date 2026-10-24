@@ -1,0 +1,3 @@
+Disappearing messages are back. Set a timer per conversation, from 1 hour to 4 weeks, and new messages delete themselves when it runs out. 3.0.0 dropped it by mistake. Expired messages now take their attachments with them.
+Long-press a message to copy its text. Send files from the new button at the bottom of the Files tab.
+With App Lock on, rotating the phone, sharing a file or opening a link no longer locks the app. Files over 50 MB are flagged when you pick them.

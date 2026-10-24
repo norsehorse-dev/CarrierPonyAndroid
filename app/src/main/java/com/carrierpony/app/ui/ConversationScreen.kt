@@ -134,6 +134,9 @@ fun ConversationScreen(
     var nicknameDraft by remember { mutableStateOf("") }
     var showingSmsPrompt by remember { mutableStateOf(false) }
     var smsDraft by remember { mutableStateOf("") }
+    var showingTimerDialog by remember { mutableStateOf(false) }
+    val timers by store.disappearingTimers.collectAsState()
+    val currentTtl = remember(timers, contact.fingerprint) { store.disappearingTTL(contact.fingerprint) }
 
     // Mark read on open and whenever new messages arrive.
     LaunchedEffect(conversation?.threadID, messages.size) {
@@ -156,18 +159,28 @@ fun ConversationScreen(
 
     // ── Pickers ────────────────────────────────────────────────────────
 
+    // Picked files are read on IO: several videos read on the main thread
+    // froze the composer.
     val filePicker = rememberLockSafeLauncher(
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
-        val loaded = uris.mapNotNull { uri -> readAttachment(context, uri) }
-        pending = pending + loaded
+        scope.launch {
+            val budget = remainingAttachmentBudget(pending)
+            val picked = withContext(Dispatchers.IO) { readAttachments(context, uris, budget) }
+            pending = pending + picked.loaded
+            showAttachmentTooLarge(context, picked.tooLarge)
+        }
     }
 
     val photoPicker = rememberLockSafeLauncher(
         ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)
     ) { uris ->
-        val loaded = uris.mapNotNull { uri -> readAttachment(context, uri) }
-        pending = pending + loaded
+        scope.launch {
+            val budget = remainingAttachmentBudget(pending)
+            val picked = withContext(Dispatchers.IO) { readAttachments(context, uris, budget) }
+            pending = pending + picked.loaded
+            showAttachmentTooLarge(context, picked.tooLarge)
+        }
     }
 
     Scaffold(
@@ -188,11 +201,22 @@ fun ConversationScreen(
                                     tint = if (sealed) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(Modifier.width(4.dp))
-                                Text(
-                                    UiFormat.shortFingerprint(contact.fingerprint),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                // An active disappearing timer takes the
+                                // fingerprint's place, so it's visible at a glance.
+                                val activeLabelRes = ttlLabelRes(currentTtl)
+                                if (activeLabelRes != null) {
+                                    Text(
+                                        stringResource(R.string.chat_disappearing_active, stringResource(activeLabelRes)),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = CPTheme.accent
+                                    )
+                                } else {
+                                    Text(
+                                        UiFormat.shortFingerprint(contact.fingerprint),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
@@ -203,11 +227,20 @@ fun ConversationScreen(
                     }
                 },
                 actions = {
-                    if (onSetNickname != null || onReport != null || conversation != null) {
+                    // Always shown: the disappearing timer can be set before
+                    // the first message, when there is no conversation yet.
+                    run {
                         IconButton(onClick = { showingMenu = true }) {
                             Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.common_more), tint = CPTheme.accent)
                         }
                         DropdownMenu(expanded = showingMenu, onDismissRequest = { showingMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.chat_disappearing_title)) },
+                                onClick = {
+                                    showingMenu = false
+                                    showingTimerDialog = true
+                                }
+                            )
                             if (onSetNickname != null) {
                                 DropdownMenuItem(
                                     text = { Text(if (contact.nickname == null) stringResource(R.string.chat_set_nickname) else stringResource(R.string.chat_edit_nickname)) },
@@ -480,25 +513,143 @@ fun ConversationScreen(
             ExportSheet(conversation = conv, peerName = title, onDismiss = { showingExport = false })
         }
     }
+
+    if (showingTimerDialog) {
+        val options = listOf<Pair<Int, Long?>>(R.string.chat_disappearing_off to null) +
+            ChatStore.DISAPPEARING_PRESETS.map { secs -> ttlLabelRes(secs)!! to secs }
+        AlertDialog(
+            onDismissRequest = { showingTimerDialog = false },
+            title = { Text(stringResource(R.string.chat_disappearing_title)) },
+            text = {
+                Column {
+                    Text(
+                        stringResource(R.string.chat_disappearing_body),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    options.forEach { (labelRes, secs) ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                        ) {
+                            androidx.compose.material3.RadioButton(
+                                selected = currentTtl == secs,
+                                onClick = {
+                                    scope.launch { store.setDisappearingTimer(contact.fingerprint, secs) }
+                                    showingTimerDialog = false
+                                }
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(stringResource(labelRes))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showingTimerDialog = false }) { Text(stringResource(R.string.common_done)) }
+            }
+        )
+    }
+}
+
+/** String resource for a disappearing TTL as shown in the header and picker, or
+ *  null when the timer is Off. A synced value outside the presets shows "On". */
+private fun ttlLabelRes(secs: Long?): Int? = when (secs) {
+    null -> null
+    3_600L -> R.string.chat_disappearing_1h
+    21_600L -> R.string.chat_disappearing_6h
+    86_400L -> R.string.chat_disappearing_1d
+    604_800L -> R.string.chat_disappearing_1w
+    2_419_200L -> R.string.chat_disappearing_4w
+    else -> R.string.chat_disappearing_on
 }
 
 // ── Attachment loading ─────────────────────────────────────────────────
 
-internal fun readAttachment(context: android.content.Context, uri: Uri): OutgoingMessage.Attachment? {
-    return try {
-        val data = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
-        val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
-        var name = "file"
-        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            val index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-            if (index >= 0 && cursor.moveToFirst()) {
-                cursor.getString(index)?.let { name = it }
+/** What came back from a pick: the files that loaded, and the names of any
+ *  over AppConfig.maxAttachmentBytes (skipped, not read into memory). */
+internal class PickedAttachments(
+    val loaded: List<OutgoingMessage.Attachment>,
+    val tooLarge: List<String>
+)
+
+/** Read picked files for the composer. Call off the main thread. [budget] is
+ *  what's left of the per-message limit (ChatStore.send checks the total), so
+ *  callers with attachments already pending pass the remainder. A file whose
+ *  provider reports a size over what's left is skipped before reading; one
+ *  that reports no size is read only up to it. */
+internal fun readAttachments(
+    context: android.content.Context,
+    uris: List<Uri>,
+    budget: Long = com.carrierpony.app.AppConfig.maxAttachmentBytes.toLong()
+): PickedAttachments {
+    var remaining = budget
+    val loaded = mutableListOf<OutgoingMessage.Attachment>()
+    val tooLarge = mutableListOf<String>()
+    for (uri in uris) {
+        try {
+            var name = "file"
+            var size: Long? = null
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex >= 0) cursor.getString(nameIndex)?.let { name = it }
+                    val sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                    if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) size = cursor.getLong(sizeIndex)
+                }
             }
+            val reported = size
+            if (reported != null && reported > remaining) {
+                tooLarge += name
+                continue
+            }
+            // No stream means the provider failed: skip quietly. A stream that
+            // runs past the limit (size unreported or wrong) is too large.
+            val stream = context.contentResolver.openInputStream(uri) ?: continue
+            val data = stream.use { readAtMost(it, remaining.coerceAtLeast(0L)) }
+            if (data == null) {
+                tooLarge += name
+                continue
+            }
+            remaining -= data.size
+            val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
+            loaded += OutgoingMessage.Attachment(filename = name, mime = mime, data = data)
+        } catch (e: Exception) {
+            // Unreadable pick: skip it.
         }
-        OutgoingMessage.Attachment(filename = name, mime = mime, data = data)
-    } catch (e: Exception) {
-        null
     }
+    return PickedAttachments(loaded, tooLarge)
+}
+
+/** The stream's bytes, or null when it holds more than [limit]. */
+private fun readAtMost(input: java.io.InputStream, limit: Long): ByteArray? {
+    val out = java.io.ByteArrayOutputStream()
+    val buffer = ByteArray(64 * 1024)
+    var total = 0L
+    while (true) {
+        val n = input.read(buffer)
+        if (n < 0) break
+        total += n
+        if (total > limit) return null
+        out.write(buffer, 0, n)
+    }
+    return out.toByteArray()
+}
+
+/** What's left of the per-message attachment limit after [pending]. */
+internal fun remainingAttachmentBudget(pending: List<OutgoingMessage.Attachment>): Long =
+    com.carrierpony.app.AppConfig.maxAttachmentBytes.toLong() - pending.sumOf { it.data.size.toLong() }
+
+/** Toast for the first oversized pick (the rest of the pick still attaches). */
+internal fun showAttachmentTooLarge(context: android.content.Context, names: List<String>) {
+    val name = names.firstOrNull() ?: return
+    val mb = com.carrierpony.app.AppConfig.maxAttachmentBytes / (1024 * 1024)
+    android.widget.Toast.makeText(
+        context,
+        context.getString(R.string.chat_attachment_too_large, name, mb),
+        android.widget.Toast.LENGTH_LONG
+    ).show()
 }
 
 // ── Rows and bubbles ───────────────────────────────────────────────────
@@ -526,6 +677,9 @@ private fun MessageRow(
 ) {
     val isOutgoing = message.direction == MessageDirection.OUTGOING
     var showMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val strCopied = stringResource(R.string.common_copied)
+    val copyText = message.text?.takeIf { it.isNotEmpty() }
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
         if (isOutgoing) Spacer(Modifier.weight(1f, fill = true).widthIn(min = 48.dp))
         Box {
@@ -540,6 +694,15 @@ private fun MessageRow(
                 Metadata(message, isOutgoing)
             }
             DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                if (copyText != null) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.common_copy)) },
+                        onClick = {
+                            showMenu = false
+                            copyMessageText(context, copyText, strCopied)
+                        }
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.chat_delete_for_me)) },
                     onClick = {
@@ -721,7 +884,7 @@ private fun shareAttachment(context: android.content.Context, attachment: ChatMe
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        context.startActivity(Intent.createChooser(intent, attachment.filename))
+        com.carrierpony.app.lock.startActivityHoldingLock(context, Intent.createChooser(intent, attachment.filename))
     } catch (e: Exception) {
         // A missing viewer or provider mismatch should not crash the thread.
     }

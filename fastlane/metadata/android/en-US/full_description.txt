@@ -25,7 +25,7 @@ PAIR WITH A QR CODE
 * Verify contacts with a safety number
 
 STAY IN CONTROL
-* Messages expire and are deleted after 30 days
+* Disappearing messages with a per-conversation timer
 * App lock with fingerprint or face unlock
 * Encrypted identity backups protected by a passphrase only you know
 * Private, per-contact nicknames only you can see

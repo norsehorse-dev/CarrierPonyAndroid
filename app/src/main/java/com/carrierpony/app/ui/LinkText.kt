@@ -29,6 +29,10 @@ import androidx.compose.ui.text.withLink
  *  device has no browser at all. */
 fun openInAppBrowser(context: Context, url: String) {
     val uri = Uri.parse(url)
+    // Hold App Lock off while the link is open: iOS shows links in-app, so
+    // coming back from one shouldn't ask for unlock either.
+    val lock = com.carrierpony.app.lock.LockManager.get(context)
+    lock.holdForExternal()
     try {
         CustomTabsIntent.Builder()
             .setShowTitle(true)
@@ -39,6 +43,7 @@ fun openInAppBrowser(context: Context, url: String) {
             context.startActivity(Intent(Intent.ACTION_VIEW, uri))
         } catch (e2: ActivityNotFoundException) {
             // No handler for the link; nothing to open.
+            lock.externalHoldEnded()
         }
     }
 }

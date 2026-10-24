@@ -239,6 +239,17 @@
     <string name="inbox_delete_conversation">Unterhaltung löschen</string>
     <string name="chat_delete_for_me">Für mich löschen</string>
     <string name="chat_delete_for_everyone">Für alle löschen</string>
+    <string name="chat_disappearing_title">Verschwindende Nachrichten</string>
+    <string name="chat_disappearing_body">Neue Nachrichten in dieser Unterhaltung löschen sich nach der gewählten Zeit selbst. Vorhandene Nachrichten behalten ihren eigenen Timer.</string>
+    <string name="chat_disappearing_off">Aus</string>
+    <string name="chat_disappearing_1h">1 Stunde</string>
+    <string name="chat_disappearing_6h">6 Stunden</string>
+    <string name="chat_disappearing_1d">1 Tag</string>
+    <string name="chat_disappearing_1w">1 Woche</string>
+    <string name="chat_disappearing_4w">4 Wochen</string>
+    <string name="chat_disappearing_active">Verschwindet: %1$s</string>
+    <string name="chat_disappearing_on">Ein</string>
+    <string name="chat_attachment_too_large">%1$s ist zu groß zum Senden. Das Limit liegt bei %2$d MB.</string>
     <string name="chat_clear_history">Chatverlauf löschen</string>
     <string name="chat_clear_history_title">Verlauf dieses Chats löschen?</string>
     <string name="chat_clear_history_body">Löscht jede Nachricht in diesem Chat auf diesem Gerät. Der Kontakt bleibt gekoppelt.</string>

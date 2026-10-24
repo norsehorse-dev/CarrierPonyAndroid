@@ -20,6 +20,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -87,7 +88,11 @@ class MainActivity : AppCompatActivity() {
         // auto-store locales, but applying from our own pref keeps cp.lang the
         // single source of truth across both platforms.)
         AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(app.appLanguage))
-        app.appLock.lockIfEnabled()   // gate on launch, like iOS
+        // Gate on launch, like iOS. A rebuilt activity (rotation, theme or
+        // font change, restore after process death) keeps the process-wide
+        // lock state instead: re-locking here forgot an open picker and threw
+        // away its result. A new process already starts locked.
+        if (savedInstanceState == null) app.appLock.lockIfEnabled()
         enableEdgeToEdge()
         setContent {
             CarrierPonyTheme {
@@ -124,6 +129,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        app.appLock.externalHoldEnded()
         // Re-check on every return: the user may have toggled the permission
         // in system settings while we were backgrounded.
         notificationsOff = computeNotificationsOff()
@@ -146,10 +152,18 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         app.stopMessaging()
-        app.appLock.lockIfEnabled()
+        // A configuration change stops and rebuilds the activity without the
+        // app leaving the foreground, so it is not a reason to lock.
+        if (!isChangingConfigurations) app.appLock.lockIfEnabled()
         super.onStop()
     }
 }
+
+/** Saves an open conversation's fingerprint as its hex string. */
+private val FingerprintSaver = Saver<Fingerprint?, String>(
+    save = { it?.hex },
+    restore = { Fingerprint.from(it) }
+)
 
 /** The app's root, the Compose counterpart of iOS RootView: lock overlay,
  *  onboarding when no identity exists, otherwise the Messages/Files tabs with
@@ -170,20 +184,24 @@ private fun Root(
     val onboarded by app.onboarded.collectAsState()
     val accountUnread by app.accountUnread.collectAsState()
 
-    var tab by remember { mutableStateOf(0) }
-    var openPeer by remember { mutableStateOf<Fingerprint?>(null) }
-    var openGroup by remember { mutableStateOf<String?>(null) }
-    var groupDetail by remember { mutableStateOf<String?>(null) }
+    // Saveable so a rebuilt activity reopens the same screen, and a picker's
+    // result reaches the launcher that is waiting for it.
+    var tab by rememberSaveable { mutableStateOf(0) }
+    var openPeer by rememberSaveable(stateSaver = FingerprintSaver) { mutableStateOf<Fingerprint?>(null) }
+    var openGroup by rememberSaveable { mutableStateOf<String?>(null) }
+    var groupDetail by rememberSaveable { mutableStateOf<String?>(null) }
     var showingPairing by rememberSaveable { mutableStateOf(false) }
     var showingSettings by rememberSaveable { mutableStateOf(false) }
-    var showingBackup by remember { mutableStateOf(false) }
-    var showingRestore by remember { mutableStateOf(false) }
-    var showingImportKey by remember { mutableStateOf(false) }
+    // These screens open a system picker (save a backup, open a backup or key
+    // file), so they're saveable like the routes above.
+    var showingBackup by rememberSaveable { mutableStateOf(false) }
+    var showingRestore by rememberSaveable { mutableStateOf(false) }
+    var showingImportKey by rememberSaveable { mutableStateOf(false) }
     var showingPrivacy by remember { mutableStateOf(false) }
     var showingTerms by remember { mutableStateOf(false) }
     var showingLearn by remember { mutableStateOf(false) }
     var confirmExit by remember { mutableStateOf(false) }
-    var showingAddAccount by remember { mutableStateOf(false) }
+    var showingAddAccount by rememberSaveable { mutableStateOf(false) }
     var reportPeer by remember { mutableStateOf<Fingerprint?>(null) }
 
     if (isLocked) {

@@ -12,6 +12,8 @@ import com.carrierpony.app.lock.rememberLockSafeLauncher
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -72,7 +74,9 @@ import com.carrierpony.app.messaging.Contact
 import com.carrierpony.app.messaging.MessageDirection
 import com.carrierpony.app.messaging.OutgoingMessage
 import com.carrierpony.app.ui.theme.CPTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // ── New group ──────────────────────────────────────────────────────────
 
@@ -146,11 +150,22 @@ fun GroupConversationScreen(store: ChatStore, groupID: String, contacts: List<Co
     if (group == null) return
     val readOnly = group.isChannel && !group.isAdmin(store.identityFingerprint)
 
+    // Read on IO, same as the 1:1 composer.
     val filePicker = rememberLockSafeLauncher(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { readAttachment(context, it)?.let { a -> pending = pending + a } }
+        if (uri != null) scope.launch {
+            val budget = remainingAttachmentBudget(pending)
+            val picked = withContext(Dispatchers.IO) { readAttachments(context, listOf(uri), budget) }
+            pending = pending + picked.loaded
+            showAttachmentTooLarge(context, picked.tooLarge)
+        }
     }
     val photoPicker = rememberLockSafeLauncher(ActivityResultContracts.PickVisualMedia()) { uri ->
-        uri?.let { readAttachment(context, it)?.let { a -> pending = pending + a } }
+        if (uri != null) scope.launch {
+            val budget = remainingAttachmentBudget(pending)
+            val picked = withContext(Dispatchers.IO) { readAttachments(context, listOf(uri), budget) }
+            pending = pending + picked.loaded
+            showAttachmentTooLarge(context, picked.tooLarge)
+        }
     }
 
     LaunchedEffect(messages.size) {
@@ -266,9 +281,16 @@ fun GroupConversationScreen(store: ChatStore, groupID: String, contacts: List<Co
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun GroupMessageRow(message: ChatMessage, senderName: String?) {
     val isOutgoing = message.direction == MessageDirection.OUTGOING
+    // Long-press to copy, same as the 1:1 bubble. Groups have no delete actions,
+    // so the menu only opens when there is text.
+    var showMenu by remember { mutableStateOf(false) }
+    val copyContext = LocalContext.current
+    val strCopied = stringResource(R.string.common_copied)
+    val copyText = message.text?.takeIf { it.isNotEmpty() }
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
         if (isOutgoing) Spacer(Modifier.weight(1f))
         Column(horizontalAlignment = if (isOutgoing) Alignment.End else Alignment.Start) {
@@ -276,7 +298,16 @@ private fun GroupMessageRow(message: ChatMessage, senderName: String?) {
                 Text(senderName, style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
                     color = CPTheme.accent, modifier = Modifier.padding(start = 6.dp, bottom = 1.dp))
             }
-            Surface(shape = RoundedCornerShape(20.dp), color = if (isOutgoing) CPTheme.accent else CPTheme.incomingBubble) {
+            Box {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = if (isOutgoing) CPTheme.accent else CPTheme.incomingBubble,
+                modifier = Modifier.combinedClickable(
+                    enabled = copyText != null,
+                    onClick = {},
+                    onLongClick = { showMenu = true }
+                )
+            ) {
                 Column(Modifier.padding(horizontal = 14.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (attachment in message.attachments) {
                         if (attachment.isImage) AttachmentImage(attachment) else AttachmentChip(attachment, isOutgoing)
@@ -290,6 +321,16 @@ private fun GroupMessageRow(message: ChatMessage, senderName: String?) {
                         )
                     }
                 }
+            }
+            DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.common_copy)) },
+                    onClick = {
+                        showMenu = false
+                        copyText?.let { copyMessageText(copyContext, it, strCopied) }
+                    }
+                )
+            }
             }
         }
         if (!isOutgoing) Spacer(Modifier.weight(1f))

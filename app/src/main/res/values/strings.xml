@@ -38,6 +38,17 @@
     <string name="inbox_delete_conversation">Delete conversation</string>
     <string name="chat_delete_for_me">Delete for me</string>
     <string name="chat_delete_for_everyone">Delete for everyone</string>
+    <string name="chat_disappearing_title">Disappearing messages</string>
+    <string name="chat_disappearing_body">New messages in this conversation delete themselves after the time you choose. Existing messages keep their own timer.</string>
+    <string name="chat_disappearing_off">Off</string>
+    <string name="chat_disappearing_1h">1 hour</string>
+    <string name="chat_disappearing_6h">6 hours</string>
+    <string name="chat_disappearing_1d">1 day</string>
+    <string name="chat_disappearing_1w">1 week</string>
+    <string name="chat_disappearing_4w">4 weeks</string>
+    <string name="chat_disappearing_active">Disappearing: %1$s</string>
+    <string name="chat_disappearing_on">On</string>
+    <string name="chat_attachment_too_large">%1$s is too large to send. The limit is %2$d MB.</string>
     <string name="chat_clear_history">Clear chat history</string>
     <string name="chat_clear_history_title">Clear this chat\'s history?</string>
     <string name="chat_clear_history_body">Deletes every message in this chat on this device. The contact stays paired.</string>

@@ -239,6 +239,17 @@
     <string name="inbox_delete_conversation">Supprimer la conversation</string>
     <string name="chat_delete_for_me">Supprimer pour moi</string>
     <string name="chat_delete_for_everyone">Supprimer pour tout le monde</string>
+    <string name="chat_disappearing_title">Messages éphémères</string>
+    <string name="chat_disappearing_body">Les nouveaux messages de cette conversation s\'effacent après le délai choisi. Les messages existants conservent leur propre minuteur.</string>
+    <string name="chat_disappearing_off">Désactivé</string>
+    <string name="chat_disappearing_1h">1 heure</string>
+    <string name="chat_disappearing_6h">6 heures</string>
+    <string name="chat_disappearing_1d">1 jour</string>
+    <string name="chat_disappearing_1w">1 semaine</string>
+    <string name="chat_disappearing_4w">4 semaines</string>
+    <string name="chat_disappearing_active">Éphémère : %1$s</string>
+    <string name="chat_disappearing_on">Activé</string>
+    <string name="chat_attachment_too_large">%1$s est trop volumineux pour être envoyé. La limite est de %2$d Mo.</string>
     <string name="chat_clear_history">Effacer l\'historique du chat</string>
     <string name="chat_clear_history_title">Effacer l\'historique de ce chat ?</string>
     <string name="chat_clear_history_body">Supprime tous les messages de ce chat sur cet appareil. Le contact reste appairé.</string>

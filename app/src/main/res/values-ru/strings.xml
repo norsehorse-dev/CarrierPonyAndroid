@@ -239,6 +239,17 @@
     <string name="inbox_delete_conversation">Удалить разговор</string>
     <string name="chat_delete_for_me">Удалить у меня</string>
     <string name="chat_delete_for_everyone">Удалить у всех</string>
+    <string name="chat_disappearing_title">Исчезающие сообщения</string>
+    <string name="chat_disappearing_body">Новые сообщения в этом чате удаляются сами по истечении выбранного времени. Существующие сообщения сохраняют свой таймер.</string>
+    <string name="chat_disappearing_off">Выкл.</string>
+    <string name="chat_disappearing_1h">1 час</string>
+    <string name="chat_disappearing_6h">6 часов</string>
+    <string name="chat_disappearing_1d">1 день</string>
+    <string name="chat_disappearing_1w">1 неделя</string>
+    <string name="chat_disappearing_4w">4 недели</string>
+    <string name="chat_disappearing_active">Исчезает: %1$s</string>
+    <string name="chat_disappearing_on">Вкл.</string>
+    <string name="chat_attachment_too_large">Файл %1$s слишком большой для отправки. Максимальный размер: %2$d МБ.</string>
     <string name="chat_clear_history">Очистить историю чата</string>
     <string name="chat_clear_history_title">Очистить историю этого чата?</string>
     <string name="chat_clear_history_body">Удаляет все сообщения этого чата на этом устройстве. Контакт остаётся сопряжённым.</string>

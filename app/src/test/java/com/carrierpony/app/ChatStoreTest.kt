@@ -494,4 +494,103 @@ class ChatStoreTest {
         assertTrue(reply.text!!.startsWith("Received and decrypted on-device."))
         assertEquals(1, messages.count { it.direction == MessageDirection.OUTGOING })
     }
+
+    // ── Disappearing-message timer (restored in 3.2.0) ─────────────────
+
+    @Test
+    fun timerSetsExpiryOnNextSendAndExplicitTtlWins() = runBlocking {
+        val aliceStore = store(alice, knows = listOf(bob), deviceID = "a".repeat(32))
+        val bobFpr = Fingerprint.from(bob.fingerprint)!!
+        aliceStore.setDisappearingTimer(bobFpr, 3_600L)
+        assertEquals(3_600L, aliceStore.disappearingTTL(bobFpr))
+
+        aliceStore.send(text = "gone in an hour", to = contact(bob))
+        aliceStore.send(text = "explicit", to = contact(bob), ttl = 60L)
+
+        val threadID = Threading.pairwise(alice.fingerprint, bob.fingerprint)
+        val sent = aliceStore.conversations.value[threadID]!!.messages
+        val timed = sent.single { it.text == "gone in an hour" }
+        val explicit = sent.single { it.text == "explicit" }
+        assertTrue(timed.expiresAt - timed.sentAt in 3_595L..3_605L)
+        assertTrue(explicit.expiresAt - explicit.sentAt in 55L..65L)
+    }
+
+    @Test
+    fun timerSyncsToOwnDeviceAndPeerAndOffClearsIt() = runBlocking {
+        val deviceA = store(alice, knows = listOf(bob), deviceID = "a".repeat(32))
+        val deviceB = store(alice, knows = listOf(bob), deviceID = "c".repeat(32))
+        val bobStore = store(bob, knows = listOf(alice), deviceID = "b".repeat(32))
+        val aliceFpr = Fingerprint.from(alice.fingerprint)!!
+        val bobFpr = Fingerprint.from(bob.fingerprint)!!
+
+        deviceA.setDisappearingTimer(bobFpr, 86_400L)
+        deviceB.refresh()
+        bobStore.refresh()
+        assertEquals(86_400L, deviceB.disappearingTTL(bobFpr))
+        assertEquals(86_400L, bobStore.disappearingTTL(aliceFpr))
+
+        // The peer's next message uses the synced timer.
+        bobStore.send(text = "reply under the timer", to = contact(alice))
+        val threadID = Threading.pairwise(alice.fingerprint, bob.fingerprint)
+        val reply = bobStore.conversations.value[threadID]!!.messages.single { it.text == "reply under the timer" }
+        assertTrue(reply.expiresAt - reply.sentAt in 86_395L..86_405L)
+
+        deviceA.setDisappearingTimer(bobFpr, null)
+        deviceB.refresh()
+        bobStore.refresh()
+        assertNull(deviceB.disappearingTTL(bobFpr))
+        assertNull(bobStore.disappearingTTL(aliceFpr))
+    }
+
+    @Test
+    fun peerTimerOutsidePresetsIsIgnored() = runBlocking {
+        val deviceA = store(alice, knows = listOf(bob), deviceID = "a".repeat(32))
+        val deviceB = store(alice, knows = listOf(bob), deviceID = "c".repeat(32))
+        val bobStore = store(bob, knows = listOf(alice), deviceID = "b".repeat(32))
+        val aliceFpr = Fingerprint.from(alice.fingerprint)!!
+        val bobFpr = Fingerprint.from(bob.fingerprint)!!
+
+        // Not one of the picker's values: the user's own device accepts it,
+        // the peer does not.
+        deviceA.setDisappearingTimer(bobFpr, 1_234L)
+        deviceB.refresh()
+        bobStore.refresh()
+        assertEquals(1_234L, deviceB.disappearingTTL(bobFpr))
+        assertNull(bobStore.disappearingTTL(aliceFpr))
+        assertNull(bobStore.lastError.value)
+    }
+
+    @Test
+    fun timersSurviveRestartAndPurgeRemovesThem() = runBlocking {
+        val aliceStore = store(alice, knows = listOf(bob), deviceID = "a".repeat(32))
+        val bobFpr = Fingerprint.from(bob.fingerprint)!!
+        aliceStore.setDisappearingTimer(bobFpr, 604_800L)
+
+        val reborn = store(alice, knows = listOf(bob), deviceID = "a".repeat(32))
+        assertEquals(604_800L, reborn.disappearingTTL(bobFpr))
+
+        reborn.purge()
+        assertNull(reborn.disappearingTTL(bobFpr))
+        assertTrue(File(workDir, "carrierpony-timers-${Fingerprint.from(alice.fingerprint)!!.hex}.json").exists().not())
+        assertNull(store(alice, knows = listOf(bob), deviceID = "a".repeat(32)).disappearingTTL(bobFpr))
+    }
+
+    @Test
+    fun pruneDeletesExpiredAttachmentFiles() = runBlocking {
+        val aliceStore = store(alice, knows = listOf(bob), deviceID = "a".repeat(32))
+        aliceStore.send(
+            text = null,
+            attachments = listOf(OutgoingMessage.Attachment("short.bin", "application/octet-stream", byteArrayOf(4, 5, 6))),
+            to = contact(bob),
+            ttl = 1L
+        )
+        val threadID = Threading.pairwise(alice.fingerprint, bob.fingerprint)
+        val localPath = aliceStore.conversations.value[threadID]!!.messages.single().attachments.single().localPath
+        assertNotNull(AttachmentStore.data(localPath))
+
+        Thread.sleep(2_100)
+        aliceStore.refresh()
+        assertTrue(aliceStore.conversations.value[threadID]?.messages.isNullOrEmpty())
+        assertNull(AttachmentStore.data(localPath))
+    }
 }

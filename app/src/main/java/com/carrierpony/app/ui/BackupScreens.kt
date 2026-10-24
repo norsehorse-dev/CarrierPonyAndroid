@@ -236,7 +236,7 @@ fun BackupScreen(identity: Identity, onDone: () -> Unit) {
                                     putExtra(Intent.EXTRA_STREAM, uri)
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
-                                context.startActivity(Intent.createChooser(intent, strShareChooser))
+                                com.carrierpony.app.lock.startActivityHoldingLock(context, Intent.createChooser(intent, strShareChooser))
                             } catch (e: Exception) {
                                 error = strShareFailed
                             }

@@ -67,7 +67,7 @@ class AppModel(context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     val contactStore = ContactStore(appContext.filesDir)
-    val appLock = LockManager(appContext)
+    val appLock = LockManager.get(appContext)
 
     // LAN-direct discovery (2.1 M2): advertise this device on the local
     // network and browse for other CarrierPony nodes so Settings can show how

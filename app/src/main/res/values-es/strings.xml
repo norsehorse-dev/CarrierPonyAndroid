@@ -239,6 +239,17 @@
     <string name="inbox_delete_conversation">Eliminar conversación</string>
     <string name="chat_delete_for_me">Eliminar para mí</string>
     <string name="chat_delete_for_everyone">Eliminar para todos</string>
+    <string name="chat_disappearing_title">Mensajes temporales</string>
+    <string name="chat_disappearing_body">Los mensajes nuevos de esta conversación se eliminan solos tras el tiempo que elijas. Los mensajes existentes conservan su propio temporizador.</string>
+    <string name="chat_disappearing_off">Desactivado</string>
+    <string name="chat_disappearing_1h">1 hora</string>
+    <string name="chat_disappearing_6h">6 horas</string>
+    <string name="chat_disappearing_1d">1 día</string>
+    <string name="chat_disappearing_1w">1 semana</string>
+    <string name="chat_disappearing_4w">4 semanas</string>
+    <string name="chat_disappearing_active">Temporales: %1$s</string>
+    <string name="chat_disappearing_on">Activado</string>
+    <string name="chat_attachment_too_large">%1$s es demasiado grande para enviarlo. El límite es de %2$d MB.</string>
     <string name="chat_clear_history">Borrar historial del chat</string>
     <string name="chat_clear_history_title">¿Borrar el historial de este chat?</string>
     <string name="chat_clear_history_body">Elimina todos los mensajes de este chat en este dispositivo. El contacto sigue emparejado.</string>

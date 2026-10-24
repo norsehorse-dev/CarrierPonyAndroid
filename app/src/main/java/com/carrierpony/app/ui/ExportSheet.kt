@@ -157,7 +157,7 @@ fun ExportSheet(conversation: Conversation, peerName: String, onDismiss: () -> U
                             putExtra(Intent.EXTRA_STREAM, uri)
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
-                        context.startActivity(Intent.createChooser(intent, strChooser))
+                        com.carrierpony.app.lock.startActivityHoldingLock(context, Intent.createChooser(intent, strChooser))
                         onDismiss()
                     } catch (e: Exception) {
                         error = strFailed

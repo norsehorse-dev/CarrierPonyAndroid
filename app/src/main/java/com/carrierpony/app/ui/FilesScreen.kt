@@ -19,6 +19,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -41,6 +43,8 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -57,6 +61,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,6 +69,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -99,22 +105,36 @@ fun FilesScreen(store: ChatStore, contacts: List<Contact>) {
         }
         .sortedByDescending { it.sentAt }
 
-    var showingSend by remember { mutableStateOf(false) }
+    // Saveable so a rebuilt activity (rotation, theme change) still has the
+    // sheet open when the file picker returns.
+    var showingSend by rememberSaveable { mutableStateOf(false) }
 
     fun name(peer: Fingerprint): String =
         contacts.firstOrNull { it.fingerprint == peer }?.displayName ?: UiFormat.shortFingerprint(peer)
 
     Scaffold(
+        // Root's Scaffold already pads this screen for the system bars and the
+        // NavigationBar; without this the send button floats one inset too high.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.common_files), fontWeight = FontWeight.Bold) },
-                actions = {
-                    IconButton(onClick = { showingSend = true }) {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.files_send_cd), tint = CPTheme.accent)
-                    }
-                }
+                title = { Text(stringResource(R.string.common_files), fontWeight = FontWeight.Bold) }
             )
-        }
+        },
+        // Sending is the only action on this screen, so it gets one obvious
+        // button at the bottom (tester feedback: the old top-bar icon was hard
+        // to find). Shown with or without transfers, so the empty state needs
+        // no button of its own.
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = { showingSend = true },
+                icon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null) },
+                text = { Text(stringResource(R.string.files_send_cd)) },
+                containerColor = CPTheme.accent,
+                contentColor = Color.White
+            )
+        },
+        floatingActionButtonPosition = FabPosition.Center
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             if (transfers.isEmpty()) {
@@ -133,7 +153,8 @@ fun FilesScreen(store: ChatStore, contacts: List<Contact>) {
                     )
                 }
             } else {
-                LazyColumn {
+                // Bottom padding keeps the last row clear of the send button.
+                LazyColumn(contentPadding = PaddingValues(bottom = 88.dp)) {
                     items(transfers, key = { it.attachment.id }) { transfer ->
                         TransferRow(transfer, name(transfer.peer))
                     }
@@ -280,7 +301,7 @@ private fun shareTransfer(context: android.content.Context, attachment: ChatMess
             putExtra(android.content.Intent.EXTRA_STREAM, uri)
             addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        context.startActivity(android.content.Intent.createChooser(intent, attachment.filename))
+        com.carrierpony.app.lock.startActivityHoldingLock(context, android.content.Intent.createChooser(intent, attachment.filename))
     } catch (e: Exception) {
         // A missing viewer should not crash the tab.
     }
@@ -292,7 +313,10 @@ private fun shareTransfer(context: android.content.Context, attachment: ChatMess
 private fun SendFileSheet(store: ChatStore, contacts: List<Contact>, onDone: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var selected by remember { mutableStateOf<Contact?>(null) }
+    // The chosen contact by fingerprint hex, saveable for the same reason: the
+    // picker result is dropped when this comes back null.
+    var selectedHex by rememberSaveable { mutableStateOf<String?>(null) }
+    val selected = selectedHex?.let { hex -> contacts.firstOrNull { it.fingerprint.hex == hex } }
     var sending by remember { mutableStateOf(false) }
 
     val filePicker = rememberLockSafeLauncher(
@@ -302,9 +326,11 @@ private fun SendFileSheet(store: ChatStore, contacts: List<Contact>, onDone: () 
         if (uris.isEmpty()) return@rememberLockSafeLauncher
         sending = true
         scope.launch {
-            val attachments = withContext(Dispatchers.IO) {
-                uris.mapNotNull { readFilesAttachment(context, it) }
-            }
+            // Shared with the composer: skips anything over the size limit
+            // before reading it, and says so.
+            val picked = withContext(Dispatchers.IO) { readAttachments(context, uris) }
+            val attachments = picked.loaded
+            showAttachmentTooLarge(context, picked.tooLarge)
             if (attachments.isNotEmpty()) {
                 store.send(text = null, attachments = attachments, to = contact)
             }
@@ -352,7 +378,7 @@ private fun SendFileSheet(store: ChatStore, contacts: List<Contact>, onDone: () 
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    selected = contact
+                                    selectedHex = contact.fingerprint.hex
                                     filePicker.launch(arrayOf("*/*"))
                                 }
                                 .padding(horizontal = 20.dp, vertical = 10.dp)
@@ -371,19 +397,3 @@ private fun SendFileSheet(store: ChatStore, contacts: List<Contact>, onDone: () 
     }
 }
 
-private fun readFilesAttachment(context: android.content.Context, uri: Uri): com.carrierpony.app.messaging.OutgoingMessage.Attachment? {
-    return try {
-        val data = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
-        val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
-        var name = "file"
-        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            val index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-            if (index >= 0 && cursor.moveToFirst()) {
-                cursor.getString(index)?.let { name = it }
-            }
-        }
-        com.carrierpony.app.messaging.OutgoingMessage.Attachment(filename = name, mime = mime, data = data)
-    } catch (e: Exception) {
-        null
-    }
-}

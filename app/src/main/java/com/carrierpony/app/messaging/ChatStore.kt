@@ -107,6 +107,14 @@ class ChatStore(
      *  layer (M2); M1 uses it for a received-count test. */
     @Volatile var onSignal: ((String, String, String?, String?) -> Unit)? = null
     private val fileURL = File(storageDir, "carrierpony-conversations-${identity.hex}.json")
+    private val timersURL = File(storageDir, "carrierpony-timers-${identity.hex}.json")
+
+    // Per-conversation disappearing-message timer, keyed by threadID to TTL in
+    // seconds. Absence means Off: messages fall back to defaultTTL. Synced to
+    // the user's own devices and to the peer with a "timer" control op. Shipped
+    // in 2.0.0, lost in the Sep 2026 repo reconstruction, restored in 3.2.0.
+    private val _disappearingTimers = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Long>>(emptyMap())
+    val disappearingTimers: kotlinx.coroutines.flow.StateFlow<Map<String, Long>> = _disappearingTimers
 
     private val _conversations = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Conversation>>(emptyMap())
     val conversations: kotlinx.coroutines.flow.StateFlow<Map<String, Conversation>> = _conversations
@@ -140,6 +148,10 @@ class ChatStore(
     private var lastSealedWindowRefresh: Long = 0
 
     companion object {
+        /** The disappearing-timer choices in seconds (1h, 6h, 1d, 1w, 4w). The
+         *  picker offers these plus Off, and a peer can only set one of them. */
+        val DISAPPEARING_PRESETS: List<Long> = listOf(3_600L, 21_600L, 86_400L, 604_800L, 2_419_200L)
+
         /** Diagnostics sink. A no-op by default (JVM tests); the app wires it
          *  to logcat so wire-level failures are visible via
          *  `adb logcat -s CarrierPony`. */
@@ -149,6 +161,7 @@ class ChatStore(
     init {
         load()
         loadHeld()
+        loadTimers()
     }
 
     // ── Lifecycle ──────────────────────────────────────────────────────
@@ -198,6 +211,8 @@ class ChatStore(
         synchronized(held) { held.clear() }
         _heldCount.value = 0
         heldURL.delete()
+        _disappearingTimers.value = emptyMap()
+        timersURL.delete()
     }
 
     fun clearError() {
@@ -418,7 +433,9 @@ class ChatStore(
         }
 
         val threadID = Threading.pairwise(identity.hex, to.fingerprint.hex)
-        val expiresAt = now + (ttl ?: defaultTTL)
+        // An explicit ttl wins; otherwise the conversation's disappearing timer;
+        // otherwise the standard default.
+        val expiresAt = now + (ttl ?: _disappearingTimers.value[threadID] ?: defaultTTL)
         val messageID = UUID.randomUUID().toString().uppercase()
         val outgoing = OutgoingMessage(threadID = threadID, text = text, attachments = attachments, expiresAt = expiresAt)
 
@@ -526,9 +543,9 @@ class ChatStore(
 
     /** Send a control op (e.g. "delete") to the peer over the relay, silent so
      *  it never buzzes them. */
-    private suspend fun sendControlToPeer(op: String, targetMessageID: String, to: Contact) {
+    private suspend fun sendControlToPeer(op: String, targetMessageID: String, to: Contact, ttl: Long? = null) {
         val threadID = Threading.pairwise(identity.hex, to.fingerprint.hex)
-        val body = ControlOp(op = op, targetMessageID = targetMessageID, at = now)
+        val body = ControlOp(op = op, targetMessageID = targetMessageID, at = now, ttl = ttl)
         val controlMessage = OutgoingMessage(
             threadID = threadID,
             text = null,
@@ -675,7 +692,89 @@ class ChatStore(
         when (control.op) {
             "read" -> setReadLocked(control.targetMessageID)
             "delete" -> deleteMessageLocked(control.targetMessageID)
+            "timer" -> applyTimerLocked(incoming.manifest.threadID, control.ttl)
         }
+    }
+
+    // ── Disappearing messages ──────────────────────────────────────────
+
+    /** Current disappearing TTL (seconds) for a peer's thread, or null for Off. */
+    fun disappearingTTL(peer: Fingerprint): Long? =
+        _disappearingTimers.value[Threading.pairwise(identity.hex, peer.hex)]
+
+    /** Set (or clear, with null) the disappearing-message timer for a peer's
+     *  thread. Persists locally, syncs to the user's own devices, and tells the
+     *  peer so their side uses the same timer. Applies to messages sent after
+     *  this point; existing messages keep the expiry they were sent with. */
+    suspend fun setDisappearingTimer(peer: Fingerprint, ttl: Long?) {
+        val threadID = Threading.pairwise(identity.hex, peer.hex)
+        mutex.withLock {
+            _disappearingTimers.value =
+                if (ttl == null || ttl <= 0L) _disappearingTimers.value - threadID
+                else _disappearingTimers.value + (threadID to ttl)
+            persistTimersLocked()
+        }
+        if (multiDevice) {
+            emitControl(op = "timer", targetMessageID = "", threadID = threadID, ttl = ttl ?: 0L)
+        }
+        contacts().firstOrNull { it.fingerprint == peer }?.let { contact ->
+            sendControlToPeer(op = "timer", targetMessageID = "", to = contact, ttl = ttl ?: 0L)
+        }
+    }
+
+    private fun loadTimers() {
+        val text = try {
+            timersURL.takeIf { it.exists() }?.let { AtRest.readText(it) }
+        } catch (e: Exception) {
+            null
+        } ?: return
+        try {
+            val json = JSONObject(text)
+            val map = mutableMapOf<String, Long>()
+            val keys = json.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                map[key] = json.getLong(key)
+            }
+            _disappearingTimers.value = map
+        } catch (e: Exception) {
+            // Malformed timer file: start with no timers rather than crash.
+        }
+    }
+
+    private fun persistTimersLocked() {
+        try {
+            if (_disappearingTimers.value.isEmpty()) {
+                timersURL.delete()
+                return
+            }
+            val json = JSONObject()
+            for ((k, v) in _disappearingTimers.value) json.put(k, v)
+            timersURL.parentFile?.mkdirs()
+            AtRest.writeText(timersURL, json.toString())
+        } catch (e: Exception) {
+            // Best-effort: a failed timer write must not break messaging.
+        }
+    }
+
+    /** Adopt a disappearing-timer change. A TTL of 0 (or null) means Off. Does
+     *  not re-send: this is the receiving side of the sync. */
+    private fun applyTimerLocked(threadID: String, ttl: Long?) {
+        val current = _disappearingTimers.value
+        _disappearingTimers.value =
+            if (ttl == null || ttl <= 0L) current - threadID
+            else current + (threadID to ttl)
+        persistTimersLocked()
+    }
+
+    /** A peer changed the timer for our 1:1 thread. Only a known contact can,
+     *  only for the pairwise thread with them (the manifest's threadID is not
+     *  trusted), and only to Off or one of the picker's presets. */
+    private fun applyPeerTimerLocked(incoming: IncomingMessage, ttl: Long?) {
+        if (contacts().none { it.fingerprint == incoming.sender }) return
+        val value = ttl ?: 0L
+        if (value != 0L && value !in DISAPPEARING_PRESETS) return
+        applyTimerLocked(Threading.pairwise(identity.hex, incoming.sender.hex), value)
     }
 
     // ── Profile (display name exchange) ────────────────────────────────
@@ -742,9 +841,9 @@ class ChatStore(
         }
     }
 
-    private suspend fun emitControl(op: String, targetMessageID: String, threadID: String) {
+    private suspend fun emitControl(op: String, targetMessageID: String, threadID: String, ttl: Long? = null) {
         val selfKey = ownPublicKey() ?: return
-        val body = ControlOp(op = op, targetMessageID = targetMessageID, at = now)
+        val body = ControlOp(op = op, targetMessageID = targetMessageID, at = now, ttl = ttl)
         val controlMessage = OutgoingMessage(
             threadID = threadID,
             text = null,
@@ -795,7 +894,8 @@ class ChatStore(
         // Broadcast-channel subscribe/unsubscribe (2.x Phase 2).
         val channelId: String? = null,
         val pubkey: String? = null,     // subscriber armored public key (channel-subscribe)
-        val token: String? = null       // optional invite token (gated channels)
+        val token: String? = null,      // optional invite token (gated channels)
+        val ttl: Long? = null           // op == "timer": disappearing TTL in seconds, 0 = Off
     ) {
         fun encoded(): ByteArray {
             val json = JSONObject()
@@ -809,6 +909,7 @@ class ChatStore(
             if (channelId != null) json.put("channel_id", channelId)
             if (pubkey != null) json.put("pubkey", pubkey)
             if (token != null) json.put("token", token)
+            if (ttl != null) json.put("ttl", ttl)
             return json.toString().toByteArray(Charsets.UTF_8)
         }
 
@@ -825,7 +926,8 @@ class ChatStore(
                     candidate = json.optString("candidate").takeIf { it.isNotEmpty() },
                     channelId = json.optString("channel_id").takeIf { it.isNotEmpty() },
                     pubkey = json.optString("pubkey").takeIf { it.isNotEmpty() },
-                    token = json.optString("token").takeIf { it.isNotEmpty() }
+                    token = json.optString("token").takeIf { it.isNotEmpty() },
+                    ttl = if (json.has("ttl")) json.optLong("ttl") else null
                 )
             } catch (e: Exception) {
                 null
@@ -1202,6 +1304,7 @@ class ChatStore(
             }
             "webrtc-offer", "webrtc-answer", "webrtc-ice" ->
                 onSignal?.invoke(incoming.sender.hex, control.op, control.sdp, control.candidate)
+            "timer" -> applyPeerTimerLocked(incoming, control.ttl)
             else -> applyContactProfileLocked(incoming)
         }
     }
@@ -1496,10 +1599,18 @@ class ChatStore(
         val cutoff = now
         var updated = _conversations.value
         for ((threadID, conversation) in updated) {
-            val kept = conversation.messages.filter { it.expiresAt > cutoff }
-            if (kept.size != conversation.messages.size) {
-                updated = updated + (threadID to conversation.copy(messages = kept))
+            val expired = conversation.messages.filter { it.expiresAt <= cutoff }
+            if (expired.isEmpty()) continue
+            // A disappearing message must take its attachment files with it, or
+            // the "disappeared" bytes linger on disk.
+            for (message in expired) {
+                for (attachment in message.attachments) {
+                    AttachmentStore.delete(attachment.localPath)
+                }
             }
+            updated = updated + (threadID to conversation.copy(
+                messages = conversation.messages.filter { it.expiresAt > cutoff }
+            ))
         }
         _conversations.value = updated
         persistLocked()

@@ -549,7 +549,7 @@ private fun InviteCreateView(app: AppModel, onPaired: (Contact) -> Unit) {
                                 type = "text/plain"
                                 putExtra(Intent.EXTRA_TEXT, text)
                             }
-                            context.startActivity(Intent.createChooser(intent, strShareInvite))
+                            com.carrierpony.app.lock.startActivityHoldingLock(context, Intent.createChooser(intent, strShareInvite))
                         },
                         modifier = Modifier.weight(1f)
                     ) { Text(stringResource(R.string.common_share)) }

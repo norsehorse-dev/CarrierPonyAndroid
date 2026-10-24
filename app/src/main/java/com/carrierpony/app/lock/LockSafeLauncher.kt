@@ -10,6 +10,8 @@
 package com.carrierpony.app.lock
 
 import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContract
@@ -34,6 +36,20 @@ class LockSafeLauncher<I> internal constructor(
             lock?.externalActivityFinished()
             throw e
         }
+    }
+}
+
+/** startActivity for things that leave the app without returning a result
+ *  (share sheets, links): holds the lock off like a picker until the app is in
+ *  front again. */
+fun startActivityHoldingLock(context: Context, intent: Intent) {
+    val lock = LockManager.get(context)
+    lock.holdForExternal()
+    try {
+        context.startActivity(intent)
+    } catch (e: RuntimeException) {
+        lock.externalHoldEnded()
+        throw e
     }
 }
 
