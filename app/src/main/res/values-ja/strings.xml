@@ -35,7 +35,7 @@
     <string name="inbox_unpair_q">この連絡先とのペアリングを解除しますか？</string>
     <string name="inbox_unpair_body">この端末から相手の鍵を削除します。再度ペアリングするまで、相手からの新しいメッセージは読めません。</string>
     <string name="inbox_unpair">ペアリング解除</string>
-    <string name="inbox_you_prefix">あなた: </string>
+    <string name="inbox_you_prefix">"あなた: "</string>
     <string name="inbox_no_messages">メッセージはまだありません</string>
     <string name="inbox_attachment_fallback">メッセージ</string>
     <string name="inbox_notifications_off">通知がオフのため、新着メッセージのお知らせは表示されません。</string>
@@ -63,8 +63,8 @@
     <string name="files_pick">ファイルを選択</string>
     <string name="files_sending">暗号化して送信中…</string>
     <string name="files_pair_first">ファイルを送るには、まず誰かとペアリングしてください。</string>
-    <string name="files_from">差出人 </string>
-    <string name="files_to">宛先 </string>
+    <string name="files_from">"差出人 "</string>
+    <string name="files_to">"宛先 "</string>
     <string name="settings_title">設定</string>
     <string name="settings_account">アカウント</string>
     <string name="settings_edit_profile">プロフィールを編集</string>

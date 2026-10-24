@@ -83,6 +83,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Store screenshots (debug builds only; the release Demo is a no-op):
+        // seed demo data before AppModel loads it, and pick the screen to open.
+        val demoStart = com.carrierpony.app.demo.Demo.prepare(applicationContext, intent)
         app = AppModel(applicationContext)
         // Restore the chosen language before any UI exists. (AppCompat can
         // auto-store locales, but applying from our own pref keeps cp.lang the
@@ -99,6 +102,7 @@ class MainActivity : AppCompatActivity() {
                 CompositionLocalProvider(LocalAppLock provides app.appLock) {
                     Root(
                         app = app,
+                        demoStart = demoStart,
                         onUnlock = { app.unlock(this) },
                         notificationsOff = notificationsOff,
                         onEnableNotifications = {
@@ -123,7 +127,8 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         app.appLock.enforceExternalGrace()
-        app.startMessaging()
+        // Demo data (screenshots) stays off the network entirely.
+        if (!com.carrierpony.app.demo.Demo.isActive(this)) app.startMessaging()
         requestNotificationPermissionOnce()
     }
 
@@ -171,6 +176,7 @@ private val FingerprintSaver = Saver<Fingerprint?, String>(
 @Composable
 private fun Root(
     app: AppModel,
+    demoStart: com.carrierpony.app.demo.DemoStart? = null,
     onUnlock: () -> Unit,
     notificationsOff: Boolean = false,
     onEnableNotifications: () -> Unit = {},
@@ -186,11 +192,14 @@ private fun Root(
 
     // Saveable so a rebuilt activity reopens the same screen, and a picker's
     // result reaches the launcher that is waiting for it.
-    var tab by rememberSaveable { mutableStateOf(0) }
-    var openPeer by rememberSaveable(stateSaver = FingerprintSaver) { mutableStateOf<Fingerprint?>(null) }
-    var openGroup by rememberSaveable { mutableStateOf<String?>(null) }
+    // A screenshot run (debug Demo) can start on a given screen.
+    var tab by rememberSaveable { mutableStateOf(if (demoStart?.screen == "files") 1 else 0) }
+    var openPeer by rememberSaveable(stateSaver = FingerprintSaver) {
+        mutableStateOf(if (demoStart?.screen == "chat") demoStart?.chatPeerHex?.let { Fingerprint.from(it) } else null)
+    }
+    var openGroup by rememberSaveable { mutableStateOf(if (demoStart?.screen == "group") demoStart?.groupID else null) }
     var groupDetail by rememberSaveable { mutableStateOf<String?>(null) }
-    var showingPairing by rememberSaveable { mutableStateOf(false) }
+    var showingPairing by rememberSaveable { mutableStateOf(demoStart?.screen == "pair") }
     var showingSettings by rememberSaveable { mutableStateOf(false) }
     // These screens open a system picker (save a backup, open a backup or key
     // file), so they're saveable like the routes above.

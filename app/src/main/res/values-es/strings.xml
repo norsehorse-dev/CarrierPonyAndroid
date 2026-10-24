@@ -35,7 +35,7 @@
     <string name="inbox_unpair_q">¿Desemparejar este contacto?</string>
     <string name="inbox_unpair_body">Esto elimina su clave de este dispositivo. No podrás leer sus nuevos mensajes hasta que vuelvas a emparejar.</string>
     <string name="inbox_unpair">Desemparejar</string>
-    <string name="inbox_you_prefix">Tú: </string>
+    <string name="inbox_you_prefix">"Tú: "</string>
     <string name="inbox_no_messages">Aún no hay mensajes</string>
     <string name="inbox_attachment_fallback">Mensaje</string>
     <string name="inbox_notifications_off">Las notificaciones están desactivadas, así que no verás avisos de mensajes nuevos.</string>
@@ -63,8 +63,8 @@
     <string name="files_pick">Elige los archivos</string>
     <string name="files_sending">Cifrando y enviando…</string>
     <string name="files_pair_first">Empareja con alguien para enviarle un archivo.</string>
-    <string name="files_from">De </string>
-    <string name="files_to">Para </string>
+    <string name="files_from">"De "</string>
+    <string name="files_to">"Para "</string>
     <string name="settings_title">Ajustes</string>
     <string name="settings_account">Cuenta</string>
     <string name="settings_edit_profile">Editar perfil</string>

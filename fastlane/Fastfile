@@ -1,0 +1,38 @@
+default_platform(:android)
+
+before_all do
+  Dotenv.overload("../.env") if File.exist?("../.env")
+end
+
+def version_code
+  File.read("../app/build.gradle.kts")[/versionCode\s*=\s*(\d+)/, 1].to_i
+end
+
+platform :android do
+  # Raw captures in every language into fastlane/metadata/android (F-Droid's
+  # screenshots). Pass lang:de to redo one language.
+  lane :screenshots do |options|
+    sh("cd .. && tools/play-screenshots.sh #{options[:lang]}")
+  end
+
+  # Framed Play screenshots from the raw captures, into fastlane/play.
+  lane :frame do
+    sh("cd .. && python3 tools/frame_screenshots.py android")
+  end
+
+  # Play listing text and framed screenshots. Bundles are uploaded by hand in
+  # Play Console. supply needs a track with a release at this version code;
+  # pass track: and version_code: to point at another one.
+  lane :metadata do |options|
+    sh("cd .. && tools/play-metadata.sh")
+    upload_to_play_store(
+      metadata_path: "build/play-metadata",
+      track: options[:track] || "production",
+      version_code: (options[:version_code] || version_code).to_i,
+      skip_upload_apk: true,
+      skip_upload_aab: true,
+      skip_upload_changelogs: true,
+      sync_image_upload: true
+    )
+  end
+end

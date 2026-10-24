@@ -1,0 +1,3 @@
+Verschwindende Nachrichten sind zurück: Timer pro Unterhaltung von 1 Stunde bis 4 Wochen, danach löschen sich neue Nachrichten selbst. In 3.0.0 fehlten sie versehentlich. Abgelaufene Nachrichten löschen nun auch ihre Anhänge.
+Langes Tippen auf eine Nachricht kopiert den Text. Neu: Schaltfläche zum Senden von Dateien unten im Tab „Dateien“.
+Mit App-Sperre sperrt sich die App beim Drehen, Teilen einer Datei oder Öffnen eines Links nicht mehr. Dateien über 50 MB werden bei der Auswahl markiert.

@@ -63,8 +63,8 @@
     <string name="files_pick">选择文件</string>
     <string name="files_sending">正在加密并发送…</string>
     <string name="files_pair_first">与他人配对后即可发送文件。</string>
-    <string name="files_from">来自 </string>
-    <string name="files_to">发给 </string>
+    <string name="files_from">"来自 "</string>
+    <string name="files_to">"发给 "</string>
     <string name="settings_title">设置</string>
     <string name="settings_account">账户</string>
     <string name="settings_edit_profile">编辑资料</string>

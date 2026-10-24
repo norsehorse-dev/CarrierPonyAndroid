@@ -1,0 +1,65 @@
+{
+  "en-US": {
+    "inbox": "Private messages only you and your contacts can read",
+    "chat": "Messages that disappear on a timer you set",
+    "group": "Encrypted group chats",
+    "files": "Send any file, encrypted end to end",
+    "pair": "Pair in person with one QR scan"
+  },
+  "de-DE": {
+    "inbox": "Nachrichten, die nur ihr lesen könnt",
+    "chat": "Nachrichten verschwinden nach deinem Timer",
+    "group": "Verschlüsselte Gruppenchats",
+    "files": "Alle Dateien, Ende-zu-Ende-verschlüsselt",
+    "pair": "Vor Ort koppeln mit einem QR-Scan"
+  },
+  "es-ES": {
+    "inbox": "Mensajes que solo tú y tus contactos leen",
+    "chat": "Mensajes que desaparecen cuando tú decides",
+    "group": "Chats de grupo cifrados",
+    "files": "Envía cualquier archivo, siempre cifrado",
+    "pair": "Empareja en persona escaneando un QR"
+  },
+  "fr-FR": {
+    "inbox": "Messages lisibles par vous et vos contacts",
+    "chat": "Messages éphémères au délai de votre choix",
+    "group": "Discussions de groupe chiffrées",
+    "files": "Tout fichier, chiffré de bout en bout",
+    "pair": "Appairage en personne, un seul scan QR"
+  },
+  "it-IT": {
+    "inbox": "Messaggi privati, solo per te e chi scegli",
+    "chat": "Messaggi che spariscono quando decidi tu",
+    "group": "Chat di gruppo crittografate",
+    "files": "Invia qualsiasi file, cifrato end-to-end",
+    "pair": "Abbina di persona con un solo QR"
+  },
+  "ja-JP": {
+    "inbox": "あなたと相手だけが読めるメッセージ",
+    "chat": "設定した時間で消えるメッセージ",
+    "group": "暗号化されたグループチャット",
+    "files": "どんなファイルもエンドツーエンド暗号化",
+    "pair": "対面でQRを読み取るだけでペアリング"
+  },
+  "pt-BR": {
+    "inbox": "Mensagens que só você e seus contatos leem",
+    "chat": "Defina um timer e as mensagens somem",
+    "group": "Conversas em grupo criptografadas",
+    "files": "Envie arquivos cifrados de ponta a ponta",
+    "pair": "Pareie pessoalmente lendo um QR"
+  },
+  "ru-RU": {
+    "inbox": "Переписку читаете только вы и собеседник",
+    "chat": "Сообщения исчезают по вашему таймеру",
+    "group": "Зашифрованные групповые чаты",
+    "files": "Любые файлы со сквозным шифрованием",
+    "pair": "Сопряжение лично одним сканом QR-кода"
+  },
+  "zh-CN": {
+    "inbox": "只有你和联系人能看的私密消息",
+    "chat": "消息按你设定的时间自动消失",
+    "group": "端到端加密群聊",
+    "files": "任意文件，端到端加密发送",
+    "pair": "当面扫一次二维码即可配对"
+  }
+}

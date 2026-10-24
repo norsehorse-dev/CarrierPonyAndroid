@@ -1,0 +1,41 @@
+CarrierPony é um mensageiro privado e app de transferência segura de arquivos com criptografia PGP de verdade, de ponta a ponta. Sem número de telefone. Sem e-mail. Sem conta. Só você, as pessoas em quem confia e uma criptografia que funciona de fato.
+
+POR QUE CARRIERPONY?
+
+A maioria dos apps de "mensagens seguras" ainda pede seu número de telefone e guarda sua lista de contatos. O CarrierPony não pede nada. Sua identidade é um par de chaves OpenPGP criado no seu aparelho, e sua chave privada nunca sai dele.
+
+CRIPTOGRAFIA PGP DE VERDADE
+* Cada mensagem e arquivo é criptografado de ponta a ponta com OpenPGP
+* As mensagens são criptografadas no seu aparelho e só são descriptografadas no aparelho do seu contato
+* O servidor relay só repassa envelopes lacrados: sem nomes, sem conteúdo, sem texto legível
+* Feito sobre o PGPonyCore, nosso motor de criptografia de código aberto que qualquer pessoa pode auditar
+
+SEM CONTAS, SEM RASTREAMENTO
+* Não exige número de telefone, e-mail nem cadastro
+* Sem envio da lista de contatos, sem anúncios, sem analytics, sem rastreadores
+* Um ID aleatório por instalação é tudo o que o relay vê
+
+TRANSFERÊNCIA SEGURA DE ARQUIVOS
+* Envie fotos, documentos e arquivos de qualquer tipo, criptografados de ponta a ponta
+* Os arquivos nunca são enviados em formato legível e nunca são escaneados
+
+PAREAMENTO POR QR CODE
+* Pessoalmente: ler um único QR code pareia os dois celulares
+* À distância: envie um convite por qualquer canal em que você confie
+* Verifique contatos com um número de segurança
+
+VOCÊ NO CONTROLE
+* Mensagens temporárias com timer por conversa
+* Bloqueio do app com digital ou reconhecimento facial
+* Backups criptografados da identidade, protegidos por uma frase secreta que só você sabe
+* Apelidos privados por contato, que só você vê
+* Redefina e apague tudo quando quiser
+
+RELAYS E REDE
+* Por padrão, as mensagens lacradas passam pelo relay do CarrierPony em api.carrierpony.com
+* Rode seu próprio CarrierPony-Relay e aponte o app para ele em Configurações > Relay
+* Transporte Nostr opcional, desativado por padrão: quando ativado, cada mensagem lacrada também é publicada em relays Nostr de terceiros (relay.damus.io e nos.lol por padrão). Esses relays veem um conteúdo opaco e o seu endereço IP
+
+O CarrierPony faz parte da família Pony de apps de privacidade, ao lado do PGPony (OpenPGP no seu celular), AgePony, QuorumPony e RelayPony.
+
+Dúvidas? support@carrierpony.com

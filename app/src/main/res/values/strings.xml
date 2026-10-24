@@ -106,7 +106,7 @@
     <string name="group_member_one">1 member</string>
     <string name="group_member_many">%d members</string>
     <string name="export_failed">Couldn\'t create the export.</string>
-    <string name="inbox_you_prefix">You: </string>
+    <string name="inbox_you_prefix">"You: "</string>
     <string name="inbox_no_messages">No messages yet</string>
     <string name="inbox_attachment_fallback">Message</string>
     <string name="inbox_notifications_off">Notifications are off, so you won\'t see alerts for new messages.</string>
@@ -134,8 +134,8 @@
     <string name="files_pick">Pick the files</string>
     <string name="files_sending">Encrypting and sending…</string>
     <string name="files_pair_first">Pair with someone to send them a file.</string>
-    <string name="files_from">From </string>
-    <string name="files_to">To </string>
+    <string name="files_from">"From "</string>
+    <string name="files_to">"To "</string>
     <string name="settings_title">Settings</string>
     <string name="settings_account">Account</string>
     <string name="settings_edit_profile">Edit Profile</string>

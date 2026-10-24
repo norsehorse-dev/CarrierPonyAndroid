@@ -1,0 +1,3 @@
+As mensagens temporárias voltaram. Defina um timer por conversa, de 1 hora a 4 semanas, e as novas mensagens se apagam quando ele acabar. A 3.0.0 removeu o recurso por engano. Mensagens expiradas agora levam os anexos junto.
+Toque e segure uma mensagem para copiar o texto. Envie arquivos pelo novo botão no fim da aba Arquivos.
+Com o Bloqueio do app ativado, girar o celular, compartilhar um arquivo ou abrir um link não bloqueia mais o app. Arquivos acima de 50 MB são sinalizados ao escolher.

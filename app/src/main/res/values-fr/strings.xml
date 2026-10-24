@@ -35,7 +35,7 @@
     <string name="inbox_unpair_q">Dissocier ce contact ?</string>
     <string name="inbox_unpair_body">Cela supprime sa clé de cet appareil. Vous ne pourrez plus lire ses nouveaux messages tant que vous ne serez pas jumelés à nouveau.</string>
     <string name="inbox_unpair">Dissocier</string>
-    <string name="inbox_you_prefix">Vous : </string>
+    <string name="inbox_you_prefix">"Vous : "</string>
     <string name="inbox_no_messages">Pas encore de messages</string>
     <string name="inbox_attachment_fallback">Message</string>
     <string name="inbox_notifications_off">Les notifications sont désactivées, vous ne verrez donc pas d\'alertes pour les nouveaux messages.</string>
@@ -63,8 +63,8 @@
     <string name="files_pick">Choisissez les fichiers</string>
     <string name="files_sending">Chiffrement et envoi…</string>
     <string name="files_pair_first">Jumelez-vous avec quelqu\'un pour lui envoyer un fichier.</string>
-    <string name="files_from">De </string>
-    <string name="files_to">À </string>
+    <string name="files_from">"De "</string>
+    <string name="files_to">"À "</string>
     <string name="settings_title">Réglages</string>
     <string name="settings_account">Compte</string>
     <string name="settings_edit_profile">Modifier le profil</string>

@@ -1,0 +1,3 @@
+Tornano i messaggi effimeri. Imposta un timer per conversazione, da 1 ora a 4 settimane, e i nuovi messaggi spariscono alla scadenza. La 3.0.0 li aveva rimossi per errore. I messaggi scaduti ora eliminano gli allegati.
+Tieni premuto un messaggio per copiarne il testo. Invia file dal nuovo pulsante in fondo alla scheda File.
+Con il blocco app attivo, ruotare il telefono, condividere un file o aprire un link non blocca più l'app. I file oltre 50 MB vengono segnalati alla selezione.

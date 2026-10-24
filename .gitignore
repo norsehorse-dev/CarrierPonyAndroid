@@ -40,3 +40,10 @@ build/
 *.apk.asc
 /release-notes-*.md
 /reproducible/out/
+
+# --- store screenshots and fastlane (3.2.0) ---
+.env
+*service-account*.json
+fastlane/report.xml
+vendor/bundle
+tools/fonts/

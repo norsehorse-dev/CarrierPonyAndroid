@@ -35,7 +35,7 @@
     <string name="inbox_unpair_q">Отвязать этот контакт?</string>
     <string name="inbox_unpair_body">Это удалит его ключ с устройства. Вы не сможете читать его новые сообщения, пока не свяжетесь снова.</string>
     <string name="inbox_unpair">Отвязать</string>
-    <string name="inbox_you_prefix">Вы: </string>
+    <string name="inbox_you_prefix">"Вы: "</string>
     <string name="inbox_no_messages">Сообщений пока нет</string>
     <string name="inbox_attachment_fallback">Сообщение</string>
     <string name="inbox_notifications_off">Уведомления выключены, поэтому вы не увидите оповещений о новых сообщениях.</string>
@@ -63,8 +63,8 @@
     <string name="files_pick">Выберите файлы</string>
     <string name="files_sending">Шифрование и отправка…</string>
     <string name="files_pair_first">Свяжитесь с кем-нибудь, чтобы отправить файл.</string>
-    <string name="files_from">От </string>
-    <string name="files_to">Кому </string>
+    <string name="files_from">"От "</string>
+    <string name="files_to">"Кому "</string>
     <string name="settings_title">Настройки</string>
     <string name="settings_account">Аккаунт</string>
     <string name="settings_edit_profile">Изменить профиль</string>

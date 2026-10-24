@@ -1,0 +1,41 @@
+CarrierPony es una app de mensajería privada y transferencia segura de archivos con cifrado PGP real de extremo a extremo. Sin número de teléfono. Sin correo electrónico. Sin cuenta. Solo tú, las personas en las que confías y un cifrado que funciona de verdad.
+
+¿POR QUÉ CARRIERPONY?
+
+La mayoría de las apps de "mensajería segura" siguen pidiéndote el número de teléfono y guardando tu lista de contactos. CarrierPony no te pide nada. Tu identidad es un par de claves OpenPGP creado en tu dispositivo, y tu clave privada nunca sale de él.
+
+CIFRADO PGP REAL
+* Cada mensaje y cada archivo se cifra de extremo a extremo con OpenPGP
+* Los mensajes se cifran en tu dispositivo y solo se descifran en el de tu contacto
+* El servidor relay solo reenvía sobres sellados: sin nombres, sin contenido, sin texto en claro
+* Basado en PGPonyCore, nuestro motor criptográfico de código abierto que cualquiera puede revisar
+
+SIN CUENTAS, SIN RASTREO
+* No hace falta número de teléfono, correo electrónico ni registro
+* No se sube tu lista de contactos, sin anuncios, sin analíticas, sin rastreadores
+* Lo único que ve el relay es un ID aleatorio por instalación
+
+TRANSFERENCIA SEGURA DE ARCHIVOS
+* Envía fotos, documentos y archivos de cualquier tipo, cifrados de extremo a extremo
+* Los archivos nunca se suben en un formato legible y nunca se escanean
+
+EMPAREJA CON UN CÓDIGO QR
+* En persona: un solo escaneo de código QR empareja ambos teléfonos
+* A distancia: envía una invitación por cualquier canal de confianza
+* Verifica a tus contactos con un número de seguridad
+
+TÚ TIENES EL CONTROL
+* Mensajes temporales con un temporizador por conversación
+* Bloqueo de la app con huella dactilar o desbloqueo facial
+* Copias de seguridad de tu identidad cifradas y protegidas con una frase de contraseña que solo tú conoces
+* Apodos privados por contacto que solo tú puedes ver
+* Restablece y borra todo cuando quieras
+
+RELAYS Y RED
+* De forma predeterminada, los mensajes sellados pasan por el relay de CarrierPony en api.carrierpony.com
+* Ejecuta tu propio CarrierPony-Relay y configura la app para usarlo en Ajustes > Relay
+* Transporte Nostr opcional, desactivado de forma predeterminada: si lo activas, cada mensaje sellado también se publica en relays Nostr de terceros (relay.damus.io y nos.lol de forma predeterminada). Esos relays ven contenido opaco y tu dirección IP
+
+CarrierPony forma parte de la familia Pony de apps de privacidad, junto con PGPony (OpenPGP para tu teléfono), AgePony, QuorumPony y RelayPony.
+
+¿Tienes preguntas? support@carrierpony.com

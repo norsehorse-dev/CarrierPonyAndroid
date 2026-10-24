@@ -1,0 +1,2 @@
+package_name("com.carrierpony.app")
+json_key_file(ENV["PLAY_JSON_KEY"]) if ENV["PLAY_JSON_KEY"]

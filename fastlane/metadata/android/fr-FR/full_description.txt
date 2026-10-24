@@ -1,0 +1,41 @@
+CarrierPony est une messagerie privée et une app de transfert de fichiers sécurisé, avec un vrai chiffrement PGP de bout en bout. Pas de numéro de téléphone. Pas d'e-mail. Pas de compte. Juste vous, les personnes en qui vous avez confiance, et un chiffrement qui fonctionne vraiment.
+
+POURQUOI CARRIERPONY ?
+
+La plupart des messageries dites « sécurisées » demandent encore votre numéro de téléphone et stockent votre liste de contacts. CarrierPony ne vous demande rien. Votre identité est une paire de clés OpenPGP créée sur votre appareil, et votre clé privée ne le quitte jamais.
+
+UN VRAI CHIFFREMENT PGP
+* Chaque message et chaque fichier est chiffré de bout en bout avec OpenPGP
+* Les messages sont chiffrés sur votre appareil et déchiffrés uniquement sur celui de votre contact
+* Le serveur relais ne transmet que des enveloppes scellées : aucun nom, aucun contenu, aucun texte en clair
+* Basé sur PGPonyCore, notre moteur cryptographique open source que chacun peut examiner
+
+NI COMPTE, NI PISTAGE
+* Aucun numéro de téléphone, e-mail ou inscription nécessaire
+* Aucun envoi de votre liste de contacts, ni publicité, ni statistiques, ni traceurs
+* Le relais ne voit qu'un identifiant aléatoire, propre à chaque installation
+
+TRANSFERT DE FICHIERS SÉCURISÉ
+* Envoyez photos, documents et fichiers de tout type, chiffrés de bout en bout
+* Les fichiers ne sont jamais envoyés sous forme lisible, et jamais analysés
+
+APPAIRAGE PAR QR CODE
+* En personne : un seul scan de QR code appaire les deux téléphones
+* À distance : envoyez une invitation par n'importe quel canal de confiance
+* Vérifiez vos contacts grâce à un numéro de sécurité
+
+GARDEZ LE CONTRÔLE
+* Messages éphémères avec une minuterie propre à chaque conversation
+* Verrouillage de l'app par empreinte digitale ou reconnaissance faciale
+* Sauvegardes d'identité chiffrées, protégées par une phrase secrète que vous seul connaissez
+* Surnoms privés pour chaque contact, visibles par vous seul
+* Réinitialisez et effacez tout, à tout moment
+
+RELAIS ET RÉSEAU
+* Par défaut, les messages scellés passent par le relais CarrierPony à l'adresse api.carrierpony.com
+* Hébergez votre propre CarrierPony-Relay et configurez l'app pour l'utiliser dans Réglages > Relais
+* Transport Nostr optionnel, désactivé par défaut : une fois activé, chaque message scellé est aussi publié sur des relais Nostr tiers (relay.damus.io et nos.lol par défaut). Ces relais voient un contenu opaque et votre adresse IP
+
+CarrierPony fait partie de la famille Pony d'apps de confidentialité, aux côtés de PGPony (OpenPGP sur votre téléphone), AgePony, QuorumPony et RelayPony.
+
+Des questions ? support@carrierpony.com

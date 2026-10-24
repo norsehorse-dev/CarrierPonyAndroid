@@ -35,7 +35,7 @@
     <string name="inbox_unpair_q">Dissociare questo contatto?</string>
     <string name="inbox_unpair_body">Questo rimuove la sua chiave da questo dispositivo. Non potrai leggere i suoi nuovi messaggi finché non vi associate di nuovo.</string>
     <string name="inbox_unpair">Dissocia</string>
-    <string name="inbox_you_prefix">Tu: </string>
+    <string name="inbox_you_prefix">"Tu: "</string>
     <string name="inbox_no_messages">Ancora nessun messaggio</string>
     <string name="inbox_attachment_fallback">Messaggio</string>
     <string name="inbox_notifications_off">Le notifiche sono disattivate, quindi non vedrai avvisi per i nuovi messaggi.</string>
@@ -63,8 +63,8 @@
     <string name="files_pick">Scegli i file</string>
     <string name="files_sending">Cifratura e invio…</string>
     <string name="files_pair_first">Associati con qualcuno per inviargli un file.</string>
-    <string name="files_from">Da </string>
-    <string name="files_to">A </string>
+    <string name="files_from">"Da "</string>
+    <string name="files_to">"A "</string>
     <string name="settings_title">Impostazioni</string>
     <string name="settings_account">Account</string>
     <string name="settings_edit_profile">Modifica profilo</string>

@@ -35,7 +35,7 @@
     <string name="inbox_unpair_q">Kopplung mit diesem Kontakt aufheben?</string>
     <string name="inbox_unpair_body">Das entfernt den Schlüssel von diesem Gerät. Neue Nachrichten dieser Person kannst du erst wieder lesen, wenn ihr euch neu koppelt.</string>
     <string name="inbox_unpair">Entkoppeln</string>
-    <string name="inbox_you_prefix">Du: </string>
+    <string name="inbox_you_prefix">"Du: "</string>
     <string name="inbox_no_messages">Noch keine Nachrichten</string>
     <string name="inbox_attachment_fallback">Nachricht</string>
     <string name="inbox_notifications_off">Benachrichtigungen sind aus, du siehst also keine Hinweise auf neue Nachrichten.</string>
@@ -63,8 +63,8 @@
     <string name="files_pick">Dateien auswählen</string>
     <string name="files_sending">Wird verschlüsselt und gesendet…</string>
     <string name="files_pair_first">Kopple dich mit jemandem, um ihm eine Datei zu senden.</string>
-    <string name="files_from">Von </string>
-    <string name="files_to">An </string>
+    <string name="files_from">"Von "</string>
+    <string name="files_to">"An "</string>
     <string name="settings_title">Einstellungen</string>
     <string name="settings_account">Konto</string>
     <string name="settings_edit_profile">Profil bearbeiten</string>
