@@ -187,6 +187,8 @@ def main():
         for name in sorted(os.listdir(src_dir)):
             if not name.endswith(".png"):
                 continue
+            if name.startswith("iPad"):
+                continue  # CarrierPony iOS is iPhone only
             key = screen_key(name)
             caption = captions[locale].get(key)
             if caption is None:
