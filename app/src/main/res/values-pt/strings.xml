@@ -4,6 +4,8 @@
     <string name="lock_title">O CarrierPony está bloqueado</string>
     <string name="lock_body">Desbloqueie com sua digital, seu rosto ou a credencial do dispositivo.</string>
     <string name="lock_unlock">Desbloquear</string>
+    <string name="lock_dropped_title">Nada foi salvo</string>
+    <string name="lock_dropped_body">A janela do sistema ficou aberta por mais de dois minutos, então o bloqueio do app foi ativado e o CarrierPony não usou o que você escolheu. Nada foi salvo nem anexado. Tente de novo.</string>
     <string name="common_cancel">Cancelar</string>
     <string name="common_done">Concluído</string>
     <string name="common_back">Voltar</string>

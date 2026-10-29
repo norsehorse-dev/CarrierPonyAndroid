@@ -1,0 +1,2 @@
+Na janela de mensagens temporárias, tocar em um rótulo como "1 hora" agora o seleciona.
+Quando o bloqueio do app é ativado porque uma janela de salvar ou escolher ficou aberta por mais de dois minutos, o app agora avisa depois do desbloqueio que nada foi salvo nem anexado e apaga o arquivo vazio que a janela de salvar já tinha criado.

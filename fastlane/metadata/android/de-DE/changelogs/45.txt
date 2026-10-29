@@ -1,0 +1,2 @@
+Im Dialog „Verschwindende Nachrichten“ wählt ein Tipp auf eine Beschriftung wie „1 Stunde“ sie jetzt aus.
+Wenn sich die App-Sperre aktiviert, weil ein Speicher- oder Auswahldialog länger als zwei Minuten offen war, zeigt die App nach dem Entsperren an, dass nichts gespeichert oder angehängt wurde, und entfernt die leere Datei, die der Speicherdialog bereits angelegt hatte.

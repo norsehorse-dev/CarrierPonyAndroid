@@ -12,6 +12,8 @@ package com.carrierpony.app.lock
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContract
@@ -55,16 +57,38 @@ fun startActivityHoldingLock(context: Context, intent: Intent) {
 
 /** Drop-in for rememberLauncherForActivityResult, for launchers that open a
  *  picker or scanner which covers the app. Not needed for permission dialogs,
- *  which only pause the activity. */
+ *  which only pause the activity. When the lock came on while the picker was
+ *  open, the result is not used: onDropped gets it instead (a save dialog uses
+ *  that to remove the empty file the system already created), and Root shows
+ *  a note after unlocking. */
 @Composable
 fun <I, O> rememberLockSafeLauncher(
     contract: ActivityResultContract<I, O>,
+    onDropped: (O) -> Unit = {},
     onResult: (O) -> Unit
 ): LockSafeLauncher<I> {
     val lock = LocalAppLock.current
     val currentOnResult by rememberUpdatedState(onResult)
+    val currentOnDropped by rememberUpdatedState(onDropped)
     val inner = rememberLauncherForActivityResult(contract) { result ->
-        if (lock?.externalActivityFinished() != false) currentOnResult(result)
+        if (lock?.externalActivityFinished() != false) {
+            currentOnResult(result)
+        } else if (result != null && !(result is Collection<*> && result.isEmpty())) {
+            currentOnDropped(result)
+            lock?.noteDroppedResult()
+        }
     }
     return remember(inner, lock) { LockSafeLauncher(inner, lock) }
+}
+
+/** Remove a document that a CreateDocument dialog made but nothing was written
+ *  to, so an empty file isn't left looking like a saved backup. Best effort:
+ *  some providers don't support deleting. */
+fun discardCreatedDocument(context: Context, uri: Uri?) {
+    if (uri == null) return
+    try {
+        DocumentsContract.deleteDocument(context.contentResolver, uri)
+    } catch (e: Exception) {
+        // Left in place; the note after unlocking still says nothing was saved.
+    }
 }

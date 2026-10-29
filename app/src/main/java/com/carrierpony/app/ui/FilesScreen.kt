@@ -11,6 +11,7 @@
 
 package com.carrierpony.app.ui
 
+import com.carrierpony.app.lock.discardCreatedDocument
 import com.carrierpony.app.lock.rememberLockSafeLauncher
 import com.carrierpony.app.R
 import android.net.Uri
@@ -182,7 +183,8 @@ private fun TransferRow(transfer: FileTransfer, contactName: String) {
 
     // System document creator for stringResource(R.string.files_save_device).
     val saver = rememberLockSafeLauncher(
-        ActivityResultContracts.CreateDocument(attachment.mime.ifEmpty { "application/octet-stream" })
+        ActivityResultContracts.CreateDocument(attachment.mime.ifEmpty { "application/octet-stream" }),
+        onDropped = { uri: Uri? -> discardCreatedDocument(context, uri) }
     ) { uri: Uri? ->
         if (uri != null) {
             try {

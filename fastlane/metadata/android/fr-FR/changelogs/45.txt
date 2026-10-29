@@ -1,0 +1,2 @@
+Dans la boîte de dialogue des messages éphémères, toucher un libellé comme « 1 heure » le sélectionne désormais.
+Si le verrouillage de l'app s'active parce qu'une boîte d'enregistrement ou de sélection est restée ouverte plus de deux minutes, l'app indique après le déverrouillage que rien n'a été enregistré ni joint, et supprime le fichier vide que la boîte d'enregistrement avait déjà créé.

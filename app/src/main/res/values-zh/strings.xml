@@ -4,6 +4,8 @@
     <string name="lock_title">CarrierPony 已锁定</string>
     <string name="lock_body">使用指纹、面容或设备凭据解锁。</string>
     <string name="lock_unlock">解锁</string>
+    <string name="lock_dropped_title">未保存任何内容</string>
+    <string name="lock_dropped_body">系统对话框打开超过两分钟，因此应用锁已启用，CarrierPony 没有使用你选择的内容。未保存或附加任何内容。请重试。</string>
     <string name="common_cancel">取消</string>
     <string name="common_done">完成</string>
     <string name="common_back">返回</string>

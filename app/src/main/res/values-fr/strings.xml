@@ -4,6 +4,8 @@
     <string name="lock_title">CarrierPony est verrouillé</string>
     <string name="lock_body">Déverrouillez avec votre empreinte, votre visage ou le code de l\'appareil.</string>
     <string name="lock_unlock">Déverrouiller</string>
+    <string name="lock_dropped_title">Rien n\'a été enregistré</string>
+    <string name="lock_dropped_body">La boîte de dialogue du système est restée ouverte plus de deux minutes. Le verrouillage de l\'app s\'est donc activé et CarrierPony n\'a pas utilisé votre sélection. Rien n\'a été enregistré ni joint. Veuillez réessayer.</string>
     <string name="common_cancel">Annuler</string>
     <string name="common_done">Terminé</string>
     <string name="common_back">Retour</string>

@@ -1,0 +1,2 @@
+En el diálogo de mensajes temporales, tocar una etiqueta como «1 hora» ahora la selecciona.
+Si el bloqueo de la app se activa porque un diálogo de guardar o elegir estuvo abierto más de dos minutos, al desbloquear la app avisa de que no se guardó ni adjuntó nada y borra el archivo vacío que el diálogo de guardar ya había creado.

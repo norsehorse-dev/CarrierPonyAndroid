@@ -4,6 +4,8 @@
     <string name="lock_title">CarrierPony ist gesperrt</string>
     <string name="lock_body">Entsperre mit Fingerabdruck, Gesicht oder Geräte-Anmeldedaten.</string>
     <string name="lock_unlock">Entsperren</string>
+    <string name="lock_dropped_title">Nichts wurde gespeichert</string>
+    <string name="lock_dropped_body">Der Systemdialog war länger als zwei Minuten geöffnet. Deshalb hat sich die App-Sperre aktiviert und CarrierPony hat deine Auswahl nicht verwendet. Es wurde nichts gespeichert oder angehängt. Bitte versuche es noch einmal.</string>
     <string name="common_cancel">Abbrechen</string>
     <string name="common_done">Fertig</string>
     <string name="common_back">Zurück</string>

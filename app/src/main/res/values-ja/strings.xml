@@ -4,6 +4,8 @@
     <string name="lock_title">CarrierPony はロック中です</string>
     <string name="lock_body">指紋、顔、または端末の認証情報でロックを解除します。</string>
     <string name="lock_unlock">ロック解除</string>
+    <string name="lock_dropped_title">保存されませんでした</string>
+    <string name="lock_dropped_body">システムのダイアログが2分以上開いていたため、アプリロックがかかり、CarrierPony は選択した内容を使用しませんでした。保存や添付は行われていません。もう一度お試しください。</string>
     <string name="common_cancel">キャンセル</string>
     <string name="common_done">完了</string>
     <string name="common_back">戻る</string>

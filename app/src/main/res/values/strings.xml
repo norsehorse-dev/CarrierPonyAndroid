@@ -4,6 +4,8 @@
     <string name="lock_title">CarrierPony is locked</string>
     <string name="lock_body">Unlock with your fingerprint, face, or device credential.</string>
     <string name="lock_unlock">Unlock</string>
+    <string name="lock_dropped_title">Nothing was saved</string>
+    <string name="lock_dropped_body">The system dialog was open for more than two minutes, so App Lock came on and CarrierPony didn\'t use what you picked. Nothing was saved or attached. Please try again.</string>
     <string name="common_cancel">Cancel</string>
     <string name="common_done">Done</string>
     <string name="common_back">Back</string>

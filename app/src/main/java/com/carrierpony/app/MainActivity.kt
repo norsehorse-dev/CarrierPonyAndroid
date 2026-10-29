@@ -218,6 +218,20 @@ private fun Root(
         return
     }
 
+    // A picker's result was dropped because the lock came on while it was
+    // open (LockManager.noteDroppedResult). Say so after unlocking.
+    val droppedResult by app.appLock.droppedResult.collectAsState()
+    if (droppedResult) {
+        AlertDialog(
+            onDismissRequest = { app.appLock.clearDroppedResult() },
+            title = { Text(stringResource(R.string.lock_dropped_title)) },
+            text = { Text(stringResource(R.string.lock_dropped_body)) },
+            confirmButton = {
+                TextButton(onClick = { app.appLock.clearDroppedResult() }) { Text(stringResource(R.string.common_done)) }
+            }
+        )
+    }
+
     // Gate on onboarding completion, not identity presence: the identity
     // exists from the onboarding identity step onward, but the flow continues
     // through the backup and pairing pages.

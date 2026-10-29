@@ -61,6 +61,23 @@ class LockManager private constructor(context: Context) {
     private var externalSince = 0L
     private var externalExpired = false
 
+    // Set when a picker's result was thrown away because the lock came on
+    // while it was open. Root shows a short note after unlocking, so a dropped
+    // save or attachment isn't silent (a tester waited out the grace period in
+    // the save dialog and got an empty file and no message).
+    private val _droppedResult = MutableStateFlow(false)
+    val droppedResult: StateFlow<Boolean> = _droppedResult.asStateFlow()
+
+    /** A picker returned something, but it was dropped (see externalActivityFinished). */
+    fun noteDroppedResult() {
+        _droppedResult.value = true
+    }
+
+    /** The note about a dropped result was shown and dismissed. */
+    fun clearDroppedResult() {
+        _droppedResult.value = false
+    }
+
     /** A picker or scanner is about to open (see rememberLockSafeLauncher). */
     fun externalActivityStarting() {
         externalSince = SystemClock.elapsedRealtime()

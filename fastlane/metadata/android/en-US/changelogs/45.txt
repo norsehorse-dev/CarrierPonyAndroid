@@ -1,0 +1,2 @@
+In the Disappearing messages dialog, tapping a label like "1 hour" now selects it.
+When App Lock comes on because a save or pick dialog stayed open longer than two minutes, the app now says nothing was saved or attached after you unlock, and removes the empty file the save dialog had already created.

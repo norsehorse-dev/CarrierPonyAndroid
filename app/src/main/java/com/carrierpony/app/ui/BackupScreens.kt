@@ -7,6 +7,7 @@
 
 package com.carrierpony.app.ui
 
+import com.carrierpony.app.lock.discardCreatedDocument
 import com.carrierpony.app.lock.rememberLockSafeLauncher
 import com.carrierpony.app.R
 import android.content.Intent
@@ -87,7 +88,8 @@ fun BackupScreen(identity: Identity, onDone: () -> Unit) {
 
     // System document creator: the reliable "save to a file" on Android.
     val saver = rememberLockSafeLauncher(
-        ActivityResultContracts.CreateDocument("text/plain")
+        ActivityResultContracts.CreateDocument("text/plain"),
+        onDropped = { uri -> discardCreatedDocument(context, uri) }
     ) { uri ->
         val text = blob
         if (uri != null && text != null) {

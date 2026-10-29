@@ -4,6 +4,8 @@
     <string name="lock_title">CarrierPony è bloccato</string>
     <string name="lock_body">Sblocca con l\'impronta, il volto o le credenziali del dispositivo.</string>
     <string name="lock_unlock">Sblocca</string>
+    <string name="lock_dropped_title">Non è stato salvato nulla</string>
+    <string name="lock_dropped_body">La finestra di sistema è rimasta aperta per più di due minuti, quindi il blocco app si è attivato e CarrierPony non ha usato ciò che hai scelto. Non è stato salvato né allegato nulla. Riprova.</string>
     <string name="common_cancel">Annulla</string>
     <string name="common_done">Fine</string>
     <string name="common_back">Indietro</string>

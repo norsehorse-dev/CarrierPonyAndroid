@@ -22,6 +22,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -528,17 +530,26 @@ fun ConversationScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(8.dp))
+                    // The whole row is the tap target, not just the radio
+                    // button (a tap on the label did nothing before).
                     options.forEach { (labelRes, secs) ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectable(
+                                    selected = currentTtl == secs,
+                                    role = Role.RadioButton,
+                                    onClick = {
+                                        scope.launch { store.setDisappearingTimer(contact.fingerprint, secs) }
+                                        showingTimerDialog = false
+                                    }
+                                )
+                                .padding(vertical = 2.dp)
                         ) {
                             androidx.compose.material3.RadioButton(
                                 selected = currentTtl == secs,
-                                onClick = {
-                                    scope.launch { store.setDisappearingTimer(contact.fingerprint, secs) }
-                                    showingTimerDialog = false
-                                }
+                                onClick = null
                             )
                             Spacer(Modifier.width(4.dp))
                             Text(stringResource(labelRes))

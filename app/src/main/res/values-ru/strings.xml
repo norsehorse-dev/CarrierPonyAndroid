@@ -4,6 +4,8 @@
     <string name="lock_title">CarrierPony заблокирован</string>
     <string name="lock_body">Разблокируйте по отпечатку, лицу или учётным данным устройства.</string>
     <string name="lock_unlock">Разблокировать</string>
+    <string name="lock_dropped_title">Ничего не сохранено</string>
+    <string name="lock_dropped_body">Системное окно было открыто больше двух минут, поэтому включилась блокировка приложения и CarrierPony не использовал выбранное. Ничего не сохранено и не прикреплено. Попробуйте ещё раз.</string>
     <string name="common_cancel">Отмена</string>
     <string name="common_done">Готово</string>
     <string name="common_back">Назад</string>

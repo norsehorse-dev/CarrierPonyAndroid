@@ -1,0 +1,2 @@
+Nella finestra dei messaggi effimeri, toccare un'etichetta come "1 ora" ora la seleziona.
+Se il blocco app si attiva perché una finestra di salvataggio o di scelta è rimasta aperta per più di due minuti, dopo lo sblocco l'app avvisa che non è stato salvato né allegato nulla e rimuove il file vuoto che la finestra di salvataggio aveva già creato.
