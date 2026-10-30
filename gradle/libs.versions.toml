@@ -33,6 +33,8 @@ androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version
 androidx-browser = { group = "androidx.browser", name = "browser", version = "1.8.0" }
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version = "34.4.0" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
+unifiedpush-connector = { group = "org.unifiedpush.android", name = "connector", version = "3.0.10" }
+androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version = "2.10.1" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

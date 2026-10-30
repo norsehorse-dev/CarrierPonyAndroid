@@ -8,6 +8,18 @@
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
 
     <application>
+        <!-- UnifiedPush receiver, foss build only (the Play build uses FCM). The
+             connector library brings its own receiver; this service is where it
+             delivers endpoints and wakes. Not exported: only the connector, inside
+             this app, binds to it. -->
+        <service
+            android:name="com.carrierpony.app.push.UpPushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="org.unifiedpush.android.connector.PUSH_EVENT" />
+            </intent-filter>
+        </service>
+
         <!-- Captures our port-addressed data SMS even when the app is not running.
              Guarded by BROADCAST_SMS (only the system can send this broadcast). -->
         <receiver

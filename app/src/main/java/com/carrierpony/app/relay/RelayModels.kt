@@ -31,14 +31,18 @@ class InboxMessage(
     val messageId: String,
     val envelope: String,        // base64 OpenPGP envelope
     val receivedAt: String,
-    val expiresAt: String
+    val expiresAt: String,
+    // False for a silent send (control op, self-copy, profile sync). A relay
+    // older than migration 007 omits the field, which reads as true.
+    val alert: Boolean = true
 ) {
     companion object {
         fun from(json: JSONObject) = InboxMessage(
             messageId = json.getString("message_id"),
             envelope = json.getString("envelope"),
             receivedAt = json.getString("received_at"),
-            expiresAt = json.getString("expires_at")
+            expiresAt = json.getString("expires_at"),
+            alert = json.optInt("alert", 1) != 0
         )
     }
 }
@@ -88,7 +92,9 @@ class SealedInboxMessage(
     val mailbox: String,
     val envelope: String,
     val receivedAt: String,
-    val expiresAt: String
+    val expiresAt: String,
+    // See InboxMessage.alert.
+    val alert: Boolean = true
 ) {
     companion object {
         fun from(json: JSONObject) = SealedInboxMessage(
@@ -96,7 +102,8 @@ class SealedInboxMessage(
             mailbox = json.getString("mailbox"),
             envelope = json.getString("envelope"),
             receivedAt = json.getString("received_at"),
-            expiresAt = json.getString("expires_at")
+            expiresAt = json.getString("expires_at"),
+            alert = json.optInt("alert", 1) != 0
         )
     }
 }

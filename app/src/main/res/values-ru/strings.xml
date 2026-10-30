@@ -411,4 +411,33 @@
     <string name="settings_sms_toggle">Также отправлять по SMS</string>
     <string name="chat_awaiting_pairing">%1$s ещё не завершил сопряжение. Ваши сообщения откроются у него, когда его приложение выйдет на связь.</string>
     <string name="inbox_held_messages">Ожидает сообщений: %1$d от того, чьё сопряжение на этом устройстве ещё не завершено. Они откроются сами, когда оно завершится.</string>
+
+    <!-- 3.3.0: Settings > Notifications, member and subscriber counts -->
+    <string name="settings_notifications">Уведомления</string>
+    <string name="notif_sub_fcm">Push через Google</string>
+    <string name="notif_sub_up">UnifiedPush через %1$s</string>
+    <string name="notif_sub_check">Проверяет новые сообщения примерно каждые 15 минут</string>
+    <string name="notif_heading_mode">Как приходят уведомления</string>
+    <string name="notif_mode_fcm">Новые сообщения приходят как push-уведомления через Firebase Cloud Messaging от Google. Google видит, что что-то пришло, но никогда не узнаёт, кто это отправил и что там написано.</string>
+    <string name="notif_mode_up">Новые сообщения приходят как push-уведомления через %1$s сразу после отправки.</string>
+    <string name="notif_mode_pending">Ожидаем, пока %1$s завершит настройку. До этого CarrierPony проверяет новые сообщения в фоновом режиме.</string>
+    <string name="notif_mode_check">Пока приложение закрыто, CarrierPony проверяет новые сообщения примерно каждые 15 минут. Android может увеличивать этот интервал для экономии заряда, поэтому уведомление может прийти через некоторое время после сообщения.</string>
+    <string name="notif_heading_service">Push-сервис</string>
+    <string name="notif_option_none">Нет, проверять в фоновом режиме</string>
+    <string name="notif_none_installed">Не установлен ни один дистрибьютор UnifiedPush. Установите его, например Sunup или ntfy, чтобы получать уведомления сразу, как приходят сообщения.</string>
+    <string name="notif_gateway_needed">Ваш ретранслятор сам не может отправлять push-уведомления. Включите «Push-уведомления» в настройках, в разделе «Ретранслятор», чтобы использовать с ним UnifiedPush. До этого CarrierPony проверяет сообщения в фоновом режиме.</string>
+    <string name="notif_privacy_up">Сервер UnifiedPush узнаёт, когда это устройство получает сообщение, но никогда не узнаёт, кто его отправил и что в нём написано. Если использовать свой сервер, эти сведения останутся у вас.</string>
+    <string name="notif_system_settings">Системные настройки уведомлений</string>
+    <plurals name="group_members_count">
+        <item quantity="one">%d участник</item>
+        <item quantity="few">%d участника</item>
+        <item quantity="many">%d участников</item>
+        <item quantity="other">%d участника</item>
+    </plurals>
+    <plurals name="channel_subscribers_count">
+        <item quantity="one">%d подписчик</item>
+        <item quantity="few">%d подписчика</item>
+        <item quantity="many">%d подписчиков</item>
+        <item quantity="other">%d подписчика</item>
+    </plurals>
 </resources>

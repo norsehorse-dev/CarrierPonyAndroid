@@ -57,6 +57,15 @@ class SealedKeyStore(context: Context, private val identityHex: String) {
         if (changed) editor.apply()
     }
 
+    /** The sealed device_id and device_key if this account already has them, without
+     *  minting either. For background work that must not create a device the app
+     *  has never registered. */
+    fun existingDevice(): Pair<String, String>? {
+        val id = readString(DEVICE_ID) ?: return null
+        val key = readString(DEVICE_KEY) ?: return null
+        return id to key
+    }
+
     /** This device's sealed auth key (64 hex), minted once and persisted. */
     fun deviceKey(): String {
         readString(DEVICE_KEY)?.let { return it }

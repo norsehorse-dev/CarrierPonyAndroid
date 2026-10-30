@@ -13,6 +13,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +35,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
@@ -180,11 +183,20 @@ fun GroupConversationScreen(store: ChatStore, groupID: String, contacts: List<Co
                 title = {
                     Column {
                         Text(group.name, maxLines = 1, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            memberCountLabel(group.members.size),
-                            style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
-                            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        // Same rule as the detail screen: channels count subscribers
+                        // for their admins, and show no count to a subscriber.
+                        val countLabel = when {
+                            !group.isChannel -> memberCountLabel(group.members.size)
+                            group.isAdmin(store.identityFingerprint) -> subscriberCountLabel(group.members.count { !it.isAdmin })
+                            else -> null
+                        }
+                        if (countLabel != null) {
+                            Text(
+                                countLabel,
+                                style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
+                                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 },
                 navigationIcon = {
@@ -370,8 +382,18 @@ fun GroupDetailScreen(store: ChatStore, groupID: String, contacts: List<Contact>
                 },
                 actions = {
                     if (amAdmin) {
-                        IconButton(onClick = { renameDraft = group.name; showRename = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.group_rename), tint = CPTheme.accent)
+                        // A real overflow menu: the icon reads as "more", so it opens one.
+                        var topMenu by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(onClick = { topMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.common_more), tint = CPTheme.accent)
+                            }
+                            DropdownMenu(expanded = topMenu, onDismissRequest = { topMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.group_rename)) },
+                                    onClick = { topMenu = false; renameDraft = group.name; showRename = true }
+                                )
+                            }
                         }
                     }
                 }
@@ -379,14 +401,35 @@ fun GroupDetailScreen(store: ChatStore, groupID: String, contacts: List<Contact>
         }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(memberCountLabel(group.members.size), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                if (amAdmin) {
-                    if (group.isChannel) {
-                        TextButton(onClick = { showInvite = store.channelInvite(groupID) }) { Text(stringResource(R.string.channel_share_invite)) }
+            // The count gets its own line and the admin actions sit below it as
+            // full-width rows. Sharing one row with two buttons squeezed the count to
+            // one letter per line once the labels got long (French, German, Russian).
+            // A channel counts subscribers (admins excluded). A subscriber's copy of a
+            // channel only lists the admins, so it shows no count at all.
+            val countLabel = when {
+                !group.isChannel -> memberCountLabel(group.members.size)
+                amAdmin -> subscriberCountLabel(group.members.count { !it.isAdmin })
+                else -> null
+            }
+            if (countLabel != null) {
+                Text(
+                    countLabel,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp)
+                )
+            }
+            if (amAdmin) {
+                if (group.isChannel) {
+                    HorizontalDivider()
+                    DetailActionRow(Icons.Default.Share, stringResource(R.string.channel_share_invite)) {
+                        showInvite = store.channelInvite(groupID)
                     }
-                    TextButton(onClick = { showAddMembers = true }) { Text(stringResource(if (group.isChannel) R.string.channel_add_subscribers else R.string.group_add_members)) }
                 }
+                HorizontalDivider()
+                DetailActionRow(
+                    Icons.Default.PersonAdd,
+                    stringResource(if (group.isChannel) R.string.channel_add_subscribers else R.string.group_add_members)
+                ) { showAddMembers = true }
             }
             HorizontalDivider()
             LazyColumn(Modifier.weight(1f)) {
@@ -528,6 +571,28 @@ private fun MemberPickerSheet(candidates: List<Contact>, onDismiss: () -> Unit, 
     }
 }
 
+// Plural resources, so languages with more than two forms count correctly
+// (Russian: 1 участник, 2 участника, 5 участников).
 @Composable
 private fun memberCountLabel(n: Int): String =
-    if (n == 1) stringResource(R.string.group_member_one) else stringResource(R.string.group_member_many, n)
+    LocalContext.current.resources.getQuantityString(R.plurals.group_members_count, n, n)
+
+@Composable
+private fun subscriberCountLabel(n: Int): String =
+    LocalContext.current.resources.getQuantityString(R.plurals.channel_subscribers_count, n, n)
+
+/** A full-width action row on the group / channel detail screen. */
+@Composable
+private fun DetailActionRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+    ) {
+        Icon(icon, contentDescription = null, tint = CPTheme.accent)
+        Spacer(Modifier.width(16.dp))
+        Text(label, style = androidx.compose.material3.MaterialTheme.typography.bodyLarge)
+    }
+}

@@ -24,8 +24,8 @@ android {
         applicationId = "com.carrierpony.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 45
-        versionName = "3.2.1"
+        versionCode = 46
+        versionName = "3.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -116,6 +116,12 @@ dependencies {
     // built by F-Droid carries no Google proprietary code on its classpath.
     "playImplementation"(platform(libs.firebase.bom))
     "playImplementation"(libs.firebase.messaging)
+    // The FOSS build has no FCM. UnifiedPush (Apache-2.0) delivers wakes through
+    // whatever distributor the user installed, and WorkManager runs the periodic
+    // background check when there is none. Both are free software and stay out
+    // of the Play build, which keeps using FCM.
+    "fossImplementation"(libs.unifiedpush.connector)
+    "fossImplementation"(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)

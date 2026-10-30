@@ -411,4 +411,28 @@
     <string name="settings_sms_toggle">SMS でも送信</string>
     <string name="chat_awaiting_pairing">%1$s のペアリングはまだ完了していません。相手のアプリが接続すると、メッセージが開けるようになります。</string>
     <string name="inbox_held_messages">この端末でペアリングが完了していない相手から %1$d 件のメッセージが待機中です。完了すると自動的に開きます。</string>
+
+    <!-- 3.3.0: Settings > Notifications, member and subscriber counts -->
+    <string name="settings_notifications">通知</string>
+    <string name="notif_sub_fcm">Google 経由のプッシュ</string>
+    <string name="notif_sub_up">%1$s 経由の UnifiedPush</string>
+    <string name="notif_sub_check">約15分ごとに新しいメッセージを確認</string>
+    <string name="notif_heading_mode">通知の受け取り方</string>
+    <string name="notif_mode_fcm">新しいメッセージは、Google の Firebase Cloud Messaging 経由のプッシュで届きます。Google には何かが届いたことは分かりますが、送信者や内容が知られることはありません。</string>
+    <string name="notif_mode_up">新しいメッセージは、送信されるとすぐに %1$s 経由のプッシュで届きます。</string>
+    <string name="notif_mode_pending">%1$s のセットアップが終わるのを待っています。終わるまでは、CarrierPony がバックグラウンドで新しいメッセージを確認します。</string>
+    <string name="notif_mode_check">アプリを閉じている間、CarrierPony は約15分ごとに新しいメッセージを確認します。Android がバッテリー節約のためにこの間隔を延ばすことがあるため、通知がメッセージより遅れて届く場合があります。</string>
+    <string name="notif_heading_service">プッシュサービス</string>
+    <string name="notif_option_none">なし（バックグラウンドで確認）</string>
+    <string name="notif_none_installed">UnifiedPush ディストリビューターがインストールされていません。メッセージが届いたときに通知を受け取るには、Sunup や ntfy などをインストールしてください。</string>
+    <string name="notif_gateway_needed">お使いのリレーは、自身ではプッシュ通知を送信できません。このリレーで UnifiedPush を使うには、「リレー」設定で「プッシュ通知」をオンにしてください。それまでは、CarrierPony がバックグラウンドで確認します。</string>
+    <string name="notif_privacy_up">UnifiedPush サーバーには、この端末にメッセージが届いたタイミングが分かりますが、送信者や内容が知られることはありません。自分でサーバーを運用すれば、その情報も手元に留まります。</string>
+    <string name="notif_system_settings">システムの通知設定</string>
+
+    <plurals name="group_members_count">
+        <item quantity="other">%d 人のメンバー</item>
+    </plurals>
+    <plurals name="channel_subscribers_count">
+        <item quantity="other">%d 人の購読者</item>
+    </plurals>
 </resources>

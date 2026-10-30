@@ -1,0 +1,2 @@
+Notifications on the F-Droid and GitHub builds. With a UnifiedPush distributor installed, such as Sunup or ntfy, new messages notify as soon as they arrive. Without one, CarrierPony checks in the background about every 15 minutes. Choose in Settings > Notifications.
+On the channel and group screen, the member count no longer squeezes to one letter per line when the button labels are long. Channels now count subscribers, with correct plural forms in every language.
