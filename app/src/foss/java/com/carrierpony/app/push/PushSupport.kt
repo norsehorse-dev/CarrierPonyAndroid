@@ -110,7 +110,9 @@ object PushSupport {
         // acceptance is void; it has to be accepted again once it's back.
         if (!gatewayUsable) edit.remove(KEY_ACCEPTED)
         edit.apply()
-        if (!optedOut(app)) {
+        // Runs on the main thread on every foreground: nothing in here may take the
+        // app down. Any failure leaves the background check scheduled below.
+        if (!optedOut(app)) try {
             var distributor = UnifiedPush.getAckDistributor(app) ?: UnifiedPush.getSavedDistributor(app)
             if (distributor == null) {
                 val installed = UnifiedPush.getDistributors(app)
@@ -124,13 +126,17 @@ object PushSupport {
                 // or a new one if it changed while we weren't running.
                 try {
                     UnifiedPush.register(app)
-                } catch (e: Exception) {
+                } catch (t: Throwable) {
                     // The service hears about failures; the background check covers it.
                 }
             } else if (storedRegistration(app) != null) {
                 // The distributor was uninstalled: its endpoint is dead.
                 clearEndpoint(app, gatewayCleanup = true)
             }
+        } catch (t: Throwable) {
+            // Throwable, not Exception: a library class broken by shrinking surfaces
+            // as an Error (NoClassDefFoundError and the like), and this runs on launch.
+            android.util.Log.w("CarrierPony", "UnifiedPush refresh failed", t)
         }
         scheduleOrCancel(app)
     }
@@ -140,14 +146,22 @@ object PushSupport {
 
     fun distributors(context: Context): List<PushDistributor> {
         val app = context.applicationContext
-        return UnifiedPush.getDistributors(app).map { PushDistributor(it, label(app, it)) }
+        return try {
+            UnifiedPush.getDistributors(app).map { PushDistributor(it, label(app, it)) }
+        } catch (t: Throwable) {
+            emptyList()
+        }
     }
 
     /** The distributor in use, or null for none / background check only. */
     fun currentDistributor(context: Context): String? {
         val app = context.applicationContext
         if (optedOut(app)) return null
-        return UnifiedPush.getAckDistributor(app) ?: UnifiedPush.getSavedDistributor(app)
+        return try {
+            UnifiedPush.getAckDistributor(app) ?: UnifiedPush.getSavedDistributor(app)
+        } catch (t: Throwable) {
+            null
+        }
     }
 
     fun useDistributor(context: Context, packageName: String) {
@@ -160,7 +174,7 @@ object PushSupport {
         if (previous != null && previous != packageName) {
             try {
                 UnifiedPush.unregister(app)
-            } catch (e: Exception) {
+            } catch (t: Throwable) {
                 // Already gone.
             }
         }
@@ -168,7 +182,7 @@ object PushSupport {
         UnifiedPush.saveDistributor(app, packageName)
         try {
             UnifiedPush.register(app)
-        } catch (e: Exception) {
+        } catch (t: Throwable) {
             // See refresh().
         }
         scheduleOrCancel(app)
@@ -180,7 +194,7 @@ object PushSupport {
         try {
             UnifiedPush.unregister(app)
             UnifiedPush.removeDistributor(app)
-        } catch (e: Exception) {
+        } catch (t: Throwable) {
             // Already gone.
         }
         clearEndpoint(app, gatewayCleanup = true)
@@ -260,6 +274,16 @@ object PushSupport {
     // ── Background check scheduling ─────────────────────────────────────
 
     private fun scheduleOrCancel(app: Context) {
+        try {
+            scheduleOrCancelUnsafe(app)
+        } catch (t: Throwable) {
+            // WorkManager unavailable: notifications fall back to opening the app,
+            // which is better than not opening at all.
+            android.util.Log.w("CarrierPony", "background check scheduling failed", t)
+        }
+    }
+
+    private fun scheduleOrCancelUnsafe(app: Context) {
         val work = WorkManager.getInstance(app)
         if (unifiedPushActive(app)) {
             work.cancelUniqueWork(WORK_NAME)

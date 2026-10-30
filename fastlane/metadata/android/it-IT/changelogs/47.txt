@@ -1,0 +1,1 @@
+Corregge un arresto anomalo all'avvio nella versione 3.3.0 di F-Droid e GitHub. La versione Play non era interessata.

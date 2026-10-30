@@ -1,0 +1,1 @@
+Corrige un cierre inesperado al abrir la app en la versión 3.3.0 de F-Droid y GitHub. La versión de Play no estaba afectada.

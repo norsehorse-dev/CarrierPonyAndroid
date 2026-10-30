@@ -1,0 +1,1 @@
+Corrige un plantage au lancement de la version 3.3.0 sur F-Droid et GitHub. La version Play n'était pas concernée.

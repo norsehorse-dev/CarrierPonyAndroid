@@ -17,53 +17,77 @@ import org.unifiedpush.android.connector.data.PushMessage
 class UpPushService : PushService() {
 
     override fun onNewEndpoint(endpoint: PushEndpoint, instance: String) {
-        val p256dh = endpoint.pubKeySet?.pubKey
-        val auth = endpoint.pubKeySet?.auth
-        // The distributor answers every register() with the endpoint, changed or
-        // not. Only a new or not-yet-accepted one needs to go to the gateway; the
-        // app start submits the stored one anyway.
-        val submit = PushSupport.needsSubmit(this, endpoint.url, p256dh, auth)
-        PushSupport.saveEndpoint(this, endpoint.url, p256dh, auth)
-        if (!submit) return
-        android.util.Log.i("CarrierPony", "UnifiedPush endpoint received")
-        PushSupport.storedRegistration(this)?.let { reg ->
-            try {
-                PushSupport.onNewToken(reg)
-            } catch (e: Exception) {
-                // Submitted on the next app start instead.
+        // Runs inside the library's broadcast receiver: a throw here would show
+        // "keeps stopping" even with the app closed.
+        try {
+            val p256dh = endpoint.pubKeySet?.pubKey
+            val auth = endpoint.pubKeySet?.auth
+            // The distributor answers every register() with the endpoint, changed or
+            // not. Only a new or not-yet-accepted one needs to go to the gateway; the
+            // app start submits the stored one anyway.
+            val submit = PushSupport.needsSubmit(this, endpoint.url, p256dh, auth)
+            PushSupport.saveEndpoint(this, endpoint.url, p256dh, auth)
+            if (!submit) return
+            android.util.Log.i("CarrierPony", "UnifiedPush endpoint received")
+            PushSupport.storedRegistration(this)?.let { reg ->
+                try {
+                    PushSupport.onNewToken(reg)
+                } catch (e: Exception) {
+                    // Submitted on the next app start instead.
+                }
             }
+        } catch (t: Throwable) {
+            android.util.Log.w("CarrierPony", "UnifiedPush onNewEndpoint failed", t)
         }
     }
 
     override fun onMessage(message: PushMessage, instance: String) {
-        // With keys registered, every wake from the gateway is encrypted. An
-        // unencrypted push can only come from someone else who learned the
-        // endpoint URL, so it is dropped instead of posting a notification.
-        if (PushSupport.expectsEncrypted(this) && !message.decrypted) {
-            android.util.Log.w("CarrierPony", "UnifiedPush: dropped an unencrypted push")
-            return
-        }
-        val body = String(message.content, Charsets.UTF_8)
-        val silent = body.contains("\"silent\":1")
-        val handledLive = try {
-            PushSupport.onWake()
-        } catch (e: Exception) {
-            false
-        }
-        when {
-            handledLive -> android.util.Log.i("CarrierPony", "wake handled live (foreground refresh)")
-            silent -> android.util.Log.i("CarrierPony", "silent wake; banner suppressed")
-            else -> PushNotifier.postGenericNotification(this)
+        // Runs inside the library's broadcast receiver: a throw here would show
+        // "keeps stopping" even with the app closed.
+        try {
+            // With keys registered, every wake from the gateway is encrypted. An
+            // unencrypted push can only come from someone else who learned the
+            // endpoint URL, so it is dropped instead of posting a notification.
+            if (PushSupport.expectsEncrypted(this) && !message.decrypted) {
+                android.util.Log.w("CarrierPony", "UnifiedPush: dropped an unencrypted push")
+                return
+            }
+            val body = String(message.content, Charsets.UTF_8)
+            val silent = body.contains("\"silent\":1")
+            val handledLive = try {
+                PushSupport.onWake()
+            } catch (e: Exception) {
+                false
+            }
+            when {
+                handledLive -> android.util.Log.i("CarrierPony", "wake handled live (foreground refresh)")
+                silent -> android.util.Log.i("CarrierPony", "silent wake; banner suppressed")
+                else -> PushNotifier.postGenericNotification(this)
+            }
+        } catch (t: Throwable) {
+            android.util.Log.w("CarrierPony", "UnifiedPush onMessage failed", t)
         }
     }
 
     override fun onRegistrationFailed(reason: FailedReason, instance: String) {
-        android.util.Log.w("CarrierPony", "UnifiedPush registration failed: $reason")
-        PushSupport.clearEndpoint(this, gatewayCleanup = true)
+        // Runs inside the library's broadcast receiver: a throw here would show
+        // "keeps stopping" even with the app closed.
+        try {
+            android.util.Log.w("CarrierPony", "UnifiedPush registration failed: $reason")
+            PushSupport.clearEndpoint(this, gatewayCleanup = true)
+        } catch (t: Throwable) {
+            android.util.Log.w("CarrierPony", "UnifiedPush onRegistrationFailed failed", t)
+        }
     }
 
     override fun onUnregistered(instance: String) {
-        android.util.Log.i("CarrierPony", "UnifiedPush unregistered by the distributor")
-        PushSupport.clearEndpoint(this, gatewayCleanup = true)
+        // Runs inside the library's broadcast receiver: a throw here would show
+        // "keeps stopping" even with the app closed.
+        try {
+            android.util.Log.i("CarrierPony", "UnifiedPush unregistered by the distributor")
+            PushSupport.clearEndpoint(this, gatewayCleanup = true)
+        } catch (t: Throwable) {
+            android.util.Log.w("CarrierPony", "UnifiedPush onUnregistered failed", t)
+        }
     }
 }

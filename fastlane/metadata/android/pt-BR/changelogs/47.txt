@@ -1,0 +1,1 @@
+Corrige um travamento ao abrir o app na versão 3.3.0 do F-Droid e do GitHub. A versão do Play não foi afetada.

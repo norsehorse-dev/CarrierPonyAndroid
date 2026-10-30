@@ -1,0 +1,1 @@
+Behebt einen Absturz beim Start in 3.3.0 bei den F-Droid- und GitHub-Builds. Der Play-Build war nicht betroffen.
