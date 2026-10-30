@@ -80,6 +80,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sms
+import androidx.compose.material.icons.filled.Notifications
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -128,6 +129,7 @@ fun SettingsScreen(
     var appLockEnabled by remember { mutableStateOf(app.appLock.appLockEnabled) }
     var showingRelay by remember { mutableStateOf(false) }
     var showingNostrRelays by remember { mutableStateOf(false) }
+    var showingNotifications by remember { mutableStateOf(false) }
     var openCategory by remember { mutableStateOf<SettingsCategory?>(null) }
     var accountsList by remember { mutableStateOf(app.accounts()) }
     var pendingRemove by remember { mutableStateOf<AppModel.AccountSummary?>(null) }
@@ -139,6 +141,12 @@ fun SettingsScreen(
 
     if (showingNostrRelays) {
         NostrRelaysScreen(app = app, onBack = { showingNostrRelays = false })
+        return
+    }
+
+    if (showingNotifications) {
+        androidx.activity.compose.BackHandler { showingNotifications = false }
+        NotificationsScreen(onBack = { showingNotifications = false })
         return
     }
 
@@ -217,6 +225,7 @@ fun SettingsScreen(
                     Spacer(Modifier.padding(top = 8.dp))
                     CategoryCard(Icons.Default.Person, stringResource(R.string.settings_account), stringResource(R.string.settings_account_sub)) { accountsList = app.accounts(); openCategory = SettingsCategory.ACCOUNT }
                     CategoryCard(Icons.Default.Cloud, stringResource(R.string.settings_relay), stringResource(R.string.settings_relay_sub)) { showingRelay = true }
+                    CategoryCard(Icons.Default.Notifications, stringResource(R.string.settings_notifications), notificationsSummary()) { showingNotifications = true }
                     NearbyCard(
                         nearby = nearbyNodes.size,
                         reachable = lanReachable.size,

@@ -1,0 +1,2 @@
+Notificações nas versões do F-Droid e do GitHub. Com um distribuidor UnifiedPush instalado, como Sunup ou ntfy, as novas mensagens são notificadas assim que chegam. Sem ele, o CarrierPony verifica em segundo plano a cada 15 minutos, aproximadamente. Escolha em Configurações > Notificações.
+Na tela de canal e grupo, a contagem de membros não fica mais espremida em uma letra por linha com rótulos de botão longos. Os canais agora contam assinantes, com plurais corretos em todos os idiomas.

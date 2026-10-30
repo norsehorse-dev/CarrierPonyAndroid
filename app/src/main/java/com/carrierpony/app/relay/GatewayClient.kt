@@ -15,11 +15,24 @@ import java.net.URL
 
 object GatewayClient {
 
-    suspend fun registerPush(deviceID: String, token: String, platform: String): String = withContext(Dispatchers.IO) {
+    /** Register a push token and get back the opaque wake token. For UnifiedPush the
+     *  token is the endpoint URL, and p256dh / auth are the Web Push keys the gateway
+     *  encrypts each wake to (RFC 8291). */
+    suspend fun registerPush(
+        deviceID: String,
+        token: String,
+        platform: String,
+        p256dh: String? = null,
+        auth: String? = null
+    ): String = withContext(Dispatchers.IO) {
         val body = JSONObject()
             .put("device_id", deviceID)
             .put("push_token", token)
             .put("platform", platform)
+        if (p256dh != null && auth != null) {
+            body.put("p256dh", p256dh)
+            body.put("auth", auth)
+        }
         val conn = URL(AppConfig.gatewayBaseURL.trimEnd('/') + "/v1/register-push").openConnection() as HttpURLConnection
         try {
             conn.requestMethod = "POST"
@@ -38,21 +51,23 @@ object GatewayClient {
         }
     }
 
-    suspend fun deregister(wakeToken: String) {
-        withContext(Dispatchers.IO) {
+    /** Drop a device's gateway registration. True when the gateway confirmed it. */
+    suspend fun deregister(wakeToken: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val conn = URL(AppConfig.gatewayBaseURL.trimEnd('/') + "/v1/deregister").openConnection() as HttpURLConnection
             try {
-                val conn = URL(AppConfig.gatewayBaseURL.trimEnd('/') + "/v1/deregister").openConnection() as HttpURLConnection
                 conn.requestMethod = "POST"
                 conn.setRequestProperty("Content-Type", "application/json")
                 conn.doOutput = true
                 conn.connectTimeout = 15000
                 conn.readTimeout = 15000
                 conn.outputStream.use { it.write(JSONObject().put("wake_token", wakeToken).toString().toByteArray(Charsets.UTF_8)) }
-                conn.responseCode
+                conn.responseCode in 200..299
+            } finally {
                 conn.disconnect()
-            } catch (e: Exception) {
-                // best-effort
             }
+        } catch (e: Exception) {
+            false
         }
     }
 }

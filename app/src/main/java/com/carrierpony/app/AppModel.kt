@@ -32,6 +32,8 @@ import com.carrierpony.app.pairing.PairingSupport
 import com.carrierpony.app.pairing.PairingRetention
 import com.carrierpony.core.CPKeyInfo
 import com.carrierpony.app.push.PushSupport
+import com.carrierpony.app.push.PushRegistration
+import com.carrierpony.app.push.AppVisibility
 import com.carrierpony.app.relay.RelayClient
 import com.carrierpony.app.relay.RelayException
 import com.carrierpony.app.relay.GatewayClient
@@ -48,6 +50,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 
 class IdentityCreationException : Exception("invalid fingerprint")
@@ -132,10 +135,10 @@ class AppModel(context: Context) {
         ChatStore.diagnostics = { message, error -> android.util.Log.w("CarrierPony", message, error) }
         AttachmentStore.directory = File(appContext.filesDir, "carrierpony-attachments")
         PushSupport.ensureChannel(appContext)
-        // A rotated FCM token re-registers with the relay immediately (play
-        // flavor). On the FOSS flavor install() is a no-op — polling covers it.
+        // A rotated FCM token (play) or a new UnifiedPush endpoint (foss)
+        // re-registers with the gateway immediately.
         PushSupport.install(
-            onNewToken = { token -> submitPushToken(token) },
+            onNewToken = { reg -> submitPushToken(reg) },
             // A push wake with the app in the foreground refreshes in place and
             // suppresses the notification; backgrounded, the generic banner shows.
             onWake = {
@@ -146,7 +149,10 @@ class AppModel(context: Context) {
                 } else {
                     false
                 }
-            }
+            },
+            // foss: the UnifiedPush endpoint was dropped, so take the gateway
+            // registration down too. play: never called.
+            onCleared = { scope.launch { clearPushRegistrationIfPending() } }
         )
         try {
             val existing = identityStore.load()
@@ -175,8 +181,13 @@ class AppModel(context: Context) {
 
     fun startMessaging() {
         inForeground = true
+        AppVisibility.foreground = true
         val store = _store.value ?: return
         scope.launch { store.start() }
+        // foss: keep the UnifiedPush registration current and schedule or cancel
+        // the background check to match. play: no-op.
+        PushSupport.refresh(appContext, gatewayUsable())
+        scope.launch { clearPushRegistrationIfPending() }
         registerPush()
         startOtherAccountPolling()
         lanDiscovery.keyProvider = { _store.value?.lanContactKeys() ?: emptyMap() }
@@ -191,6 +202,7 @@ class AppModel(context: Context) {
 
     fun stopMessaging() {
         inForeground = false
+        AppVisibility.foreground = false
         _store.value?.stop()
         otherPollLoop?.cancel()
         otherPollLoop = null
@@ -436,39 +448,57 @@ class AppModel(context: Context) {
         }
     }
 
-    /** Fetch the push token and register it with the relay. On the play flavor
+    /** Fetch the push token and register it with the gateway. On the play flavor
      *  this is the FCM token (a no-op until google-services.json is present so
-     *  Firebase initializes); on the FOSS flavor PushSupport.fetchToken is a
-     *  no-op and polling covers delivery. */
+     *  Firebase initializes); on the FOSS flavor it is the stored UnifiedPush
+     *  endpoint, and with no distributor the background check covers delivery. */
     private fun registerPush() {
         if (relay == null) return
         // On a custom relay, push only makes sense if the user opted into the
         // gateway; the relay itself cannot push.
         if (AppConfig.usingCustomRelay(appContext) && !AppConfig.gatewayPushEnabled(appContext)) return
-        // play flavor: fetch the FCM token and register it. FOSS: no-op.
-        PushSupport.fetchToken { token -> submitPushToken(token) }
+        // play: the FCM token. foss: the stored UnifiedPush endpoint, if any.
+        PushSupport.fetchToken(appContext) { reg -> submitPushToken(reg) }
     }
+
+    /** False on a custom relay without the gateway opt-in: nothing would ever
+     *  wake a push registration there, so the foss build keeps its background
+     *  check running instead. */
+    private fun gatewayUsable(): Boolean =
+        !AppConfig.usingCustomRelay(appContext) || AppConfig.gatewayPushEnabled(appContext)
 
     /** Route a push token: to the gateway on a custom relay (if opted in), or to
      *  the relay directly on the default relay. */
-    private fun submitPushToken(token: String) {
+    private fun submitPushToken(reg: PushRegistration) {
         scope.launch {
             if (AppConfig.usingCustomRelay(appContext)) {
                 // Self-hosted relay: the gateway is the user's own opt-in choice,
                 // so their push token never reaches the default gateway unasked.
-                if (AppConfig.gatewayPushEnabled(appContext)) registerWithGateway(token)
+                if (AppConfig.gatewayPushEnabled(appContext)) registerWithGateway(reg)
             } else {
                 // Default relay: every device registers with the gateway so it
                 // gets a sealed wake token and can be woken in the background
                 // (the relay can't push a sealed message itself). Also keep the
-                // fingerprint-keyed push for any remaining legacy delivery.
-                registerWithGateway(token)
-                try { relay?.registerPush(token) } catch (e: Exception) { /* polling covers delivery */ }
+                // fingerprint-keyed push for any remaining legacy delivery; the
+                // relay itself only speaks FCM/APNs, so a UnifiedPush endpoint
+                // goes to the gateway alone.
+                registerWithGateway(reg)
+                if (reg.platform == "fcm") {
+                    try { relay?.registerPush(reg.token) } catch (e: Exception) { /* polling covers delivery */ }
+                }
             }
         }
     }
 
-    private suspend fun registerWithGateway(token: String) {
+    // Gateway registration and its removal run one at a time, so a removal can't
+    // land after (and delete) a registration that started later.
+    private val pushMutex = kotlinx.coroutines.sync.Mutex()
+
+    private suspend fun registerWithGateway(reg: PushRegistration) = pushMutex.withLock {
+        registerWithGatewayLocked(reg)
+    }
+
+    private suspend fun registerWithGatewayLocked(reg: PushRegistration) {
         val r = relay ?: return
         try {
             // Register the ACTIVE account's sealed device with the gateway, so each
@@ -476,7 +506,8 @@ class AppModel(context: Context) {
             // link the accounts. Falls back to the install id if the sealed device
             // is not up yet.
             val gwId = _store.value?.sealedDeviceId() ?: AppConfig.deviceID(appContext)
-            val wake = GatewayClient.registerPush(gwId, token, "fcm")
+            val wake = GatewayClient.registerPush(gwId, reg.token, reg.platform, reg.p256dh, reg.auth)
+            PushSupport.markGatewayRegistered(appContext, reg)
             AppConfig.setStoredWakeToken(appContext, wake, _identity.value?.fingerprint?.hex)
             r.registerWake(wake)
             // Attach the wake token to the sealed device now, rather than waiting
@@ -495,10 +526,28 @@ class AppModel(context: Context) {
     fun setGatewayPush(on: Boolean) {
         AppConfig.setGatewayPushEnabled(appContext, on)
         if (on) {
-            PushSupport.fetchToken { token -> scope.launch { registerWithGateway(token) } }
+            PushSupport.fetchToken(appContext) { reg -> scope.launch { registerWithGateway(reg) } }
         } else {
             scope.launch { disableGateway() }
         }
+        PushSupport.refresh(appContext, gatewayUsable())
+    }
+
+    /** Remove the gateway registration after the UnifiedPush endpoint was dropped
+     *  (foss), without touching the custom-relay gateway opt-in. Clears the wake
+     *  token on the relay too, legacy and sealed, so nothing is pushed anywhere. */
+    private suspend fun clearPushRegistrationIfPending() = pushMutex.withLock {
+        // Re-checked under the lock: a new endpoint stored meanwhile cancels it.
+        if (!PushSupport.pendingClear(appContext)) return@withLock
+        val fpr = _identity.value?.fingerprint?.hex
+        val wake = AppConfig.storedWakeToken(appContext, fpr)
+        // Keep the flag (and the token) until the gateway confirms, so an offline
+        // attempt is retried on the next start instead of leaving the row behind.
+        if (wake != null && !GatewayClient.deregister(wake)) return@withLock
+        AppConfig.setStoredWakeToken(appContext, null, fpr)
+        PushSupport.commitClear(appContext)
+        try { relay?.registerWake("") } catch (e: Exception) { }
+        try { _store.value?.sealedReregisterDevice() } catch (e: Exception) { }
     }
 
     private suspend fun disableGateway() {

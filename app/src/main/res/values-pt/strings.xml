@@ -411,4 +411,31 @@
     <string name="settings_sms_toggle">Enviar também por SMS</string>
     <string name="chat_awaiting_pairing">%1$s ainda não concluiu o pareamento. Suas mensagens vão abrir do lado dele quando o app se conectar.</string>
     <string name="inbox_held_messages">%1$d mensagem(ns) aguardando de alguém cujo pareamento não terminou neste dispositivo. Elas abrem sozinhas quando terminar.</string>
+
+    <!-- 3.3.0: Settings > Notifications, member and subscriber counts -->
+    <string name="settings_notifications">Notificações</string>
+    <string name="notif_sub_fcm">Push pelo Google</string>
+    <string name="notif_sub_up">UnifiedPush via %1$s</string>
+    <string name="notif_sub_check">Verifica se há novas mensagens a cada 15 minutos, mais ou menos</string>
+    <string name="notif_heading_mode">Como as notificações chegam</string>
+    <string name="notif_mode_fcm">As novas mensagens chegam como push pelo Firebase Cloud Messaging do Google. O Google vê que algo chegou, mas nunca quem enviou nem o que diz.</string>
+    <string name="notif_mode_up">As novas mensagens chegam como push via %1$s assim que são enviadas.</string>
+    <string name="notif_mode_pending">Aguardando %1$s concluir a configuração. Até lá, o CarrierPony verifica se há novas mensagens em segundo plano.</string>
+    <string name="notif_mode_check">Enquanto o app está fechado, o CarrierPony verifica se há novas mensagens a cada 15 minutos, aproximadamente. O Android pode espaçar essas verificações para economizar bateria, então uma notificação pode chegar algum tempo depois da mensagem.</string>
+    <string name="notif_heading_service">Serviço de push</string>
+    <string name="notif_option_none">Nenhum, verificar em segundo plano</string>
+    <string name="notif_none_installed">Nenhum distribuidor UnifiedPush está instalado. Instale um, como o Sunup ou o ntfy, para receber notificações assim que as mensagens chegarem.</string>
+    <string name="notif_gateway_needed">Seu retransmissor não consegue enviar notificações push sozinho. Ative “Notificações push” nas configurações de “Retransmissor” para usar o UnifiedPush com ele. Até lá, o CarrierPony verifica as mensagens em segundo plano.</string>
+    <string name="notif_privacy_up">O servidor UnifiedPush fica sabendo quando este dispositivo recebe uma mensagem, mas nunca quem enviou nem o que diz. Se você usar seu próprio servidor, essa informação fica com você.</string>
+    <string name="notif_system_settings">Configurações de notificação do sistema</string>
+    <plurals name="group_members_count">
+        <item quantity="one">%d membro</item>
+        <item quantity="many">%d membros</item>
+        <item quantity="other">%d membros</item>
+    </plurals>
+    <plurals name="channel_subscribers_count">
+        <item quantity="one">%d assinante</item>
+        <item quantity="many">%d assinantes</item>
+        <item quantity="other">%d assinantes</item>
+    </plurals>
 </resources>

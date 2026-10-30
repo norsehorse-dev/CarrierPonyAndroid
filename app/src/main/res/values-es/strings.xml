@@ -411,4 +411,31 @@
     <string name="settings_sms_toggle">Enviar también por SMS</string>
     <string name="chat_awaiting_pairing">%1$s aún no ha terminado el emparejamiento. Tus mensajes se abrirán en su lado cuando su app se conecte.</string>
     <string name="inbox_held_messages">%1$d mensaje(s) en espera de alguien cuyo emparejamiento no ha terminado en este dispositivo. Se abrirán solos cuando termine.</string>
+
+    <!-- 3.3.0: Settings > Notifications, member and subscriber counts -->
+    <string name="settings_notifications">Notificaciones</string>
+    <string name="notif_sub_fcm">Push a través de Google</string>
+    <string name="notif_sub_up">UnifiedPush a través de %1$s</string>
+    <string name="notif_sub_check">Comprueba si hay mensajes nuevos cada 15 minutos más o menos</string>
+    <string name="notif_heading_mode">Cómo te llegan las notificaciones</string>
+    <string name="notif_mode_fcm">Los mensajes nuevos llegan como notificación push a través de Firebase Cloud Messaging de Google. Google ve que llegó algo, pero nunca quién lo envió ni lo que dice.</string>
+    <string name="notif_mode_up">Los mensajes nuevos llegan como notificación push a través de %1$s en cuanto se envían.</string>
+    <string name="notif_mode_pending">Esperando a que %1$s termine de configurarse. Mientras tanto, CarrierPony comprueba si hay mensajes nuevos en segundo plano.</string>
+    <string name="notif_mode_check">Mientras la app está cerrada, CarrierPony comprueba si hay mensajes nuevos cada 15 minutos aproximadamente. Android puede espaciar esas comprobaciones para ahorrar batería, así que una notificación puede llegar un rato después del mensaje.</string>
+    <string name="notif_heading_service">Servicio push</string>
+    <string name="notif_option_none">Ninguno, comprobar en segundo plano</string>
+    <string name="notif_none_installed">No hay ningún distribuidor de UnifiedPush instalado. Instala uno, como Sunup o ntfy, para recibir notificaciones en cuanto lleguen los mensajes.</string>
+    <string name="notif_gateway_needed">Tu relé no puede enviar notificaciones push por sí mismo. Activa «Notificaciones push» en los ajustes de «Relé» para usar UnifiedPush con él. Hasta entonces, CarrierPony comprueba si hay mensajes en segundo plano.</string>
+    <string name="notif_privacy_up">El servidor de UnifiedPush sabe cuándo este dispositivo recibe un mensaje, pero nunca quién lo envió ni lo que dice. Si usas tu propio servidor, esa información se queda contigo.</string>
+    <string name="notif_system_settings">Ajustes de notificaciones del sistema</string>
+    <plurals name="group_members_count">
+        <item quantity="one">%d miembro</item>
+        <item quantity="many">%d miembros</item>
+        <item quantity="other">%d miembros</item>
+    </plurals>
+    <plurals name="channel_subscribers_count">
+        <item quantity="one">%d suscriptor</item>
+        <item quantity="many">%d suscriptores</item>
+        <item quantity="other">%d suscriptores</item>
+    </plurals>
 </resources>

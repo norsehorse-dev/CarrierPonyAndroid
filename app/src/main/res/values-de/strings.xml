@@ -411,4 +411,29 @@
     <string name="settings_sms_toggle">Auch per SMS senden</string>
     <string name="chat_awaiting_pairing">%1$s hat das Koppeln noch nicht abgeschlossen. Deine Nachrichten werden dort geöffnet, sobald die App sich meldet.</string>
     <string name="inbox_held_messages">%1$d Nachricht(en) warten von jemandem, dessen Koppeln auf diesem Gerät noch nicht abgeschlossen ist. Sie öffnen sich von selbst, sobald es fertig ist.</string>
+
+    <!-- 3.3.0: Settings > Notifications, member and subscriber counts -->
+    <string name="settings_notifications">Benachrichtigungen</string>
+    <string name="notif_sub_fcm">Push über Google</string>
+    <string name="notif_sub_up">UnifiedPush über %1$s</string>
+    <string name="notif_sub_check">Sucht etwa alle 15 Minuten nach neuen Nachrichten</string>
+    <string name="notif_heading_mode">So wirst du benachrichtigt</string>
+    <string name="notif_mode_fcm">Neue Nachrichten kommen als Push über Firebase Cloud Messaging von Google an. Google sieht, dass etwas angekommen ist, aber nie, wer es gesendet hat oder was darin steht.</string>
+    <string name="notif_mode_up">Neue Nachrichten kommen als Push über %1$s an, sobald sie gesendet werden.</string>
+    <string name="notif_mode_pending">Warten, bis %1$s fertig eingerichtet ist. Bis dahin sucht CarrierPony im Hintergrund nach neuen Nachrichten.</string>
+    <string name="notif_mode_check">Solange CarrierPony geschlossen ist, sucht die App etwa alle 15 Minuten nach neuen Nachrichten. Android kann diesen Abstand verlängern, um Akku zu sparen, daher kann eine Benachrichtigung erst einige Zeit nach der Nachricht kommen.</string>
+    <string name="notif_heading_service">Push-Dienst</string>
+    <string name="notif_option_none">Keiner, im Hintergrund prüfen</string>
+    <string name="notif_none_installed">Es ist kein UnifiedPush-Distributor installiert. Installiere einen, etwa Sunup oder ntfy, um Benachrichtigungen zu erhalten, sobald Nachrichten ankommen.</string>
+    <string name="notif_gateway_needed">Dein Relay kann selbst keine Push-Mitteilungen senden. Aktiviere Push-Mitteilungen in den Einstellungen unter Relay, um UnifiedPush damit zu nutzen. Bis dahin prüft CarrierPony im Hintergrund.</string>
+    <string name="notif_privacy_up">Der UnifiedPush-Server erfährt, wann dieses Gerät eine Nachricht erhält, aber nie, wer sie gesendet hat oder was darin steht. Mit einem eigenen Server bleibt auch das bei dir.</string>
+    <string name="notif_system_settings">Systemeinstellungen für Benachrichtigungen</string>
+    <plurals name="group_members_count">
+        <item quantity="one">%d Mitglied</item>
+        <item quantity="other">%d Mitglieder</item>
+    </plurals>
+    <plurals name="channel_subscribers_count">
+        <item quantity="one">%d Abonnent</item>
+        <item quantity="other">%d Abonnenten</item>
+    </plurals>
 </resources>

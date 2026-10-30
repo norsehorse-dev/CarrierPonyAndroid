@@ -411,4 +411,28 @@
     <string name="settings_sms_toggle">同时通过短信发送</string>
     <string name="chat_awaiting_pairing">%1$s 尚未完成配对。对方的应用连接后，你的消息即可在对方那边打开。</string>
     <string name="inbox_held_messages">有 %1$d 条消息来自尚未在此设备上完成配对的人。配对完成后会自动打开。</string>
+
+    <!-- 3.3.0: Settings > Notifications, member and subscriber counts -->
+    <string name="settings_notifications">通知</string>
+    <string name="notif_sub_fcm">通过 Google 推送</string>
+    <string name="notif_sub_up">通过 %1$s 使用 UnifiedPush</string>
+    <string name="notif_sub_check">大约每 15 分钟检查一次新消息</string>
+    <string name="notif_heading_mode">通知方式</string>
+    <string name="notif_mode_fcm">新消息通过 Google 的 Firebase Cloud Messaging 推送送达。Google 能看到有内容到达，但绝不会知道发送者是谁或内容是什么。</string>
+    <string name="notif_mode_up">新消息一经发送，就会通过 %1$s 推送送达。</string>
+    <string name="notif_mode_pending">正在等待 %1$s 完成设置。在此之前，CarrierPony 会在后台检查新消息。</string>
+    <string name="notif_mode_check">应用关闭期间，CarrierPony 大约每 15 分钟检查一次新消息。Android 可能会为了省电而延长这一间隔，因此通知可能会在消息到达一段时间后才出现。</string>
+    <string name="notif_heading_service">推送服务</string>
+    <string name="notif_option_none">无，在后台检查</string>
+    <string name="notif_none_installed">未安装 UnifiedPush 分发器。请安装一个（例如 Sunup 或 ntfy），以便在消息到达时收到通知。</string>
+    <string name="notif_gateway_needed">你的中继本身无法发送推送通知。要配合它使用 UnifiedPush，请在“中继”设置中开启“推送通知”。在此之前，CarrierPony 会在后台检查。</string>
+    <string name="notif_privacy_up">UnifiedPush 服务器会知道本设备何时收到消息，但绝不会知道发送者是谁或内容是什么。自行运行服务器可以让这些信息只留在你手中。</string>
+    <string name="notif_system_settings">系统通知设置</string>
+
+    <plurals name="group_members_count">
+        <item quantity="other">%d 名成员</item>
+    </plurals>
+    <plurals name="channel_subscribers_count">
+        <item quantity="other">%d 名订阅者</item>
+    </plurals>
 </resources>
