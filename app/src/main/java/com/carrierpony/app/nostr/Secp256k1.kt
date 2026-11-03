@@ -16,6 +16,7 @@ object Secp256k1 {
     private val Gx = BigInteger("79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798", 16)
     private val Gy = BigInteger("483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8", 16)
     private val G = Point(Gx, Gy)
+    private val TWO = BigInteger.valueOf(2)
     private val THREE = BigInteger.valueOf(3)
 
     private data class Point(val x: BigInteger, val y: BigInteger)
@@ -25,7 +26,7 @@ object Secp256k1 {
         if (p2 == null) return p1
         if (p1.x == p2.x && p1.y != p2.y) return null
         val lam = if (p1 == p2) {
-            (THREE * p1.x * p1.x * (BigInteger.TWO * p1.y).modInverse(P)).mod(P)
+            (THREE * p1.x * p1.x * (TWO * p1.y).modInverse(P)).mod(P)
         } else {
             ((p2.y - p1.y) * (p2.x - p1.x).mod(P).modInverse(P)).mod(P)
         }

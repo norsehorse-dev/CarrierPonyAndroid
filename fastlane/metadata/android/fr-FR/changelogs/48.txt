@@ -1,0 +1,1 @@
+Corrige des plantages sur Android 12 et versions antérieures lors de la création d'une identité, de l'importation d'une clé ou de l'envoi d'un message. Corrige aussi un plantage lors de l'envoi via Nostr sur ces versions, et permet d'installer les versions F-Droid et GitHub sur les tablettes sans réseau mobile.

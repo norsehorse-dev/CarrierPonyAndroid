@@ -176,6 +176,6 @@ object CPIdentityGenerator {
         val armored = ArmoredOutputStream(out).clean()
         ring.encode(armored)
         armored.close()
-        return out.toString(Charsets.UTF_8)
+        return String(out.toByteArray(), Charsets.UTF_8)
     }
 }

@@ -19,17 +19,22 @@ plugins {
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
 }
 
 // No kotlin { jvmToolchain(17) }: F-Droid's buildserver runs with Gradle
 // toolchain auto-provisioning disabled, so a jvmToolchain() request fails hard
 // there. sourceCompatibility/targetCompatibility above plus jvmTarget here emit
-// JVM 17 bytecode with no toolchain discovery step. Mirrors PonyDirect-Kotlin.
+// JVM 8 bytecode with no toolchain discovery step. Mirrors PonyDirect-Kotlin.
 kotlin {
     compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_17)
+        jvmTarget.set(JvmTarget.JVM_1_8)
+        // Compile against the Java 8 API only. This library runs on Android, where
+        // methods added in Java 9+ (ByteArrayOutputStream.toString(Charset),
+        // BigInteger.TWO, ...) only exist from Android 13 and crash older phones.
+        // Lint can't see into this module, so the compiler has to refuse them.
+        freeCompilerArgs.add("-Xjdk-release=1.8")
     }
 }
 

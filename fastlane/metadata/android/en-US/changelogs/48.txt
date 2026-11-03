@@ -1,0 +1,1 @@
+Fixes crashes on Android 12 and older when creating an identity, importing a key, or sending a message. Also fixes a crash when sending over Nostr on those versions, and lets the F-Droid and GitHub builds install on tablets without a phone radio.

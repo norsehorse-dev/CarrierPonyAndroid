@@ -53,7 +53,7 @@ object CPKeyImport {
             (key as PGPPublicKey).encode(armored)
         }
         armored.close()
-        return out.toString(Charsets.UTF_8)
+        return String(out.toByteArray(), Charsets.UTF_8)
     }
 
     /** True when the primary secret key material is passphrase-protected. */

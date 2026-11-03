@@ -11,7 +11,10 @@ import com.carrierpony.app.messaging.Transport
  * immediately) and drains anything queued while the app was not running.
  */
 class SmsSupport(context: Context) {
-    val available: Boolean = true
+    // Tablets and Chromebooks without a phone radio can install the app
+    // (telephony is declared optional), so only offer SMS where it can work.
+    val available: Boolean = context.packageManager
+        .hasSystemFeature(android.content.pm.PackageManager.FEATURE_TELEPHONY)
     private val appContext = context.applicationContext
     private val carrier = SmsCarrier(appContext)
     private val reassembly = SmsReassembly(appContext)

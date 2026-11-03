@@ -1,0 +1,1 @@
+Corregge gli arresti anomali su Android 12 e versioni precedenti durante la creazione di un'identità, l'importazione di una chiave o l'invio di un messaggio. Corregge anche un arresto anomalo durante l'invio tramite Nostr su queste versioni e consente di installare le versioni F-Droid e GitHub sui tablet senza rete cellulare.

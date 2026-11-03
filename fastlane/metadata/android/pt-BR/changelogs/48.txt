@@ -1,0 +1,1 @@
+Corrige travamentos no Android 12 e anteriores ao criar uma identidade, importar uma chave ou enviar uma mensagem. Também corrige um travamento ao enviar pelo Nostr nessas versões e permite instalar as versões do F-Droid e do GitHub em tablets sem rede celular.

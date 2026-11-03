@@ -57,7 +57,7 @@ object CPPassphraseBox {
             encryptedOut.close()
             encGen.close()
             armored.close()
-            return out.toString(Charsets.UTF_8)
+            return String(out.toByteArray(), Charsets.UTF_8)
         } catch (e: Exception) {
             throw CPCryptoError.EncryptionFailed(e.message ?: "Unknown error")
         }

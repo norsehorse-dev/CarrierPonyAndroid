@@ -6,6 +6,9 @@
          the Play build. -->
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <!-- SMS is optional: keep the app installable on tablets and Chromebooks
+         without a phone radio. -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <application>
         <!-- UnifiedPush receiver, foss build only (the Play build uses FCM). The

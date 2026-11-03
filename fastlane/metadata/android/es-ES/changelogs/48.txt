@@ -1,0 +1,1 @@
+Corrige cierres inesperados en Android 12 y anteriores al crear una identidad, importar una clave o enviar un mensaje. También corrige un cierre al enviar por Nostr en esas versiones y permite instalar las versiones de F-Droid y GitHub en tabletas sin conexión móvil.

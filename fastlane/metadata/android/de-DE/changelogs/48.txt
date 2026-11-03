@@ -1,0 +1,1 @@
+Behebt Abstürze unter Android 12 und älter beim Erstellen einer Identität, beim Importieren eines Schlüssels oder beim Senden einer Nachricht. Behebt außerdem einen Absturz beim Senden über Nostr auf diesen Versionen und ermöglicht die Installation der F-Droid- und GitHub-Builds auf Tablets ohne Mobilfunkmodul.

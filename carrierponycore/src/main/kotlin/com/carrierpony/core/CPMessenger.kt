@@ -134,7 +134,7 @@ object CPMessenger {
             signature.encode(bcpgOut)
             bcpgOut.close()
             armored.close()
-            return out.toString(Charsets.UTF_8)
+            return String(out.toByteArray(), Charsets.UTF_8)
         } catch (e: CPCryptoError) {
             throw e
         } catch (e: Exception) {

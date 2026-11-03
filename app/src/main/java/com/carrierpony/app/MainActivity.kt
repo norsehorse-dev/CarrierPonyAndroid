@@ -372,7 +372,7 @@ private fun Root(
         if (tab != 0) tab = 0 else confirmExit = true
     }
     if (confirmExit) {
-        val activity = androidx.compose.ui.platform.LocalContext.current as? android.app.Activity
+        val activity = androidx.activity.compose.LocalActivity.current
         AlertDialog(
             onDismissRequest = { confirmExit = false },
             title = { Text(stringResource(R.string.exit_q)) },
