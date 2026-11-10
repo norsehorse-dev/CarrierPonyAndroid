@@ -57,14 +57,14 @@ object PushSupport {
     internal var onNewToken: (PushRegistration) -> Unit = {}
 
     @Volatile
-    internal var onWake: () -> Boolean = { false }
+    internal var onWake: (silent: Boolean) -> Boolean = { false }
 
     @Volatile
     internal var onCleared: () -> Unit = {}
 
     fun ensureChannel(context: Context) = PushNotifier.ensureChannel(context)
 
-    fun install(onNewToken: (PushRegistration) -> Unit, onWake: () -> Boolean, onCleared: () -> Unit = {}) {
+    fun install(onNewToken: (PushRegistration) -> Unit, onWake: (silent: Boolean) -> Boolean, onCleared: () -> Unit = {}) {
         this.onNewToken = onNewToken
         this.onWake = onWake
         this.onCleared = onCleared

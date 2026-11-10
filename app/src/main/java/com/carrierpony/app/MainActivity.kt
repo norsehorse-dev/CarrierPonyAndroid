@@ -14,6 +14,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -390,6 +391,11 @@ private fun Root(
     }
 
     Scaffold(
+        // The tab screens draw their own TopAppBar, which already pads for the
+        // status bar. Padding for it here too left a blank band above the bar, so
+        // this Scaffold only pads for the NavigationBar (which handles the
+        // navigation-bar inset itself).
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(

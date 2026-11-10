@@ -1,0 +1,1 @@
+Corregge le notifiche che arrivavano molto prima che il messaggio comparisse. L'app ora scarica i nuovi messaggi prima delle attività in background e, in background, li scarica prima di mostrare la notifica. I messaggi che continuano a non aprirsi non bloccano più quelli più recenti. Rimuove anche la fascia vuota sopra la barra superiore nelle schermate principali.

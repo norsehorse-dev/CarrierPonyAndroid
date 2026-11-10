@@ -1,0 +1,1 @@
+Corrige notificações que chegavam bem antes de a mensagem aparecer. O app agora busca as novas mensagens antes das tarefas em segundo plano e, em segundo plano, busca primeiro e só então mostra a notificação. Mensagens que continuam falhando ao abrir não seguram mais as mais recentes. Também remove a faixa vazia acima da barra superior nas telas principais.

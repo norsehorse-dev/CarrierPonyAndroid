@@ -55,7 +55,7 @@ class UpPushService : PushService() {
             val body = String(message.content, Charsets.UTF_8)
             val silent = body.contains("\"silent\":1")
             val handledLive = try {
-                PushSupport.onWake()
+                PushSupport.onWake(silent)
             } catch (e: Exception) {
                 false
             }

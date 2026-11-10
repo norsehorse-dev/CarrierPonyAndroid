@@ -34,6 +34,7 @@ import com.carrierpony.core.CPKeyInfo
 import com.carrierpony.app.push.PushSupport
 import com.carrierpony.app.push.PushRegistration
 import com.carrierpony.app.push.AppVisibility
+import com.carrierpony.app.push.PushNotifier
 import com.carrierpony.app.relay.RelayClient
 import com.carrierpony.app.relay.RelayException
 import com.carrierpony.app.relay.GatewayClient
@@ -50,6 +51,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.withLock
 import java.io.File
 
@@ -140,14 +142,26 @@ class AppModel(context: Context) {
         PushSupport.install(
             onNewToken = { reg -> submitPushToken(reg) },
             // A push wake with the app in the foreground refreshes in place and
-            // suppresses the notification; backgrounded, the generic banner shows.
-            onWake = {
+            // suppresses the notification. Backgrounded with the store still alive,
+            // fetch FIRST and post the banner after, so the message is already in the
+            // thread when the banner is tapped (it used to post at once and fetch
+            // nothing until the tap). Bounded, so a slow relay never eats the banner.
+            // No live store (cold process): the service posts the banner at once.
+            onWake = { silent ->
                 val live = _store.value
-                if (live != null && inForeground) {
-                    scope.launch { live.refresh() }
-                    true
-                } else {
-                    false
+                when {
+                    live == null -> false
+                    inForeground -> {
+                        scope.launch { live.refresh() }
+                        true
+                    }
+                    else -> {
+                        scope.launch {
+                            withTimeoutOrNull(8_000) { live.refresh() }
+                            if (!silent && !inForeground) PushNotifier.postGenericNotification(appContext)
+                        }
+                        true
+                    }
                 }
             },
             // foss: the UnifiedPush endpoint was dropped, so take the gateway

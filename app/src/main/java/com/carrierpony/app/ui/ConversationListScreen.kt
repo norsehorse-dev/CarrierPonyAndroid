@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -134,6 +135,9 @@ fun ConversationListScreen(
     var showingAccounts by remember { mutableStateOf(false) }
 
     Scaffold(
+        // Root's Scaffold pads for the NavigationBar and the TopAppBar pads for the
+        // status bar, so this Scaffold adds no system-bar insets of its own.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = {

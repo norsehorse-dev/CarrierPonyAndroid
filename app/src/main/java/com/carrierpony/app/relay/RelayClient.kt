@@ -179,12 +179,16 @@ class RelayClient(
         post("/v1/sealed/send", body)
     }
 
-    suspend fun sealedInbox(sealedDeviceId: String, deviceKey: String): List<SealedInboxMessage> {
+    /** [skip] lists relay message ids to leave out (envelopes that keep failing to
+     *  open), so they can't crowd new ones out of a size-capped answer. A relay that
+     *  predates it ignores the field. */
+    suspend fun sealedInbox(sealedDeviceId: String, deviceKey: String, skip: List<String> = emptyList()): List<SealedInboxMessage> {
         val ts = System.currentTimeMillis() / 1000
         val body = JSONObject()
         body.put("device_id", sealedDeviceId)
         body.put("ts", ts)
         body.put("auth", MailboxCrypto.deviceAuth(deviceKey, "inbox", sealedDeviceId, ts))
+        if (skip.isNotEmpty()) body.put("skip", JSONArray(skip))
         val response = post("/v1/sealed/inbox", body)
         val array = response.getJSONArray("messages")
         return (0 until array.length()).map { SealedInboxMessage.from(array.getJSONObject(it)) }

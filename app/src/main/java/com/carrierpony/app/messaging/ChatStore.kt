@@ -34,6 +34,8 @@ import com.carrierpony.app.relay.RelayException
 import com.carrierpony.app.relay.MailboxCrypto
 import com.carrierpony.app.relay.SealedInboxMessage
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -146,6 +148,24 @@ class ChatStore(
     private val mutex = Mutex()
     private val sealedAddressMap = mutableMapOf<String, SealedRoute>()
     private var lastSealedWindowRefresh: Long = 0
+    // Receive addresses the relay already holds for this device (this process), so
+    // window upkeep only sends new ones instead of the whole window every 30s.
+    private val sealedRegistered = mutableSetOf<String>()
+    // Last full re-registration, which also pushes every mailbox's expiry forward.
+    private var lastSealedFullRegistration: Long = 0
+    private val sealedFullRegistrationInterval = 6L * 3600
+    // Last time we retried sending our inbound key to contacts that lack it.
+    private var lastSealedHandshake: Long = 0
+    // A high-water mark moved, so the window should slide on the next upkeep.
+    @Volatile private var sealedWindowsDirty = false
+    // Sealed envelopes that failed to open, by relay message id. Ones that keep
+    // failing are skipped on most polls so they can't crowd out new messages.
+    private val sealedFailCounts = mutableMapOf<String, Int>()
+    private var sealedPollCount = 0
+    // Single-flight refresh: the pass running now and at most one queued follow-up.
+    private val passLock = Any()
+    private var passJob: Deferred<Unit>? = null
+    private var followJob: Deferred<Unit>? = null
 
     companion object {
         /** The disappearing-timer choices in seconds (1h, 6h, 1d, 1w, 4w). The
@@ -231,7 +251,54 @@ class ChatStore(
     private val maxHeld = 200
     private val heldMaxAgeSeconds = 30L * 86_400
 
-    suspend fun refresh() = withContext(Dispatchers.Default) {
+    /** Fetch and open everything waiting. Single-flight: a call made while a pass is
+     *  running (a push landing mid-poll) waits for one follow-up pass instead of
+     *  starting a second concurrent one, and returns once that pass is done. */
+    suspend fun refresh() {
+        val target: Deferred<Unit> = synchronized(passLock) {
+            val queued = followJob
+            if (queued != null) return@synchronized queued
+            val running = passJob
+            if (running != null && running.isActive) {
+                val follow = scope.async(Dispatchers.Default, start = CoroutineStart.LAZY) {
+                    running.join()
+                    synchronized(passLock) { followJob = null }
+                    startPass().await()
+                }
+                followJob = follow
+                follow.start()
+                follow
+            } else {
+                startPassLocked()
+            }
+        }
+        try {
+            target.await()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            diagnostics("refresh pass failed: ${e.javaClass.simpleName}: ${e.message}", e)
+        }
+    }
+
+    private fun startPass(): Deferred<Unit> = synchronized(passLock) { startPassLocked() }
+
+    private fun startPassLocked(): Deferred<Unit> {
+        val running = passJob
+        if (running != null && running.isActive) return running
+        val pass = scope.async(Dispatchers.Default) { refreshPass() }
+        passJob = pass
+        return pass
+    }
+
+    private suspend fun refreshPass() = withContext(Dispatchers.Default) {
+        // Sealed inbox first. It is where 1:1 and group messages land, and the push
+        // that woke us was almost always for one of them, so nothing slow (pairing
+        // sweep, legacy challenge round trips, window upkeep) may run ahead of it.
+        // The address map is pure HMAC, built locally when it isn't there yet.
+        if (sealedKeys != null && sealedAddressMap.isEmpty()) sealedBuildWindows()
+        sealedPollInbox()
+
         // Complete any accepted pairing offers first, so a new contact exists
         // before their messages are opened this pass.
         try { pairingSweep?.invoke() } catch (e: Exception) { }
@@ -971,6 +1038,8 @@ class ChatStore(
             if (e.status == 401) {
                 sk.rotateDeviceIdentity()
                 sealedAddressMap.clear()
+                sealedRegistered.clear()
+                lastSealedFullRegistration = 0
                 try {
                     relay.sealedRegisterDevice(sk.deviceId(), sk.deviceKey(), sk.wakeToken())
                 } catch (e2: Exception) {
@@ -982,13 +1051,14 @@ class ChatStore(
         }
     }
 
+    /** Window upkeep, after the poll: slide the windows, register what's new, retry
+     *  the key handshake. Throttled, except right after a high-water mark moved. */
     private suspend fun sealedMaintain() {
         if (sealedKeys == null) return
-        if (sealedAddressMap.isEmpty() || (now - lastSealedWindowRefresh) > 30) {
-            sealedRefreshWindows()
-            lastSealedWindowRefresh = now
-        }
-        sealedPollInbox()
+        if (!(sealedAddressMap.isEmpty() || sealedWindowsDirty || (now - lastSealedWindowRefresh) > 30)) return
+        sealedWindowsDirty = false
+        lastSealedWindowRefresh = now
+        sealedRefreshWindows()
     }
 
     private suspend fun deliverToPeer(envelope: ByteArray, to: Fingerprint, expiresAt: Long, silent: Boolean) {
@@ -1135,24 +1205,20 @@ class ChatStore(
         sealedPollInbox()
     }
 
-    private suspend fun sealedRefreshWindows() {
-        val sk = sealedKeys ?: return
+    /** Make sure every contact has per-pair state and build the address map for the
+     *  current receive windows. No network: HMACs only, cheap enough to run before
+     *  the first poll. Returns the registration batch for those windows. */
+    private fun sealedBuildWindows(): JSONArray {
+        val batch = JSONArray()
+        val sk = sealedKeys ?: return batch
         val window = 64L
         val expiresAt = now + defaultTTL
-        val batch = JSONArray()
         val map = mutableMapOf<String, SealedRoute>()
 
         for (contact in contacts()) {
             if (contact.fingerprint == DemoMode.fingerprint) continue
-            var st = sk.pair(contact.fingerprint.hex)
-                ?: SealedPairState(sk.newPairKey(), null, 0, 0, false)
-            if (!st.sharedMine) {
-                if (sealedSendMyKey(st.myInboundKey, contact)) {
-                    st = SealedPairState(st.myInboundKey, st.peerInboundKey, st.sendCounter, st.receiveHigh, true)
-                }
-            }
-            sk.setPair(contact.fingerprint.hex, st)
-
+            val st = sk.pair(contact.fingerprint.hex)
+                ?: SealedPairState(sk.newPairKey(), null, 0, 0, false).also { sk.setPair(contact.fingerprint.hex, it) }
             val low = if (st.receiveHigh > window) st.receiveHigh - window else 0L
             val high = st.receiveHigh + window
             var m = low
@@ -1171,9 +1237,10 @@ class ChatStore(
             for ((groupID, group) in _groups.value) {
                 val secret = gk.key(groupID, group.epoch) ?: continue
                 val epochKey = secret.encoded
-                var gst = sk.group(groupID) ?: SealedGroupState(group.epoch, mutableMapOf(), mutableMapOf())
+                val stored = sk.group(groupID)
+                var gst = stored ?: SealedGroupState(group.epoch, mutableMapOf(), mutableMapOf())
                 if (gst.epoch != group.epoch) gst = SealedGroupState(group.epoch, mutableMapOf(), mutableMapOf())
-                sk.setGroup(groupID, gst)
+                if (stored == null || stored.epoch != group.epoch) sk.setGroup(groupID, gst)
                 for (member in group.members) {
                     if (member.fingerprint == identity) continue
                     val hw = gst.recvHighs[member.fingerprint.hex] ?: 0L
@@ -1191,20 +1258,61 @@ class ChatStore(
         }
         sealedAddressMap.clear()
         sealedAddressMap.putAll(map)
-        nostrSubscribe?.invoke(map.keys.toList())
+        return batch
+    }
 
+    /** Window upkeep: rebuild the map, share our inbound key with contacts that lack
+     *  it (throttled), and register only addresses the relay doesn't hold yet. A full
+     *  re-registration runs every few hours to keep mailbox expiries fresh. */
+    private suspend fun sealedRefreshWindows() {
+        val sk = sealedKeys ?: return
+        val batch = sealedBuildWindows()
+        nostrSubscribe?.invoke(sealedAddressMap.keys.toList())
+
+        if (now - lastSealedHandshake > 30) {
+            lastSealedHandshake = now
+            for (contact in contacts()) {
+                if (contact.fingerprint == DemoMode.fingerprint) continue
+                val st = sk.pair(contact.fingerprint.hex) ?: continue
+                if (st.sharedMine) continue
+                if (sealedSendMyKey(st.myInboundKey, contact)) {
+                    // Re-read after the send so a counter bump made meanwhile is kept.
+                    val latest = sk.pair(contact.fingerprint.hex) ?: st
+                    sk.setPair(contact.fingerprint.hex, SealedPairState(latest.myInboundKey, latest.peerInboundKey, latest.sendCounter, latest.receiveHigh, true))
+                }
+            }
+        }
+
+        val full = now - lastSealedFullRegistration > sealedFullRegistrationInterval
+        val pending = ArrayList<JSONObject>()
+        for (k in 0 until batch.length()) {
+            val item = batch.getJSONObject(k)
+            if (full || item.getString("mailbox") !in sealedRegistered) pending.add(item)
+        }
+        if (pending.isEmpty()) return
+        android.util.Log.d("CPSEAL", "REG pending=${pending.size} full=$full")
+        val registered = mutableListOf<String>()
+        var allOK = true
         var i = 0
-        while (i < batch.length()) {
+        while (i < pending.size) {
+            val end = minOf(i + 500, pending.size)
             val chunk = JSONArray()
-            var j = i
-            val end = minOf(i + 500, batch.length())
-            while (j < end) { chunk.put(batch.getJSONObject(j)); j++ }
+            for (j in i until end) chunk.put(pending[j])
             try {
                 relay.sealedRegisterMailboxes(sk.deviceId(), sk.deviceKey(), chunk)
+                for (j in i until end) registered.add(pending[j].getString("mailbox"))
             } catch (e: Exception) {
+                allOK = false
                 break
             }
-            i += 500
+            i = end
+        }
+        if (full && allOK) {
+            sealedRegistered.clear()
+            sealedRegistered.addAll(registered)
+            lastSealedFullRegistration = now
+        } else {
+            sealedRegistered.addAll(registered)
         }
     }
 
@@ -1230,12 +1338,22 @@ class ChatStore(
 
     private suspend fun sealedPollInbox() {
         val sk = sealedKeys ?: return
+        // Envelopes that failed to open 3+ times are left out of most polls (every
+        // 12th poll retries them), so a stuck backlog can't keep new messages behind it.
+        sealedPollCount += 1
+        val retryAll = sealedPollCount % 12 == 0
+        val skip = if (retryAll) emptyList() else synchronized(sealedFailCounts) {
+            sealedFailCounts.filter { it.value >= 3 }.keys.take(200)
+        }
         try {
-            val messages = relay.sealedInbox(sk.deviceId(), sk.deviceKey()).take(maxPerRefresh)
+            val messages = relay.sealedInbox(sk.deviceId(), sk.deviceKey(), skip).take(maxPerRefresh)
             val ackIDs = mutableListOf<String>()
             for (item in messages) {
+                // The relay only stores to mailboxes registered to this device, so an
+                // address outside the current map (an older window, a pre-resync key,
+                // a previous group epoch) is still ours: open it rather than leaving it
+                // unacked until it expires. Only the high-water bump needs a route.
                 val mapped = sealedAddressMap[item.mailbox]
-                if (mapped == null) { yield(); continue }
                 val envelope = try {
                     Base64.Default.decode(item.envelope)
                 } catch (e: Exception) {
@@ -1245,31 +1363,41 @@ class ChatStore(
                 val opened = mutex.withLock {
                     if (isGroup) handleGroupLocked(envelope.copyOfRange(groupMagic.size, envelope.size)) else handleLocked(envelope)
                 }
-                if (opened) {
-                    ackIDs.add(item.messageId)
-                    when (mapped) {
-                        is SealedRoute.PairRoute -> {
-                            val st = sk.pair(mapped.peer.hex)
-                            if (st != null && mapped.counter > st.receiveHigh) {
-                                sk.setPair(mapped.peer.hex, SealedPairState(st.myInboundKey, st.peerInboundKey, st.sendCounter, mapped.counter, st.sharedMine))
-                            }
+                if (!opened) {
+                    synchronized(sealedFailCounts) { sealedFailCounts[item.messageId] = (sealedFailCounts[item.messageId] ?: 0) + 1 }
+                    yield()
+                    continue
+                }
+                ackIDs.add(item.messageId)
+                synchronized(sealedFailCounts) { sealedFailCounts.remove(item.messageId) }
+                when (mapped) {
+                    is SealedRoute.PairRoute -> {
+                        val st = sk.pair(mapped.peer.hex)
+                        if (st != null && mapped.counter > st.receiveHigh) {
+                            sk.setPair(mapped.peer.hex, SealedPairState(st.myInboundKey, st.peerInboundKey, st.sendCounter, mapped.counter, st.sharedMine))
+                            sealedWindowsDirty = true
                         }
-                        is SealedRoute.GroupRoute -> {
-                            val gst = sk.group(mapped.groupID)
-                            if (gst != null) {
-                                val cur = gst.recvHighs[mapped.sender.hex] ?: 0L
-                                if (mapped.counter > cur) {
-                                    gst.recvHighs[mapped.sender.hex] = mapped.counter
-                                    sk.setGroup(mapped.groupID, gst)
-                                }
+                    }
+                    is SealedRoute.GroupRoute -> {
+                        val gst = sk.group(mapped.groupID)
+                        if (gst != null) {
+                            val cur = gst.recvHighs[mapped.sender.hex] ?: 0L
+                            if (mapped.counter > cur) {
+                                gst.recvHighs[mapped.sender.hex] = mapped.counter
+                                sk.setGroup(mapped.groupID, gst)
+                                sealedWindowsDirty = true
                             }
                         }
                     }
+                    null -> android.util.Log.d("CPSEAL", "RX unmapped mbox=${item.mailbox.takeLast(6)}, opened anyway")
                 }
                 yield()
             }
             if (ackIDs.isNotEmpty()) {
                 relay.sealedAck(sk.deviceId(), sk.deviceKey(), ackIDs)
+            }
+            synchronized(sealedFailCounts) {
+                if (sealedFailCounts.size > 500) sealedFailCounts.entries.removeAll { it.value < 3 }
             }
         } catch (e: Exception) {
             // best-effort; a sealed failure must not break legacy delivery

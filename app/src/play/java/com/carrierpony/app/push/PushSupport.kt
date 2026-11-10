@@ -21,7 +21,7 @@ object PushSupport {
     fun ensureChannel(context: Context) = PushNotifier.ensureChannel(context)
 
     /** Install AppModel's token/wake hooks into the FCM service. */
-    fun install(onNewToken: (PushRegistration) -> Unit, onWake: () -> Boolean, onCleared: () -> Unit = {}) {
+    fun install(onNewToken: (PushRegistration) -> Unit, onWake: (silent: Boolean) -> Boolean, onCleared: () -> Unit = {}) {
         PushService.onNewToken = { token -> onNewToken(PushRegistration(token, "fcm")) }
         PushService.onWake = onWake
     }

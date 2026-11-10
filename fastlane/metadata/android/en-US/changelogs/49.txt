@@ -1,0 +1,1 @@
+Fixes notifications arriving well before the message showed up. The app now fetches new messages before its background upkeep, and in the background it fetches first and then posts the notification. Messages that keep failing to open no longer hold up newer ones. Also removes the blank band above the top bar on the main screens.

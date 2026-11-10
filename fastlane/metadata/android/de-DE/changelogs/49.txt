@@ -1,0 +1,1 @@
+Behebt Benachrichtigungen, die lange vor der Nachricht ankamen. Die App ruft neue Nachrichten jetzt vor ihren Hintergrundaufgaben ab und holt sie im Hintergrund zuerst, bevor sie die Benachrichtigung anzeigt. Nachrichten, die sich wiederholt nicht öffnen lassen, halten neuere nicht mehr auf. Außerdem ist der leere Streifen über der oberen Leiste auf den Hauptbildschirmen weg.

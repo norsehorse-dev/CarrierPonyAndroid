@@ -114,8 +114,9 @@ fun FilesScreen(store: ChatStore, contacts: List<Contact>) {
         contacts.firstOrNull { it.fingerprint == peer }?.displayName ?: UiFormat.shortFingerprint(peer)
 
     Scaffold(
-        // Root's Scaffold already pads this screen for the system bars and the
-        // NavigationBar; without this the send button floats one inset too high.
+        // Root's Scaffold pads this screen for the NavigationBar and the TopAppBar
+        // pads for the status bar; without this the send button floats one inset
+        // too high.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(

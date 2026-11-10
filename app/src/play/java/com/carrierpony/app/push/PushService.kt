@@ -30,10 +30,10 @@ class PushService : FirebaseMessagingService() {
         var onNewToken: (String) -> Unit = {}
 
         /** Installed by AppModel (through PushSupport.install): returns true if a
-         *  live ChatStore handled the wake (app foregrounded and refreshing), in
-         *  which case no notification is posted. */
+         *  live ChatStore took the wake (it refreshes, and posts the banner itself
+         *  after the fetch when backgrounded), in which case none is posted here. */
         @Volatile
-        var onWake: () -> Boolean = { false }
+        var onWake: (silent: Boolean) -> Boolean = { false }
     }
 
     override fun onNewToken(token: String) {
@@ -50,7 +50,7 @@ class PushService : FirebaseMessagingService() {
         android.util.Log.i("CarrierPony", "push wake received (data=${message.data.keys}, silent=$silent)")
         // Contentless by design: ignore any payload beyond the wake itself.
         val handledLive = try {
-            onWake.invoke()
+            onWake.invoke(silent)
         } catch (e: Exception) {
             false
         }
