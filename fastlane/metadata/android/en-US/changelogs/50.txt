@@ -1,0 +1,1 @@
+Fixes the app freezing when a large attachment was sent over SMS. SMS now carries short messages only and anything bigger goes through the relay, which also stops GrapheneOS from asking about bulk SMS again and again. The app also no longer rewrites its message history every few seconds when nothing has expired, which saves battery.

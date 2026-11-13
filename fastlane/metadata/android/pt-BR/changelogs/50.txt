@@ -1,0 +1,1 @@
+Corrige o travamento do app ao enviar um anexo grande por SMS. Agora o SMS leva apenas mensagens curtas e tudo o que for maior passa pelo relay, o que também faz o GrapheneOS parar de perguntar repetidamente sobre o envio de SMS em massa. Além disso, o app não regrava mais o histórico de mensagens a cada poucos segundos quando nada expirou, o que economiza bateria.

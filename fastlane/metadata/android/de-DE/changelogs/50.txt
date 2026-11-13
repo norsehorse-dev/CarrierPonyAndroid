@@ -1,0 +1,1 @@
+Behebt das Einfrieren der App, wenn ein großer Anhang per SMS gesendet wurde. SMS überträgt jetzt nur noch kurze Nachrichten, alles Größere läuft über das Relay. Damit fragt GrapheneOS auch nicht mehr ständig nach Massen-SMS. Außerdem schreibt die App den Nachrichtenverlauf nicht mehr alle paar Sekunden neu, wenn nichts abgelaufen ist. Das spart Akku.

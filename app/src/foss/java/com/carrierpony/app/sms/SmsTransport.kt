@@ -4,6 +4,8 @@ import com.carrierpony.app.crypto.Fingerprint
 import com.carrierpony.app.messaging.Transport
 import com.carrierpony.app.messaging.TransportCapabilities
 import com.carrierpony.app.messaging.TransportID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * SMS as a Transport (foss flavor only). A direct, off-grid path: it chunks the
@@ -24,7 +26,20 @@ class SmsTransport(
 
     override suspend fun send(envelope: ByteArray, to: Fingerprint, mailbox: String?, expiresAt: Long, silent: Boolean): Boolean {
         if (!enabled()) return false
+        // SMS is for short messages. A photo or video would be thousands of texts,
+        // which trips the OS's bulk-SMS prompt over and over (GrapheneOS asks on
+        // every batch) and takes forever. Anything over the cap returns false so the
+        // relay carries it instead.
+        if (envelope.size > MAX_ENVELOPE_BYTES) return false
         val number = numberFor(to) ?: return false
-        return carrier.send(number, envelope)
+        // SmsManager calls are blocking binder calls; never make them on the main
+        // thread (a long send there froze the UI into an ANR).
+        return withContext(Dispatchers.IO) { carrier.send(number, envelope) }
+    }
+
+    companion object {
+        /** About 19 data SMS at 110 bytes each: room for a sealed text message,
+         *  well short of a burst big enough to set off the bulk-SMS prompt. */
+        const val MAX_ENVELOPE_BYTES = 2048
     }
 }

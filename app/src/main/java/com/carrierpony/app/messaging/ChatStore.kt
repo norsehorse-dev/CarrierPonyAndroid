@@ -1726,9 +1726,11 @@ class ChatStore(
     private fun pruneExpiredLocked() {
         val cutoff = now
         var updated = _conversations.value
+        var changed = false
         for ((threadID, conversation) in updated) {
             val expired = conversation.messages.filter { it.expiresAt <= cutoff }
             if (expired.isEmpty()) continue
+            changed = true
             // A disappearing message must take its attachment files with it, or
             // the "disappeared" bytes linger on disk.
             for (message in expired) {
@@ -1740,6 +1742,10 @@ class ChatStore(
                 messages = conversation.messages.filter { it.expiresAt > cutoff }
             ))
         }
+        // Runs on every poll. Rewriting the whole history file every 5 seconds when
+        // nothing expired was wasted CPU and battery (off the UI thread here, unlike
+        // iOS where the same write stalled the UI).
+        if (!changed) return
         _conversations.value = updated
         persistLocked()
     }
