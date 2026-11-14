@@ -23,7 +23,7 @@ import kotlin.io.encoding.Base64
 data class Invite(
     val v: Int,
     val t: String,      // one-time relay token (32 hex)
-    val f: String,      // offerer fingerprint (40 hex)
+    val f: String,      // offerer fingerprint (40 hex, or 64 for v6)
     val n: String?      // offerer display name, optional
 ) {
 

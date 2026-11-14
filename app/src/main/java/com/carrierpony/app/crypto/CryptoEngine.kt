@@ -2,21 +2,28 @@
 // CarrierPony Android
 //
 // The crypto contract the messaging stack builds on, ported 1:1 from iOS
-// Core/Crypto/CryptoEngine.swift. Fingerprint is the 40-hex v4 primary-key
-// fingerprint — it IS a contact's identity throughout the app and the relay
-// protocol. (A 64-hex v6 fingerprint deliberately does not fit this type and
-// is rejected upstream, which is correct for the v4 relay path today.)
+// Core/Crypto/CryptoEngine.swift. Fingerprint is the primary-key fingerprint:
+// 40 hex characters for a v4 key (SHA-1), 64 for a v6 key (RFC 9580, SHA-256).
+// It IS a contact's identity throughout the app and the relay protocol.
 
 package com.carrierpony.app.crypto
 
-/** A v4 OpenPGP primary-key fingerprint: exactly 40 uppercase hex characters. */
+/** An OpenPGP primary-key fingerprint in uppercase hex: 40 characters (v4) or 64 (v6). */
 @ConsistentCopyVisibility
 data class Fingerprint private constructor(val hex: String) {
+
+    /** True for a v6 (RFC 9580) fingerprint, false for v4. */
+    val isV6: Boolean get() = hex.length == V6_LENGTH
+
     companion object {
-        /** Returns null unless the string is exactly 40 hex characters. */
+        const val V4_LENGTH = 40
+        const val V6_LENGTH = 64
+
+        /** Returns null unless the string is exactly 40 or 64 hex characters. */
         fun from(string: String): Fingerprint? {
             val upper = string.uppercase()
-            val valid = upper.length == 40 && upper.all { it.isDigit() || it in 'A'..'F' }
+            val valid = (upper.length == V4_LENGTH || upper.length == V6_LENGTH) &&
+                upper.all { it in '0'..'9' || it in 'A'..'F' }
             return if (valid) Fingerprint(upper) else null
         }
     }

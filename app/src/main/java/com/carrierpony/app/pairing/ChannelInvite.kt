@@ -21,7 +21,7 @@ import kotlin.io.encoding.Base64
 data class ChannelInvite(
     val v: Int,
     val c: String,       // channel/group id (32 hex)
-    val f: String,       // admin fingerprint (40 hex)
+    val f: String,       // admin fingerprint (40 hex, or 64 for v6)
     val k: String,       // admin armored public key
     val t: String?,      // optional invite token (gated channels); null = open
     val n: String?       // channel name, optional (display only)

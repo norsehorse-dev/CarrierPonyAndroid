@@ -55,8 +55,8 @@ class PonyCryptoEngine(
             val state = if (pass == null) "absent" else "present(len=" + pass.length + ")"
             throw CryptoException.DecryptionFailed(e.message + " [passphrase " + state + "]", e)
         }
-        // A sender fingerprint that does not fit the 40-hex type (a v6 sender)
-        // cannot be a contact on the v4 relay path — refuse, matching iOS.
+        // A sender fingerprint that is neither 40 hex (v4) nor 64 hex (v6) is
+        // not a usable identity. Refuse, matching iOS.
         val sender = Fingerprint.from(verified.senderFingerprint)
             ?: throw CryptoException.NoValidSignature()
         return VerifiedMessage(sender, verified.plaintext)
