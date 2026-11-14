@@ -45,7 +45,7 @@ import java.util.Date
 /**
  * The material a fresh identity consists of, in the exact shape the app's
  * Identity record persists: serialized secret key bytes, the armored public
- * key, and the primary fingerprint (40 hex, uppercase).
+ * key, and the primary fingerprint (uppercase hex: 40 for v4, 64 for v6).
  */
 data class CPGeneratedIdentity(
     val fingerprint: String,
@@ -125,6 +125,109 @@ object CPIdentityGenerator {
 
             val secretKeyRing = generator.generateSecretKeyRing()
             val publicKeyRing = generator.generatePublicKeyRing()
+
+            return CPGeneratedIdentity(
+                fingerprint = CPKeyInfo.bytesToHex(publicKeyRing.publicKey.fingerprint),
+                secretKey = secretKeyRing.encoded,
+                armoredPublicKey = armorPublicKeyRing(publicKeyRing)
+            )
+        } catch (e: CPCryptoError) {
+            throw e
+        } catch (e: Exception) {
+            throw CPCryptoError.KeyGenerationFailed(e.message ?: "Unknown error")
+        }
+    }
+
+    /**
+     * Generate a fresh v6 (RFC 9580) identity with user ID "name <email>":
+     * an Ed25519 primary, an Ed25519 signing subkey, and one ML-KEM-768 +
+     * X25519 encryption subkey (algorithm 35, RFC 9980). There is no separate
+     * classical encryption subkey: the composite is already a hybrid, and a
+     * plain X25519 subkey would let a sender leave the post-quantum part out.
+     * The fingerprint is 64 hex characters.
+     *
+     * BouncyCastle builds the primary, the signing subkey and every signature.
+     * It cannot emit the algorithm-35 subkey, so CPCompositeKeys writes those
+     * two packets and BC binds the subkey to the primary.
+     */
+    fun generateV6Identity(name: String, email: String): CPGeneratedIdentity {
+        try {
+            val userID = "$name <$email>"
+            val creationDate = Date()
+            val random = SecureRandom()
+
+            val implementation = org.bouncycastle.openpgp.api.bc.BcOpenPGPImplementation()
+            val keyGenerator = org.bouncycastle.openpgp.api.OpenPGPKeyGenerator(
+                implementation,
+                org.bouncycastle.bcpg.PublicKeyPacket.VERSION_6,
+                false,
+                creationDate
+            )
+            // The generator puts a five-year expiry on everything by default. A
+            // messaging identity does not expire, so the subpacket is removed.
+            val noExpiry = org.bouncycastle.openpgp.api.SignatureParameters.Callback.Util.modifyHashedSubpackets(
+                org.bouncycastle.openpgp.api.SignatureSubpacketsFunction { subpackets ->
+                    subpackets.removePacketsOfType(org.bouncycastle.bcpg.SignatureSubpacketTags.KEY_EXPIRE_TIME)
+                    subpackets
+                }
+            )
+            val baseRing = keyGenerator
+                .withPrimaryKey(
+                    org.bouncycastle.openpgp.api.KeyPairGeneratorCallback { gen -> gen.generateEd25519KeyPair() },
+                    noExpiry
+                )
+                .addSigningSubkey(
+                    org.bouncycastle.openpgp.api.KeyPairGeneratorCallback { gen -> gen.generateEd25519KeyPair() },
+                    noExpiry,
+                    null
+                )
+                .addUserId(userID, noExpiry)
+                .build()
+                .getPGPSecretKeyRing()
+
+            // The composite encryption subkey, hand-emitted.
+            val composite = CPCompositeKem.generateKeyPair(random)
+            val (publicPacket, secretPacket) = CPCompositeKeys.subkeyPackets(creationDate.time / 1000L, composite)
+
+            // Parse primary + new subkey so BC holds the subkey as a PGPPublicKey.
+            val calculator = org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator()
+            val primaryPublic = baseRing.publicKey
+            val temp = ByteArrayOutputStream().apply {
+                write(primaryPublic.encoded)
+                write(publicPacket)
+            }.toByteArray()
+            val subkeyPublic = PGPPublicKeyRing(java.io.ByteArrayInputStream(temp), calculator)
+                .publicKeys.asSequence().first { !it.isMasterKey }
+
+            // Subkey binding signature from the primary.
+            val primaryPrivate = baseRing.secretKey.extractPrivateKey(null)
+            val binding = org.bouncycastle.openpgp.PGPSignatureGenerator(
+                BcPGPContentSignerBuilder(primaryPublic.algorithm, HashAlgorithmTags.SHA256),
+                primaryPublic
+            )
+            binding.init(PGPSignature.SUBKEY_BINDING, primaryPrivate)
+            val bindingSubpackets = PGPSignatureSubpacketGenerator()
+            bindingSubpackets.setKeyFlags(true, PGPKeyFlags.CAN_ENCRYPT_COMMS or PGPKeyFlags.CAN_ENCRYPT_STORAGE)
+            bindingSubpackets.setIssuerFingerprint(false, primaryPublic)
+            binding.setHashedSubpackets(bindingSubpackets.generate())
+            val bindingSignature = binding.generateCertification(primaryPublic, subkeyPublic).encoded
+
+            val assembled = ByteArrayOutputStream().apply {
+                write(baseRing.encoded)
+                write(secretPacket)
+                write(bindingSignature)
+            }.toByteArray()
+            val secretKeyRing = org.bouncycastle.openpgp.PGPSecretKeyRing(
+                java.io.ByteArrayInputStream(assembled), calculator
+            )
+            val publicKeyRing = PGPPublicKeyRing(secretKeyRing.publicKeys.asSequence().toList())
+
+            // Fail here, not at first use, if the ring did not come back whole.
+            val storedSubkey = CPCompositeKeys.encryptionSubkey(secretKeyRing)
+                ?: throw CPCryptoError.KeyGenerationFailed("Composite subkey missing from the generated ring")
+            if (!CPCompositeKeys.secretMaterial(storedSubkey).contentEquals(composite.secretKey)) {
+                throw CPCryptoError.KeyGenerationFailed("Composite subkey did not round-trip")
+            }
 
             return CPGeneratedIdentity(
                 fingerprint = CPKeyInfo.bytesToHex(publicKeyRing.publicKey.fingerprint),
