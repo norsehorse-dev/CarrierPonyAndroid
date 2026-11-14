@@ -140,15 +140,22 @@ object CPIdentityGenerator {
 
     /**
      * Generate a fresh v6 (RFC 9580) identity with user ID "name <email>":
-     * an Ed25519 primary, an Ed25519 signing subkey, and one ML-KEM-768 +
-     * X25519 encryption subkey (algorithm 35, RFC 9980). There is no separate
-     * classical encryption subkey: the composite is already a hybrid, and a
-     * plain X25519 subkey would let a sender leave the post-quantum part out.
-     * The fingerprint is 64 hex characters.
+     * an Ed25519 primary that certifies and signs, and one ML-KEM-768 + X25519
+     * encryption subkey (algorithm 35, RFC 9980). The fingerprint is 64 hex
+     * characters.
      *
-     * BouncyCastle builds the primary, the signing subkey and every signature.
-     * It cannot emit the algorithm-35 subkey, so CPCompositeKeys writes those
-     * two packets and BC binds the subkey to the primary.
+     * The primary signs, as it does on a v4 identity, so the fingerprint inside
+     * a message signature is the identity itself and a receiver finds the
+     * sender by it. There is no signing subkey: every key lives in the same
+     * store, so one would add nothing but a second fingerprint to track.
+     *
+     * There is no separate classical encryption subkey either: the composite is
+     * already a hybrid, and a plain X25519 subkey would let a sender leave the
+     * post-quantum part out.
+     *
+     * BouncyCastle builds the primary and every signature. It cannot emit the
+     * algorithm-35 subkey, so CPCompositeKeys writes those two packets and BC
+     * binds the subkey to the primary.
      */
     fun generateV6Identity(name: String, email: String): CPGeneratedIdentity {
         try {
@@ -163,25 +170,23 @@ object CPIdentityGenerator {
                 false,
                 creationDate
             )
-            // The generator puts a five-year expiry on everything by default. A
-            // messaging identity does not expire, so the subpacket is removed.
-            val noExpiry = org.bouncycastle.openpgp.api.SignatureParameters.Callback.Util.modifyHashedSubpackets(
+            // The generator makes the primary certify-only and puts a five-year
+            // expiry on it. A messaging identity signs with its primary and does
+            // not expire, so both subpackets are replaced.
+            val selfSignature = org.bouncycastle.openpgp.api.SignatureParameters.Callback.Util.modifyHashedSubpackets(
                 org.bouncycastle.openpgp.api.SignatureSubpacketsFunction { subpackets ->
                     subpackets.removePacketsOfType(org.bouncycastle.bcpg.SignatureSubpacketTags.KEY_EXPIRE_TIME)
+                    subpackets.removePacketsOfType(org.bouncycastle.bcpg.SignatureSubpacketTags.KEY_FLAGS)
+                    subpackets.setKeyFlags(true, PGPKeyFlags.CAN_CERTIFY or PGPKeyFlags.CAN_SIGN)
                     subpackets
                 }
             )
             val baseRing = keyGenerator
                 .withPrimaryKey(
                     org.bouncycastle.openpgp.api.KeyPairGeneratorCallback { gen -> gen.generateEd25519KeyPair() },
-                    noExpiry
+                    selfSignature
                 )
-                .addSigningSubkey(
-                    org.bouncycastle.openpgp.api.KeyPairGeneratorCallback { gen -> gen.generateEd25519KeyPair() },
-                    noExpiry,
-                    null
-                )
-                .addUserId(userID, noExpiry)
+                .addUserId(userID, selfSignature)
                 .build()
                 .getPGPSecretKeyRing()
 

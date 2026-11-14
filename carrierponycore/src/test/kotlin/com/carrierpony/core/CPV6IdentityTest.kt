@@ -1,7 +1,7 @@
 // CPV6IdentityTest.kt
 // CarrierPonyCore
 //
-// A generated v6 identity: an Ed25519 primary, an Ed25519 signing subkey and an
+// A generated v6 identity: an Ed25519 primary that certifies and signs, and an
 // ML-KEM-768 + X25519 encryption subkey (algorithm 35). Checks the shape, that
 // BouncyCastle verifies the hand-emitted subkey's binding, that the stored key
 // material drives the KEM, and that the identity signs a relay challenge. The
@@ -11,6 +11,7 @@
 package com.carrierpony.core
 
 import org.bouncycastle.bcpg.PublicKeyAlgorithmTags
+import org.bouncycastle.openpgp.PGPKeyFlags
 import org.bouncycastle.openpgp.PGPPublicKeyRing
 import org.bouncycastle.openpgp.PGPSignature
 import org.bouncycastle.openpgp.operator.bc.BcPGPContentVerifierBuilderProvider
@@ -48,18 +49,29 @@ class CPV6IdentityTest {
     }
 
     @Test
-    fun ringHasPrimarySigningSubkeyAndCompositeSubkey() {
+    fun ringIsASigningPrimaryAndACompositeSubkey() {
         val keys = publicRing(generate()).publicKeys.asSequence().toList()
-        assertEquals(3, keys.size)
+        assertEquals(2, keys.size)
         assertTrue(keys[0].isMasterKey)
         assertEquals(PublicKeyAlgorithmTags.Ed25519, keys[0].algorithm)
-        assertEquals(PublicKeyAlgorithmTags.Ed25519, keys[1].algorithm)
-        assertEquals(CPCompositeKem.ALGORITHM_ID, keys[2].algorithm)
+        assertFalse(keys[1].isMasterKey)
+        assertEquals(CPCompositeKem.ALGORITHM_ID, keys[1].algorithm)
         assertTrue(keys.all { it.version == 6 })
-        // No classical encryption subkey that a sender could fall back to.
-        assertFalse(keys.any { it.algorithm == PublicKeyAlgorithmTags.X25519 || it.algorithm == PublicKeyAlgorithmTags.ECDH })
         // Nothing on the key expires.
         assertTrue(keys.all { it.validSeconds == 0L })
+    }
+
+    @Test
+    fun primaryIsFlaggedToCertifyAndSign() {
+        val primary = publicRing(generate()).publicKey
+        val wanted = PGPKeyFlags.CAN_CERTIFY or PGPKeyFlags.CAN_SIGN
+        val flagSets = primary.signatures.asSequence()
+            .mapNotNull { (it as? PGPSignature)?.hashedSubPackets }
+            .filter { it.hasSubpacket(org.bouncycastle.bcpg.SignatureSubpacketTags.KEY_FLAGS) }
+            .map { it.keyFlags }
+            .toList()
+        assertTrue("the primary must carry key flags", flagSets.isNotEmpty())
+        assertTrue("every self-signature must say certify + sign, got $flagSets", flagSets.all { it == wanted })
     }
 
     @Test
@@ -135,7 +147,7 @@ class CPV6IdentityTest {
     }
 
     @Test
-    fun signsARelayChallengeWithTheSigningSubkey() {
+    fun signsARelayChallengeWithThePrimaryKey() {
         val identity = generate()
         val nonce = "5b1e0c7a9f3d48e2a6c1b7d09e4f2a8c5b1e0c7a9f3d48e2a6c1b7d09e4f2a8c"
         val signature = CPMessenger.detachedSignature(nonce.toByteArray(Charsets.UTF_8), identity.secretKey)
@@ -146,7 +158,7 @@ class CPV6IdentityTest {
         val secretRing = CPMessenger.loadSecretRing(identity.secretKey)
         val signer = CPMessenger.pickSigningSecretKey(secretRing)
         assertNotNull(signer)
-        assertFalse("v6 identities sign with the signing subkey", signer!!.publicKey.isMasterKey)
+        assertTrue("v6 identities sign with the primary key", signer!!.publicKey.isMasterKey)
 
         // For the relay verifier: go run ./cmd/cp-verify < build/v6-login-request.json
         fun json(s: String) = "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\r", "").replace("\n", "\\n") + "\""
