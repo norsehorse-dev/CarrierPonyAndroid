@@ -196,10 +196,20 @@ object CPMessenger {
             val privateKey = unlockPrivateKey(signingKey, passphrase)
 
             val recipientRing = loadPublicRing(recipientKey)
-            val encryptionKey = findEncryptionKey(recipientRing)
-                ?: throw CPCryptoError.MalformedKey(
-                    "No encryption subkey for ${CPKeyInfo.bytesToHex(recipientRing.publicKey.fingerprint)}"
-                )
+            // A v6 identity's encryption subkey is ML-KEM-768 + X25519 (algorithm
+            // 35), which BouncyCastle does not know. When the recipient has one
+            // it is always used, so the post-quantum part is never left out.
+            val compositeKey = CPCompositeKeys.encryptionSubkey(recipientRing)
+            val keyEncryption: org.bouncycastle.openpgp.operator.PGPKeyEncryptionMethodGenerator =
+                if (compositeKey != null) {
+                    CPCompositeMessage.PkeskGenerator(compositeKey)
+                } else {
+                    val classicalKey = findEncryptionKey(recipientRing)
+                        ?: throw CPCryptoError.MalformedKey(
+                            "No encryption subkey for ${CPKeyInfo.bytesToHex(recipientRing.publicKey.fingerprint)}"
+                        )
+                    BcPublicKeyKeyEncryptionMethodGenerator(classicalKey)
+                }
 
             // Container version by recipient key version: SEIPDv2 (AEAD/OCB)
             // only when the recipient is v6; SEIPDv1 + MDC for the v4 fleet.
@@ -217,7 +227,7 @@ object CPMessenger {
             }
 
             val encryptedGen = PGPEncryptedDataGenerator(configured)
-            encryptedGen.addMethod(BcPublicKeyKeyEncryptionMethodGenerator(encryptionKey))
+            encryptedGen.addMethod(keyEncryption)
 
             val out = ByteArrayOutputStream()
             val encryptedOut = encryptedGen.open(out, ByteArray(1 shl 16))
@@ -279,25 +289,9 @@ object CPMessenger {
     ): CPVerifiedMessage {
         try {
             val ring = loadSecretRing(secretKey)
-            val factory = BcPGPObjectFactory(PGPUtil.getDecoderStream(ByteArrayInputStream(message)))
-            val encryptedList = findEncryptedDataList(factory)
-                ?: throw CPCryptoError.DecryptionFailed("No encrypted data found in message")
-
-            // First PKESK we hold the key for.
-            var encryptedData: PGPPublicKeyEncryptedData? = null
-            var privateKey: PGPPrivateKey? = null
-            for (obj in encryptedList.encryptedDataObjects) {
-                if (obj !is PGPPublicKeyEncryptedData) continue
-                val candidate = ring.getSecretKey(obj.keyID) ?: continue
-                privateKey = unlockPrivateKey(candidate, passphrase)
-                encryptedData = obj
-                break
-            }
-            if (encryptedData == null || privateKey == null) {
-                throw CPCryptoError.DecryptionFailed("No matching decryption key found")
-            }
-
-            val clearStream = encryptedData.getDataStream(BcPublicKeyDataDecryptorFactory(privateKey))
+            val opened = openEnvelope(message, ring, passphrase)
+            val encryptedData = opened.integrity
+            val clearStream = opened.stream
             val contents = readSignedContents(BcPGPObjectFactory(clearStream))
 
             // INTEGRITY GATE — after the plaintext stream is fully consumed.
@@ -362,24 +356,9 @@ object CPMessenger {
     ): ByteArray {
         try {
             val ring = loadSecretRing(secretKey)
-            val factory = BcPGPObjectFactory(PGPUtil.getDecoderStream(ByteArrayInputStream(message)))
-            val encryptedList = findEncryptedDataList(factory)
-                ?: throw CPCryptoError.DecryptionFailed("No encrypted data found in message")
-
-            var encryptedData: PGPPublicKeyEncryptedData? = null
-            var privateKey: PGPPrivateKey? = null
-            for (obj in encryptedList.encryptedDataObjects) {
-                if (obj !is PGPPublicKeyEncryptedData) continue
-                val candidate = ring.getSecretKey(obj.keyID) ?: continue
-                privateKey = unlockPrivateKey(candidate, passphrase)
-                encryptedData = obj
-                break
-            }
-            if (encryptedData == null || privateKey == null) {
-                throw CPCryptoError.DecryptionFailed("No matching decryption key found")
-            }
-
-            val clearStream = encryptedData.getDataStream(BcPublicKeyDataDecryptorFactory(privateKey))
+            val opened = openEnvelope(message, ring, passphrase)
+            val encryptedData = opened.integrity
+            val clearStream = opened.stream
             val contents = readSignedContents(BcPGPObjectFactory(clearStream))
 
             val isProtected = encryptedData.isIntegrityProtected
@@ -401,6 +380,34 @@ object CPMessenger {
         } catch (e: Exception) {
             throw CPCryptoError.DecryptionFailed(e.message ?: "Unknown error")
         }
+    }
+
+    // ── Opening the envelope ───────────────────────────────────────────
+
+    private class OpenedEnvelope(val stream: java.io.InputStream, val integrity: org.bouncycastle.openpgp.PGPEncryptedData)
+
+    /**
+     * Recover the plaintext packet stream of [message] with the identity's
+     * encryption key. A message addressed to an ML-KEM-768 + X25519 subkey
+     * (algorithm 35) is opened by CPCompositeMessage, because BouncyCastle's
+     * reader throws on that session-key packet; everything else goes through
+     * BouncyCastle as before.
+     */
+    private fun openEnvelope(message: ByteArray, ring: PGPSecretKeyRing, passphrase: String?): OpenedEnvelope {
+        CPCompositeMessage.open(message, ring)?.let { return OpenedEnvelope(it.stream, it.integrity) }
+
+        val factory = BcPGPObjectFactory(PGPUtil.getDecoderStream(ByteArrayInputStream(message)))
+        val encryptedList = findEncryptedDataList(factory)
+            ?: throw CPCryptoError.DecryptionFailed("No encrypted data found in message")
+
+        // First PKESK we hold the key for.
+        for (obj in encryptedList.encryptedDataObjects) {
+            if (obj !is PGPPublicKeyEncryptedData) continue
+            val candidate = ring.getSecretKey(obj.keyID) ?: continue
+            val privateKey = unlockPrivateKey(candidate, passphrase)
+            return OpenedEnvelope(obj.getDataStream(BcPublicKeyDataDecryptorFactory(privateKey)), obj)
+        }
+        throw CPCryptoError.DecryptionFailed("No matching decryption key found")
     }
 
     // ── Inner-packet walk ──────────────────────────────────────────────
