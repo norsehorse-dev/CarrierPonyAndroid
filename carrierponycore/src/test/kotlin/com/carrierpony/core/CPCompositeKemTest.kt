@@ -5,7 +5,8 @@
 // the wrong key does not, tampering is caught, the session-key wrap round-trips,
 // and the combiner's byte layout matches a known-answer vector computed
 // independently of this code (Python hashlib.sha3_256 over the RFC 9980 input
-// order).
+// order). A full vector from a third implementation, shared with the iOS core,
+// covers seed expansion, decapsulation and the wrap.
 
 package com.carrierpony.core
 
@@ -166,5 +167,45 @@ class CPCompositeKemTest {
         // mlkemShare = 00..1f, ecdhShare = 20..3f, ephemeral = 40..5f, recipient = 60..7f
         val kek = CPCompositeKem.combine(range(0), range(32), range(64), range(96))
         assertEquals("8b341efe0f87f2e97e1ab8772b8e7cebc6b52240a631ad4d5e220acd0f419b75", hex(kek))
+    }
+
+    private fun unhex(hex: String): ByteArray = ByteArray(hex.length / 2) { hex.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
+
+    private val vector: Map<String, String> by lazy {
+        val json = javaClass.getResourceAsStream("/pqc/kem-vector-1.json")!!.use { it.readBytes() }.toString(Charsets.US_ASCII)
+        Regex("\"(\\w+)\"\\s*:\\s*\"([0-9a-f]+)\"").findAll(json).associate { it.groupValues[1] to it.groupValues[2] }
+    }
+
+    // A message key encapsulated by a third implementation (Python: kyber-py,
+    // cryptography, hashlib; the generator sits beside the vector) opens here.
+    // The iOS core replays the same vector in CompositeKEMTests.
+    @Test
+    fun opensTheSharedVector() {
+        val secret = unhex(vector.getValue("compositeSecret"))
+        val public = unhex(vector.getValue("compositePublic"))
+        val (xPublic, mlkemPublic) = CPCompositeKem.splitPublic(public)
+        val (_, seed) = CPCompositeKem.splitSecret(secret)
+        assertArrayEquals(mlkemPublic, CPCompositeKem.mlkemPublicFromSeed(seed))
+        val kek = CPCompositeKem.decapsulate(
+            unhex(vector.getValue("ephemeralPublic")),
+            unhex(vector.getValue("mlkemCiphertext")),
+            secret,
+            xPublic
+        )
+        assertEquals(vector.getValue("kek"), hex(kek))
+        val sessionKey = CPCompositeKem.unwrapSessionKey(kek, unhex(vector.getValue("wrappedSessionKey")))
+        assertEquals(vector.getValue("sessionKey"), hex(sessionKey))
+        assertEquals(vector.getValue("wrappedSessionKey"), hex(CPCompositeKem.wrapSessionKey(kek, sessionKey)))
+    }
+
+    @Test
+    fun encapsulatesToTheSharedVectorKey() {
+        val secret = unhex(vector.getValue("compositeSecret"))
+        val public = unhex(vector.getValue("compositePublic"))
+        val sent = CPCompositeKem.encapsulate(public, random)
+        val received = CPCompositeKem.decapsulate(
+            sent.ephemeralPublic, sent.mlkemCiphertext, secret, CPCompositeKem.splitPublic(public).first
+        )
+        assertArrayEquals(sent.kek, received)
     }
 }
