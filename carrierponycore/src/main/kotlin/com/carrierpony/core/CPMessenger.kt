@@ -167,6 +167,7 @@ object CPMessenger {
             // a producer whose issuer-keyID subpacket the strict lookup won't match
             // would otherwise fail to verify even though the signature is valid.
             val pub = ring.getPublicKey(signature.keyID) ?: ring.publicKey ?: return false
+            if (!CPKeyTrust.isBoundSigner(ring, pub)) return false
             signature.init(BcPGPContentVerifierBuilderProvider(), pub)
             signature.update(data)
             signature.verify()
@@ -200,6 +201,12 @@ object CPMessenger {
             // 35), which BouncyCastle does not know. When the recipient has one
             // it is always used, so the post-quantum part is never left out.
             val compositeKey = CPCompositeKeys.encryptionSubkey(recipientRing)
+            // The recipient is pinned by their primary key. A subkey that the
+            // primary has not signed is not theirs, whoever handed us the ring.
+            // No fallback to another subkey here: that would be a quiet downgrade.
+            if (compositeKey != null && !CPKeyTrust.isBound(recipientRing, compositeKey)) {
+                throw CPCryptoError.MalformedKey("Recipient's encryption subkey is not signed by their key")
+            }
             val keyEncryption: org.bouncycastle.openpgp.operator.PGPKeyEncryptionMethodGenerator =
                 if (compositeKey != null) {
                     CPCompositeMessage.PkeskGenerator(compositeKey)
@@ -292,7 +299,7 @@ object CPMessenger {
             val opened = openEnvelope(message, ring, passphrase)
             val encryptedData = opened.integrity
             val clearStream = opened.stream
-            val contents = readSignedContents(BcPGPObjectFactory(clearStream))
+            val contents = readSignedContents(clearStream)
 
             // INTEGRITY GATE — after the plaintext stream is fully consumed.
             // Legacy unprotected packets are rejected outright; SEIPDv1's MDC
@@ -321,6 +328,9 @@ object CPMessenger {
             val senderRing = loadPublicRing(senderKeyData)
             val verificationKey = senderRing.getPublicKey(signature.keyID)
                 ?: throw CPCryptoError.NoValidSignature("Sender key does not contain the signing key")
+            if (!CPKeyTrust.isBoundSigner(senderRing, verificationKey)) {
+                throw CPCryptoError.NoValidSignature("Signing key is not bound to the sender's key")
+            }
 
             signature.init(BcPGPContentVerifierBuilderProvider(), verificationKey)
             signature.update(contents.literal)
@@ -359,7 +369,7 @@ object CPMessenger {
             val opened = openEnvelope(message, ring, passphrase)
             val encryptedData = opened.integrity
             val clearStream = opened.stream
-            val contents = readSignedContents(BcPGPObjectFactory(clearStream))
+            val contents = readSignedContents(clearStream)
 
             val isProtected = encryptedData.isIntegrityProtected
             val intact = isProtected && try {
@@ -414,50 +424,90 @@ object CPMessenger {
 
     private class SignedContents(val literal: ByteArray, val signature: PGPSignature?)
 
+    /** The most a message's trailing signature packets may take. One signature is about 120 octets. */
+    private const val MAX_TRAILING_SIGNATURE_BYTES = 1 shl 16
+
     /**
      * Walk the decrypted packet sequence: an optional compression layer
-     * (recursed into — iOS or other producers may compress even though this
-     * core never does), an optional one-pass-signature list, the literal
-     * data, and the trailing signature list. Verification always uses the
-     * trailing signature, so both OPS and sig-sandwich layouts verify.
+     * (recursed into, since iOS or other producers may compress even though
+     * this core never does), an optional one-pass-signature list, the literal
+     * data, and the trailing signature.
+     *
+     * BouncyCastle reads everything up to and including the literal data. What
+     * follows it, the trailing signature, is read here as raw octets and passed
+     * through CPSignatureRepair before BouncyCastle parses it, because an older
+     * iOS build mislabels about one signature in 128 and BouncyCastle cannot
+     * read those as written. Every stream is then read to its end, so the
+     * integrity check that follows has seen the whole message; an error while
+     * reading is never swallowed.
+     *
+     * A signature placed before the literal data is used only when there is no
+     * trailing one.
      */
-    private fun readSignedContents(factory: BcPGPObjectFactory): SignedContents {
-        var currentFactory = factory
+    private fun readSignedContents(clearStream: java.io.InputStream): SignedContents {
+        val streams = mutableListOf(clearStream)
+        var factory = BcPGPObjectFactory(clearStream)
         var literal: ByteArray? = null
-        var signature: PGPSignature? = null
+        var leadingSignature: PGPSignature? = null
 
-        var obj = currentFactory.nextObject()
-        while (obj != null) {
+        while (literal == null) {
+            val obj = factory.nextObject() ?: break
             when (obj) {
                 is PGPCompressedData -> {
-                    currentFactory = BcPGPObjectFactory(obj.dataStream)
+                    val inner = obj.dataStream
+                    streams.add(inner)
+                    factory = BcPGPObjectFactory(inner)
                 }
                 is PGPOnePassSignatureList -> {
                     // Noted and skipped: the trailing signature carries
                     // everything verification needs.
                 }
+                is PGPSignatureList -> {
+                    if (!obj.isEmpty) leadingSignature = obj[0]
+                }
                 is PGPLiteralData -> {
                     literal = obj.inputStream.readBytes()
                 }
-                is PGPSignatureList -> {
-                    if (!obj.isEmpty) signature = obj[0]
-                }
             }
-            obj = currentFactory.nextObject()
         }
-
         val bytes = literal ?: throw CPCryptoError.DecryptionFailed("No literal data found")
-        return SignedContents(bytes, signature)
+
+        // The rest of the innermost stream is the trailing signature.
+        val rest = readToEnd(streams.last(), MAX_TRAILING_SIGNATURE_BYTES)
+        // Finish any outer stream too.
+        for (index in streams.size - 2 downTo 0) readToEnd(streams[index], MAX_TRAILING_SIGNATURE_BYTES)
+
+        val trailingSignature = if (rest.isEmpty()) null else try {
+            val list = BcPGPObjectFactory(CPSignatureRepair.normalize(rest)).nextObject() as? PGPSignatureList
+            if (list == null || list.isEmpty) null else list[0]
+        } catch (e: Exception) {
+            null
+        }
+        return SignedContents(bytes, trailingSignature ?: leadingSignature)
+    }
+
+    /** Read [stream] to its end. More than [limit] octets is not a message this core produces. */
+    private fun readToEnd(stream: java.io.InputStream, limit: Int): ByteArray {
+        val out = ByteArrayOutputStream()
+        val buffer = ByteArray(4096)
+        while (true) {
+            val n = stream.read(buffer)
+            if (n < 0) break
+            out.write(buffer, 0, n)
+            if (out.size() > limit) throw CPCryptoError.DecryptionFailed("Unexpected data after the message")
+        }
+        return out.toByteArray()
     }
 
     // ── Key loading and selection ──────────────────────────────────────
 
+    // Both loaders pass the key through CPSignatureRepair first, so a self
+    // signature or subkey binding that an older iOS build mislabelled reads
+    // correctly here and everywhere downstream.
+
     internal fun loadSecretRing(secretKey: ByteArray): PGPSecretKeyRing {
         return try {
-            PGPSecretKeyRing(
-                PGPUtil.getDecoderStream(ByteArrayInputStream(secretKey)),
-                BcKeyFingerprintCalculator()
-            )
+            PGPSecretKeyRing(ByteArrayInputStream(binaryKey(secretKey)), BcKeyFingerprintCalculator())
         } catch (e: Exception) {
             throw CPCryptoError.MalformedKey("Secret key did not parse: ${e.message}")
         }
@@ -465,14 +515,15 @@ object CPMessenger {
 
     internal fun loadPublicRing(publicKey: ByteArray): PGPPublicKeyRing {
         return try {
-            PGPPublicKeyRing(
-                PGPUtil.getDecoderStream(ByteArrayInputStream(publicKey)),
-                BcKeyFingerprintCalculator()
-            )
+            PGPPublicKeyRing(ByteArrayInputStream(binaryKey(publicKey)), BcKeyFingerprintCalculator())
         } catch (e: Exception) {
             throw CPCryptoError.MalformedKey("Public key did not parse: ${e.message}")
         }
     }
+
+    /** Key material, armored or binary, as binary packets with mislabelled signatures repaired. */
+    private fun binaryKey(keyData: ByteArray): ByteArray =
+        CPSignatureRepair.normalize(PGPUtil.getDecoderStream(ByteArrayInputStream(keyData)).readBytes())
 
     /**
      * The signing key of an identity: prefer a signing-capable subkey (the
@@ -494,12 +545,17 @@ object CPMessenger {
     }
 
     /** The recipient's encryption key: prefer an encryption subkey, else an
-     *  encryption-capable primary. Mirrors PGPony Android's selection. */
+     *  encryption-capable primary. A subkey counts only when the primary key
+     *  has signed its binding (CPKeyTrust), so a subkey slipped into the ring
+     *  by whoever delivered it is never chosen. */
     internal fun findEncryptionKey(ring: PGPPublicKeyRing): PGPPublicKey? {
         var primaryCandidate: PGPPublicKey? = null
         for (key in ring.publicKeys) {
             if (!key.isEncryptionKey) continue
-            if (!key.isMasterKey) return key
+            if (!key.isMasterKey) {
+                if (CPKeyTrust.isBound(ring, key)) return key
+                continue
+            }
             if (primaryCandidate == null) primaryCandidate = key
         }
         return primaryCandidate
