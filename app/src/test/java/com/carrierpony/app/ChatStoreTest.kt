@@ -37,6 +37,7 @@ import org.junit.After
 import org.junit.AfterClass
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -171,7 +172,8 @@ class ChatStoreTest {
         deviceID: String,
         multiDevice: Boolean = true,
         contactNames: MutableMap<String, String?> = mutableMapOf(),
-        dir: File = workDir
+        dir: File = workDir,
+        contactCaps: MutableMap<String, List<String>> = mutableMapOf()
     ): ChatStore {
         val crypto = engine(own, knows)
         val relay = RelayClient("http://127.0.0.1:${server.address.port}", crypto, deviceID)
@@ -182,6 +184,7 @@ class ChatStoreTest {
             contacts = { knows.map { contact(it) } },
             multiDevice = multiDevice,
             updatePeerName = { fpr, name -> contactNames[fpr.hex] = name },
+            updatePeerCaps = { fpr, caps -> contactCaps[fpr.hex] = caps },
             storageDir = dir,
             scope = scope
         )
@@ -297,6 +300,70 @@ class ChatStoreTest {
         assertEquals("Alice Ponysworth", names[alice.fingerprint])
         val threadID = Threading.pairwise(alice.fingerprint, bob.fingerprint)
         assertEquals("Alice Ponysworth", bobStore.conversations.value[threadID]!!.peerName)
+    }
+
+    // ── What a contact's app supports ──────────────────────────────────
+
+    @Test
+    fun capsOpTellsThePeerWhatThisAppSupports() = runBlocking {
+        val caps = mutableMapOf<String, List<String>>()
+        val names = mutableMapOf<String, String?>()
+        val aliceStore = store(alice, knows = listOf(bob), deviceID = "a".repeat(32))
+        val bobStore = store(bob, knows = listOf(alice), deviceID = "b".repeat(32), contactNames = names, contactCaps = caps)
+
+        assertTrue(aliceStore.sendCaps(to = contact(bob)))
+        bobStore.refresh()
+
+        assertEquals(listOf("v6"), caps[alice.fingerprint])
+        // It is not a profile: no name is set or cleared, and no conversation appears.
+        assertFalse(names.containsKey(alice.fingerprint))
+        assertTrue(bobStore.conversations.value.isEmpty())
+    }
+
+    @Test
+    fun profileOpCarriesCapsToo() = runBlocking {
+        val caps = mutableMapOf<String, List<String>>()
+        val names = mutableMapOf<String, String?>()
+        val aliceStore = store(alice, knows = listOf(bob), deviceID = "a".repeat(32))
+        val bobStore = store(bob, knows = listOf(alice), deviceID = "b".repeat(32), contactNames = names, contactCaps = caps)
+
+        aliceStore.sendProfile(name = "Alice Ponysworth", to = contact(bob))
+        bobStore.refresh()
+
+        assertEquals("Alice Ponysworth", names[alice.fingerprint])
+        assertEquals(listOf("v6"), caps[alice.fingerprint])
+    }
+
+    @Test
+    fun capsFromAStrangerAreNotRecorded() = runBlocking {
+        val caps = mutableMapOf<String, List<String>>()
+        val charlieStore = store(charlie, knows = listOf(bob), deviceID = "c".repeat(32))
+        // Bob does not know Charlie, so the envelope cannot be verified.
+        val bobStore = store(bob, knows = listOf(alice), deviceID = "b".repeat(32), contactCaps = caps)
+
+        charlieStore.sendCaps(to = contact(bob))
+        bobStore.refresh()
+
+        assertTrue(caps.isEmpty())
+    }
+
+    @Test
+    fun controlOpWritesAndReadsCaps() {
+        val written = ChatStore.ControlOp(op = "caps", targetMessageID = "", at = 1L, caps = listOf("v6"))
+        val json = JSONObject(String(written.encoded(), Charsets.UTF_8))
+        assertEquals("caps", json.getString("op"))
+        assertEquals("v6", json.getJSONArray("caps").getString(0))
+        assertEquals(listOf("v6"), ChatStore.ControlOp.decode(written.encoded())!!.caps)
+
+        // An op from an app before 4.0 has no caps; one from a later app may have more.
+        val old = """{"op":"profile","target_message_id":"","at":1,"name":"Old Pony"}""".toByteArray()
+        assertEquals(null, ChatStore.ControlOp.decode(old)!!.caps)
+        assertEquals("Old Pony", ChatStore.ControlOp.decode(old)!!.name)
+        val later = """{"op":"caps","target_message_id":"","at":1,"caps":["v6","calls",7]}""".toByteArray()
+        assertEquals(listOf("v6", "calls"), ChatStore.ControlOp.decode(later)!!.caps)
+        // No caps field is written when there is nothing to say.
+        val bare = ChatStore.ControlOp(op = "delete", targetMessageID = "X", at = 1L)
+        assertFalse(JSONObject(String(bare.encoded(), Charsets.UTF_8)).has("caps"))
     }
 
     @Test

@@ -67,6 +67,40 @@ class StoreSupportTest {
     }
 
     @Test
+    fun capsPersistAndSurviveBeingReAdded() {
+        val store = ContactStore(workDir).apply { activate("test") }
+        store.add(someContact())
+        assertNull(store.contacts.single().caps)
+
+        store.setCaps(someContact().fingerprint, listOf("v6"))
+        assertEquals(listOf("v6"), ContactStore(workDir).apply { activate("test") }.contacts.single().caps)
+
+        // Pairing again builds a fresh record with no caps; what is known is kept.
+        store.add(someContact(name = "Robert"))
+        assertEquals("Robert", store.contacts.single().name)
+        assertEquals(listOf("v6"), store.contacts.single().caps)
+
+        // A record that brings its own caps wins, and the latest statement replaces the last.
+        store.add(someContact().copy(caps = listOf("v6", "calls")))
+        assertEquals(listOf("v6", "calls"), store.contacts.single().caps)
+        store.setCaps(someContact().fingerprint, listOf("v6"))
+        assertEquals(listOf("v6"), ContactStore(workDir).apply { activate("test") }.contacts.single().caps)
+
+        store.setCaps(someContact().fingerprint, emptyList())
+        assertNull(ContactStore(workDir).apply { activate("test") }.contacts.single().caps)
+    }
+
+    @Test
+    fun contactsFileFromBeforeFourLoadsWithNoCaps() {
+        val store = ContactStore(workDir).apply { activate("test") }
+        store.add(someContact())
+        store.setNickname(someContact().fingerprint, "Bobcat")
+        val reloaded = ContactStore(workDir).apply { activate("test") }.contacts.single()
+        assertNull(reloaded.caps)
+        assertEquals("Bobcat", reloaded.nickname)
+    }
+
+    @Test
     fun addReplacesExistingFingerprint() {
         val store = ContactStore(workDir).apply { activate("test") }
         store.add(someContact(name = "Bob"))

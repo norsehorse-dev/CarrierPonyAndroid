@@ -15,6 +15,7 @@ import com.carrierpony.core.CPArmor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import com.carrierpony.app.pairing.PairingCaps
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -57,7 +58,12 @@ class ContactStore(private val storageDir: File) {
     // ── Mutations ──────────────────────────────────────────────────────
 
     fun add(contact: Contact) {
-        _contacts.value = _contacts.value.filter { it.fingerprint != contact.fingerprint } + contact
+        // Re-adding a contact (a second pairing, a channel subscribe) replaces the
+        // record, but what their app told us it supports is still true, so it is
+        // carried over unless the new record brings its own.
+        val known = _contacts.value.firstOrNull { it.fingerprint == contact.fingerprint }?.caps
+        val merged = if (contact.caps == null && known != null) contact.copy(caps = known) else contact
+        _contacts.value = _contacts.value.filter { it.fingerprint != contact.fingerprint } + merged
         persist()
     }
 
@@ -94,6 +100,14 @@ class ContactStore(private val storageDir: File) {
     fun setSmsNumber(fingerprint: Fingerprint, number: String?) {
         val trimmed = number?.trim()?.takeIf { it.isNotEmpty() }
         update(fingerprint) { it.copy(smsNumber = trimmed) }
+    }
+
+    /** Record what a contact's app says it supports (arrives in an invite, or in
+     *  an encrypted profile or caps message from them). */
+    fun setCaps(fingerprint: Fingerprint, caps: List<String>?) {
+        val cleaned = caps?.takeIf { it.isNotEmpty() }
+        if (contact(fingerprint)?.caps == cleaned) return
+        update(fingerprint) { it.copy(caps = cleaned) }
     }
 
     private fun update(fingerprint: Fingerprint, transform: (Contact) -> Contact) {
@@ -134,7 +148,8 @@ class ContactStore(private val storageDir: File) {
                     name = record.optString("name").takeIf { it.isNotEmpty() },
                     trust = TrustLevel.from(record.optString("trust", "unverified")),
                     nickname = record.optString("nickname").takeIf { it.isNotEmpty() },
-                    smsNumber = record.optString("smsNumber").takeIf { it.isNotEmpty() }
+                    smsNumber = record.optString("smsNumber").takeIf { it.isNotEmpty() },
+                    caps = PairingCaps.fromJson(record, "caps")
                 )
             }
         } catch (e: Exception) {
@@ -154,6 +169,7 @@ class ContactStore(private val storageDir: File) {
             record.put("trust", contact.trust.wire)
             if (contact.nickname != null) record.put("nickname", contact.nickname)
             if (contact.smsNumber != null) record.put("smsNumber", contact.smsNumber)
+            if (!contact.caps.isNullOrEmpty()) record.put("caps", PairingCaps.toJson(contact.caps))
             array.put(record)
         }
         try {

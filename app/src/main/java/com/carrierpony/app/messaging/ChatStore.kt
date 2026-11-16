@@ -24,6 +24,7 @@ import com.carrierpony.app.crypto.Fingerprint
 import com.carrierpony.app.crypto.PublicKey
 import com.carrierpony.app.envelope.CPN1
 import com.carrierpony.app.envelope.Manifest
+import com.carrierpony.app.pairing.PairingCaps
 import com.carrierpony.app.pairing.ChannelInvite
 import com.carrierpony.app.pairing.PairingSupport
 import com.carrierpony.core.CPKeyInfo
@@ -62,6 +63,9 @@ class ChatStore(
     private val multiDevice: Boolean = true,
     private val defaultTTL: Long = 30L * 86_400,
     private val updatePeerName: (Fingerprint, String?) -> Unit = { _, _ -> },
+    // Record what a contact's app says it supports, from a profile or caps op.
+    // Wired to ContactStore.setCaps.
+    private val updatePeerCaps: (Fingerprint, List<String>) -> Unit = { _, _ -> },
     // Add or replace a contact (used by channel subscribe: the admin adds a new
     // subscriber, the subscriber adds the channel admin). Wired to ContactStore.
     private val addContact: (Contact) -> Unit = {},
@@ -851,7 +855,7 @@ class ChatStore(
     suspend fun sendProfile(name: String?, to: Contact) {
         val displayName = name?.trim()?.takeIf { it.isNotEmpty() } ?: return
         val threadID = Threading.pairwise(identity.hex, to.fingerprint.hex)
-        val body = ControlOp(op = "profile", targetMessageID = "", at = now, name = displayName)
+        val body = ControlOp(op = "profile", targetMessageID = "", at = now, name = displayName, caps = PairingCaps.current)
         val controlMessage = OutgoingMessage(
             threadID = threadID,
             text = null,
@@ -865,6 +869,30 @@ class ChatStore(
             deliverToPeer(envelope, to.fingerprint, controlMessage.expiresAt, silent = true)
         } catch (e: Exception) {
             _lastError.value = describe(e)
+        }
+    }
+
+    /** Tell a contact what this app supports (PairingCaps). Its own op, because
+     *  the profile op is only sent by someone who has set a display name, and an
+     *  app before 4.0 ignores an op it does not know. Returns false if it could
+     *  not be handed off, so the caller can try again later. */
+    suspend fun sendCaps(to: Contact): Boolean {
+        val threadID = Threading.pairwise(identity.hex, to.fingerprint.hex)
+        val body = ControlOp(op = "caps", targetMessageID = "", at = now, caps = PairingCaps.current)
+        val controlMessage = OutgoingMessage(
+            threadID = threadID,
+            text = null,
+            attachments = listOf(OutgoingMessage.Attachment("control", "application/json", body.encoded())),
+            expiresAt = now + defaultTTL
+        )
+        return try {
+            val messageID = UUID.randomUUID().toString().uppercase()
+            mutex.withLock { seenMessageIDs.add(messageID) }
+            val envelope = buildControl(controlMessage, to.publicKey, messageID)
+            deliverToPeer(envelope, to.fingerprint, controlMessage.expiresAt, silent = true)
+            true
+        } catch (e: Exception) {
+            false
         }
     }
 
@@ -962,7 +990,8 @@ class ChatStore(
         val channelId: String? = null,
         val pubkey: String? = null,     // subscriber armored public key (channel-subscribe)
         val token: String? = null,      // optional invite token (gated channels)
-        val ttl: Long? = null           // op == "timer": disappearing TTL in seconds, 0 = Off
+        val ttl: Long? = null,          // op == "timer": disappearing TTL in seconds, 0 = Off
+        val caps: List<String>? = null  // what the sender's app supports; on "profile" and "caps"
     ) {
         fun encoded(): ByteArray {
             val json = JSONObject()
@@ -977,6 +1006,7 @@ class ChatStore(
             if (pubkey != null) json.put("pubkey", pubkey)
             if (token != null) json.put("token", token)
             if (ttl != null) json.put("ttl", ttl)
+            if (!caps.isNullOrEmpty()) json.put("caps", PairingCaps.toJson(caps))
             return json.toString().toByteArray(Charsets.UTF_8)
         }
 
@@ -994,7 +1024,8 @@ class ChatStore(
                     channelId = json.optString("channel_id").takeIf { it.isNotEmpty() },
                     pubkey = json.optString("pubkey").takeIf { it.isNotEmpty() },
                     token = json.optString("token").takeIf { it.isNotEmpty() },
-                    ttl = if (json.has("ttl")) json.optLong("ttl") else null
+                    ttl = if (json.has("ttl")) json.optLong("ttl") else null,
+                    caps = PairingCaps.fromJson(json, "caps")
                 )
             } catch (e: Exception) {
                 null
@@ -1406,7 +1437,11 @@ class ChatStore(
 
     private fun applyPeerControlLocked(incoming: IncomingMessage) {
         val control = controlPayload(incoming) ?: return
+        // Whatever the op, a peer that states what its app supports is believed:
+        // the envelope was signed by them. The latest statement wins.
+        control.caps?.let { updatePeerCaps(incoming.sender, it) }
         when (control.op) {
+            "caps" -> Unit
             "mailbox-key" -> {
                 val b64 = control.mailboxKey ?: return
                 val key = try { Base64.Default.decode(b64) } catch (e: Exception) { return }

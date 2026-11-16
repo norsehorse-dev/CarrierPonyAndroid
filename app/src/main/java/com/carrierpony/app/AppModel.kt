@@ -443,6 +443,7 @@ class AppModel(context: Context) {
                             PairingSupport.consistentContact(rFpr, rPub, trust)?.let { contact ->
                                 contacts.add(contact)
                                 if (inPerson) contacts.markVerified(contact.fingerprint)
+                                store.sendCaps(to = contact)
                                 store.sendProfile(name = defaults.getString("cp.profile.${id.fingerprint.hex}", null), to = contact)
                             }
                         }
@@ -871,8 +872,44 @@ class AppModel(context: Context) {
         contactStore.add(contact)
         if (inPerson) contactStore.markVerified(contact.fingerprint)
         forgetPendingInvite(token)
+        _store.value?.sendCaps(to = contact)
         _store.value?.sendProfile(name = _profileName.value, to = contact)
         return contact
+    }
+
+    // ── Telling contacts what this app supports ────────────────────────
+
+    private val capsAnnouncing = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    private fun capsAnnouncedKey(identity: Identity) =
+        "cp.capsannounced.${identity.fingerprint.hex}.${PairingCaps.current.joinToString("+")}"
+
+    /** Contacts paired before this build never heard what it supports: caps
+     *  travel in invites and at pairing, and theirs came from an older app. So
+     *  each contact is told once, in a silent control message an older app
+     *  ignores. Runs with the inbox refresh, so it only happens while online.
+     *  A contact whose message could not be handed off is tried again on a later
+     *  refresh; the ones already told are remembered and not told twice. The key
+     *  includes the caps, so a later build that supports more announces again. */
+    private suspend fun announceCapsIfNeeded(identity: Identity) {
+        val key = capsAnnouncedKey(identity)
+        val told = defaults.getStringSet(key, emptySet()) ?: emptySet()
+        val pending = contactStore.contacts.filter { it.fingerprint.hex !in told }
+        if (pending.isEmpty()) return
+        val store = _store.value ?: return
+        if (!capsAnnouncing.compareAndSet(false, true)) return
+        try {
+            val nowTold = told.toMutableSet()
+            for (contact in pending) {
+                if (store.sendCaps(to = contact)) nowTold.add(contact.fingerprint.hex)
+            }
+            // Only if this is still the active account: its contact list is the one that was read.
+            if (nowTold.size != told.size && _identity.value?.fingerprint == identity.fingerprint) {
+                defaults.edit().putStringSet(key, nowTold).apply()
+            }
+        } finally {
+            capsAnnouncing.set(false)
+        }
     }
 
     /** Check every remembered invite against the relay. Runs from the inbox
@@ -882,6 +919,7 @@ class AppModel(context: Context) {
     suspend fun sweepPendingInvites() {
         val identity = _identity.value ?: return
         if (this.relay == null) return
+        announceCapsIfNeeded(identity)
         val snapshot = synchronized(pendingInvitesLock) {
             if (pendingInvites.isEmpty()) return
             if (System.currentTimeMillis() - lastPendingSweep < 30_000) return
@@ -999,7 +1037,10 @@ class AppModel(context: Context) {
         if (pending.inPerson) contactStore.markVerified(contact.fingerprint)
         forgetPendingInvite(token)
         val name = _profileName.value
-        scope.launch { _store.value?.sendProfile(name = name, to = contact) }
+        scope.launch {
+            _store.value?.sendCaps(to = contact)
+            _store.value?.sendProfile(name = name, to = contact)
+        }
         return true
     }
 
@@ -1036,13 +1077,15 @@ class AppModel(context: Context) {
         if (response.offererFpr.uppercase() != invitedFpr.hex) throw PairingException.KeyMismatch()
         val contact = PairingSupport.consistentContact(invitedFpr.hex, response.offererPubkey, trust)
             ?: throw PairingException.KeyMismatch()
-        val named = contact.copy(name = invite.n)
+        // The invite says what the offerer's app supports; keep it with the contact.
+        val named = contact.copy(name = invite.n, caps = invite.c)
         contactStore.add(named)
         if (contactStore.contact(named.fingerprint) != null) setAwaiting(named.fingerprint.hex, true)
         // The offerer only learns of this accept when its app next sweeps the relay;
         // the pair-complete op also lets it finish from its inbox. Sent first so it
         // is processed before the profile and any message that follows.
         _store.value?.sendPairComplete(token = invite.t, to = named)
+        _store.value?.sendCaps(to = named)
         _store.value?.sendProfile(name = _profileName.value, to = named)
         return named
     }
@@ -1082,6 +1125,7 @@ class AppModel(context: Context) {
             crypto = crypto,
             contacts = { contactStore.contacts },
             updatePeerName = { fingerprint, name -> contactStore.setName(fingerprint, name) },
+            updatePeerCaps = { fingerprint, caps -> contactStore.setCaps(fingerprint, caps) },
             addContact = { contact -> contactStore.add(contact) },
             storageDir = appContext.filesDir,
             scope = scope,

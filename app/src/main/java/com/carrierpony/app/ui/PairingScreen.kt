@@ -241,8 +241,9 @@ private fun PairHub(
         } else if (mine != null && !PairingCaps.canPair(mine, contact.fingerprint, payload?.caps)) {
             scanError = strPeerNeedsUpdate
         } else {
-            app.contactStore.add(contact)
-            onPaired(contact, VERIFIED_SUBTITLE)
+            val withCaps = contact.copy(caps = payload?.caps)
+            app.contactStore.add(withCaps)
+            onPaired(withCaps, VERIFIED_SUBTITLE)
         }
     }
 
