@@ -621,10 +621,13 @@ class AppModel(context: Context) {
 
     // ── Identity ───────────────────────────────────────────────────────
 
-    /** Generate a fresh v4 identity off the main thread, persist it, and go live. */
+    /** Generate a fresh identity off the main thread, persist it, and go live.
+     *  From 4.0 a new identity is OpenPGP v6: an Ed25519 primary key that signs,
+     *  and an ML-KEM-768 + X25519 subkey for encryption. Identities made before
+     *  4.0 stay v4 and keep working; nothing converts them. */
     suspend fun createIdentity(name: String, email: String = "user@carrierpony.app") {
         val generated = withContext(Dispatchers.Default) {
-            CPIdentityGenerator.generateV4Identity(name, email)
+            CPIdentityGenerator.generateV6Identity(name, email)
         }
         val fingerprint = Fingerprint.from(generated.fingerprint)
             ?: throw IdentityCreationException()
