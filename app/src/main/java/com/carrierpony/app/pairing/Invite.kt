@@ -9,6 +9,9 @@
 // the fingerprint travelled out-of-band, the relay cannot substitute a key
 // without the invitee noticing.
 //
+// From 4.0 it also says what the offerer's app supports ("c", see PairingCaps).
+// Older apps skip the field.
+//
 // Wire form: "CPPAIR1:" + base64url(JSON). Compact enough for a text message
 // or a QR, and prefixed so a pasted invite is easy to recognize. Ported from
 // iOS Core/Pairing/Invite.swift; both platforms must parse each other's
@@ -24,7 +27,8 @@ data class Invite(
     val v: Int,
     val t: String,      // one-time relay token (32 hex)
     val f: String,      // offerer fingerprint (40 hex, or 64 for v6)
-    val n: String?      // offerer display name, optional
+    val n: String?,     // offerer display name, optional
+    val c: List<String>? = null   // what the offerer's app supports (PairingCaps); absent before 4.0
 ) {
 
     val fingerprint: Fingerprint? get() = Fingerprint.from(f)
@@ -35,6 +39,7 @@ data class Invite(
         json.put("t", t)
         json.put("f", f)
         if (n != null) json.put("n", n)
+        if (!c.isNullOrEmpty()) json.put("c", PairingCaps.toJson(c))
         return PREFIX + base64url.encode(json.toString().toByteArray(Charsets.UTF_8))
     }
 
@@ -49,7 +54,8 @@ data class Invite(
             v = CURRENT_VERSION,
             t = token,
             f = fingerprint.hex,
-            n = if (name.isNullOrEmpty()) null else name
+            n = if (name.isNullOrEmpty()) null else name,
+            c = PairingCaps.current
         )
 
         /** Parse a pasted or scanned invite. Null for anything malformed. */
@@ -63,7 +69,8 @@ data class Invite(
                     v = json.getInt("v"),
                     t = json.getString("t"),
                     f = json.getString("f"),
-                    n = if (json.has("n")) json.getString("n") else null
+                    n = if (json.has("n")) json.getString("n") else null,
+                    c = PairingCaps.fromJson(json, "c")
                 )
                 if (invite.fingerprint == null) return null
                 if (!tokenPattern.matches(invite.t)) return null

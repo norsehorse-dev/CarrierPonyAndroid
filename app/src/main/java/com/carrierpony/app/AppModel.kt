@@ -27,6 +27,7 @@ import com.carrierpony.app.messaging.ChatStore
 import com.carrierpony.app.messaging.Contact
 import com.carrierpony.app.messaging.ContactStore
 import com.carrierpony.app.messaging.TrustLevel
+import com.carrierpony.app.pairing.PairingCaps
 import com.carrierpony.app.pairing.Invite
 import com.carrierpony.app.pairing.PairingSupport
 import com.carrierpony.app.pairing.PairingRetention
@@ -62,6 +63,9 @@ sealed class PairingException(message: String) : Exception(message) {
     class NotReady : PairingException("You need an identity before you can pair.")
     class MalformedInvite : PairingException("That doesn't look like a CarrierPony invite.")
     class KeyMismatch : PairingException("The key the relay returned doesn't match the invite. Pairing was refused to keep you safe.")
+    /** A v6 identity met an app from before 4.0, which cannot hold it as a contact.
+     *  The screens show the translated R.string.pair_peer_needs_update for this one. */
+    class PeerNeedsUpdate : PairingException("This contact is on an older CarrierPony. Ask them to update to version 4.0 or later, then pair again.")
 }
 
 class AppModel(context: Context) {
@@ -1022,6 +1026,9 @@ class AppModel(context: Context) {
         val identity = _identity.value ?: throw PairingException.NotReady()
         val relay = this.relay ?: throw PairingException.NotReady()
         val invitedFpr = invite.fingerprint ?: throw PairingException.MalformedInvite()
+        // Checked before the relay is asked, so the invite's one-time token is
+        // not used up and still works once the other person has updated.
+        if (!PairingCaps.canPair(identity.fingerprint, invitedFpr, invite.c)) throw PairingException.PeerNeedsUpdate()
         val response = relay.pairAccept(token = invite.t, pubkey = identity.armoredPublicKey)
         if (response.offererFpr.uppercase() != invitedFpr.hex) throw PairingException.KeyMismatch()
         val contact = PairingSupport.consistentContact(invitedFpr.hex, response.offererPubkey, trust)

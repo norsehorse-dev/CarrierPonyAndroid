@@ -30,7 +30,8 @@ data class PairingPayload(
     val v: Int,
     val fpr: String,        // claimed fingerprint (hex)
     val name: String?,
-    val pub: String         // armored public key
+    val pub: String,        // armored public key
+    val caps: List<String>? = null   // what this app supports (PairingCaps); absent before 4.0
 ) {
 
     fun encoded(): String {
@@ -39,6 +40,7 @@ data class PairingPayload(
         json.put("fpr", fpr)
         if (name != null) json.put("name", name)
         json.put("pub", pub)
+        if (!caps.isNullOrEmpty()) json.put("caps", PairingCaps.toJson(caps))
         return base64.encode(json.toString().toByteArray(Charsets.UTF_8))
     }
 
@@ -68,7 +70,8 @@ data class PairingPayload(
                 v = CURRENT_VERSION,
                 fpr = fingerprint.hex,
                 name = name,
-                pub = armoredPublicKey
+                pub = armoredPublicKey,
+                caps = PairingCaps.current
             )
 
         /** Parse a scanned payload. Null for anything malformed. */
@@ -79,7 +82,8 @@ data class PairingPayload(
                     v = json.getInt("v"),
                     fpr = json.getString("fpr"),
                     name = if (json.has("name")) json.getString("name") else null,
-                    pub = json.getString("pub")
+                    pub = json.getString("pub"),
+                    caps = PairingCaps.fromJson(json, "caps")
                 )
             } catch (e: Exception) {
                 null

@@ -241,6 +241,8 @@
     <string name="pair_demo_needs_identity">Create an identity first, then try the demo code again.</string>
     <string name="pair_couldnt_pair_invite">Couldn\'t pair. Check the invite and your connection.</string>
     <string name="pair_couldnt_pair">Couldn\'t pair. Check your connection and try again.</string>
+    <string name="pair_peer_needs_update">This contact is on an older CarrierPony. Ask them to update to version 4.0 or later, then pair again.</string>
+    <string name="pair_needs_4_0_note">The other person needs CarrierPony 4.0 or later to use this code.</string>
     <string name="pair_paired_with">Paired with %1$s</string>
     <string name="pair_name_contact">Name this contact</string>
     <string name="pair_name_hint">A private label only you see. You know who you just paired with, so give them a name.</string>

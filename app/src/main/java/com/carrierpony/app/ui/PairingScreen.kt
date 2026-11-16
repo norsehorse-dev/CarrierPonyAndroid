@@ -95,6 +95,7 @@ import com.carrierpony.app.PairingException
 import com.carrierpony.app.messaging.Contact
 import com.carrierpony.app.messaging.TrustLevel
 import com.carrierpony.app.pairing.Invite
+import com.carrierpony.app.pairing.PairingCaps
 import com.carrierpony.app.pairing.PairingPayload
 import com.carrierpony.app.pairing.SafetyNumber
 import com.carrierpony.app.ui.theme.CPTheme
@@ -201,6 +202,7 @@ private fun PairHub(
     val scope = rememberCoroutineScope()
     val strCouldntPair = stringResource(R.string.pair_couldnt_pair)
     val strBadQr = stringResource(R.string.pair_bad_qr)
+    val strPeerNeedsUpdate = stringResource(R.string.pair_peer_needs_update)
     val strScanPrompt = stringResource(R.string.pair_scan_prompt)
 
     val scanner = rememberLockSafeLauncher(ScanContract()) { result ->
@@ -217,6 +219,8 @@ private fun PairHub(
                     // so this side lands verified.
                     val contact = app.acceptInvite(invite, trust = TrustLevel.VERIFIED)
                     onPaired(contact, VERIFIED_SUBTITLE)
+                } catch (e: PairingException.PeerNeedsUpdate) {
+                    scanError = strPeerNeedsUpdate
                 } catch (e: PairingException) {
                     scanError = e.message
                 } catch (e: Exception) {
@@ -229,12 +233,16 @@ private fun PairHub(
         }
 
         // A static key QR (offline fallback; one-way — they must scan yours too).
-        val contact = PairingPayload.decode(code)?.verifiedContact()
-        if (contact != null) {
+        val payload = PairingPayload.decode(code)
+        val contact = payload?.verifiedContact()
+        val mine = app.identity.value?.fingerprint
+        if (contact == null) {
+            scanError = strBadQr
+        } else if (mine != null && !PairingCaps.canPair(mine, contact.fingerprint, payload?.caps)) {
+            scanError = strPeerNeedsUpdate
+        } else {
             app.contactStore.add(contact)
             onPaired(contact, VERIFIED_SUBTITLE)
-        } else {
-            scanError = strBadQr
         }
     }
 
@@ -327,6 +335,17 @@ private fun HubRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label:
     HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
 }
 
+/** Shown under a v6 identity's own code or invite: apps before 4.0 cannot use it. */
+@Composable
+private fun NeedsFourNote() {
+    Text(
+        text = stringResource(R.string.pair_needs_4_0_note),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center
+    )
+}
+
 // ── My code (in person, one-scan) ──────────────────────────────────────
 
 @Composable
@@ -415,6 +434,11 @@ private fun MyCodeView(app: AppModel, onPaired: (Contact) -> Unit) {
         )
         Spacer(Modifier.height(16.dp))
 
+        if (current.fingerprint.isV6) {
+            NeedsFourNote()
+            Spacer(Modifier.height(12.dp))
+        }
+
         when {
             text != null -> {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -443,6 +467,7 @@ private fun MyCodeView(app: AppModel, onPaired: (Contact) -> Unit) {
 
 @Composable
 private fun InviteCreateView(app: AppModel, onPaired: (Contact) -> Unit) {
+    val identity by app.identity.collectAsState()
     var inviteText by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var copied by remember { mutableStateOf(false) }
@@ -521,6 +546,10 @@ private fun InviteCreateView(app: AppModel, onPaired: (Contact) -> Unit) {
                     textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.height(12.dp))
+                if (identity?.fingerprint?.isV6 == true) {
+                    NeedsFourNote()
+                    Spacer(Modifier.height(12.dp))
+                }
                 Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant,
@@ -576,6 +605,7 @@ private fun InviteEnterView(app: AppModel, onPaired: (Contact) -> Unit) {
     val scope = rememberCoroutineScope()
     val strDemoNeedsIdentity = stringResource(R.string.pair_demo_needs_identity)
     val strCouldntPairInvite = stringResource(R.string.pair_couldnt_pair_invite)
+    val strPeerNeedsUpdate = stringResource(R.string.pair_peer_needs_update)
     val strScanPromptEnter = stringResource(R.string.pair_scan_prompt)
 
     val scanner = rememberLockSafeLauncher(ScanContract()) { result ->
@@ -620,6 +650,8 @@ private fun InviteEnterView(app: AppModel, onPaired: (Contact) -> Unit) {
             }
             try {
                 onPaired(app.acceptInvite(invite))
+            } catch (e: PairingException.PeerNeedsUpdate) {
+                error = strPeerNeedsUpdate
             } catch (e: PairingException) {
                 error = e.message
             } catch (e: Exception) {
