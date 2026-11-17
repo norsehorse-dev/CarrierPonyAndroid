@@ -188,6 +188,8 @@
     <string name="pair_key_intro">粘贴对方的 CarrierPony 公钥，或从文件打开。对方会收到一条请求，可将你也添加为联系人。</string>
     <string name="pair_key_needs_4_0_note">对方需要 CarrierPony 4.0 或更高版本才能看到你的请求。</string>
     <string name="pair_key_open_file">打开文件</string>
+    <string name="pair_key_pick_app">从密钥应用中选择</string>
+    <string name="pair_key_err_key_app">无法从 %1$s 获取密钥。</string>
     <string name="pair_key_add">添加联系人</string>
     <string name="pair_key_err_secret">这是私钥。绝不要把私钥交给任何人。请向对方索取对方的公钥。</string>
     <string name="pair_key_err_not_key">这看起来不是公钥。</string>

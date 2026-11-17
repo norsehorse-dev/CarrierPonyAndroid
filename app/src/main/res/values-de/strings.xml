@@ -188,6 +188,8 @@
     <string name="pair_key_intro">Füge den öffentlichen CarrierPony-Schlüssel der anderen Person ein oder öffne ihn aus einer Datei. Die Person erhält eine Anfrage, dich ebenfalls hinzuzufügen.</string>
     <string name="pair_key_needs_4_0_note">Die andere Person braucht CarrierPony 4.0 oder neuer, um deine Anfrage zu sehen.</string>
     <string name="pair_key_open_file">Datei öffnen</string>
+    <string name="pair_key_pick_app">Aus Schlüssel-App wählen</string>
+    <string name="pair_key_err_key_app">Von %1$s konnte kein Schlüssel abgerufen werden.</string>
     <string name="pair_key_add">Kontakt hinzufügen</string>
     <string name="pair_key_err_secret">Das ist ein privater Schlüssel. Gib einen privaten Schlüssel niemals an andere weiter. Frag die andere Person nach ihrem öffentlichen Schlüssel.</string>
     <string name="pair_key_err_not_key">Das sieht nicht nach einem öffentlichen Schlüssel aus.</string>

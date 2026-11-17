@@ -188,6 +188,8 @@
     <string name="pair_key_intro">Pega la clave pública de CarrierPony de la otra persona o ábrela desde un archivo. Esa persona recibirá una solicitud para añadirte también.</string>
     <string name="pair_key_needs_4_0_note">La otra persona necesita CarrierPony 4.0 o posterior para ver tu solicitud.</string>
     <string name="pair_key_open_file">Abrir un archivo</string>
+    <string name="pair_key_pick_app">Elegir desde una app de claves</string>
+    <string name="pair_key_err_key_app">No se pudo obtener una clave de %1$s.</string>
     <string name="pair_key_add">Añadir contacto</string>
     <string name="pair_key_err_secret">Esa es una clave privada. Nunca le des una clave privada a nadie. Pídele a la otra persona su clave pública.</string>
     <string name="pair_key_err_not_key">Eso no parece una clave pública.</string>

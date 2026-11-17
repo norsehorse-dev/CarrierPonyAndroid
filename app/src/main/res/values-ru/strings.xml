@@ -188,6 +188,8 @@
     <string name="pair_key_intro">Вставьте открытый ключ CarrierPony другого человека или откройте его из файла. Этот человек получит запрос и сможет добавить вас в ответ.</string>
     <string name="pair_key_needs_4_0_note">Чтобы увидеть ваш запрос, другому человеку нужен CarrierPony 4.0 или новее.</string>
     <string name="pair_key_open_file">Открыть файл</string>
+    <string name="pair_key_pick_app">Выбрать из приложения для ключей</string>
+    <string name="pair_key_err_key_app">Не удалось получить ключ из %1$s.</string>
     <string name="pair_key_add">Добавить контакт</string>
     <string name="pair_key_err_secret">Это закрытый ключ. Никогда никому не передавайте закрытый ключ. Попросите у другого человека его открытый ключ.</string>
     <string name="pair_key_err_not_key">Это не похоже на открытый ключ.</string>

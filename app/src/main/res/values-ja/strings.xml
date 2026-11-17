@@ -188,6 +188,8 @@
     <string name="pair_key_intro">相手の CarrierPony 公開鍵を貼り付けるか、ファイルから開いてください。相手には、あなたを連絡先に追加するためのリクエストが届きます。</string>
     <string name="pair_key_needs_4_0_note">相手があなたのリクエストを見るには、CarrierPony 4.0 以降が必要です。</string>
     <string name="pair_key_open_file">ファイルを開く</string>
+    <string name="pair_key_pick_app">鍵管理アプリから選ぶ</string>
+    <string name="pair_key_err_key_app">%1$s から鍵を取得できませんでした。</string>
     <string name="pair_key_add">連絡先を追加</string>
     <string name="pair_key_err_secret">これは秘密鍵です。秘密鍵は決して誰にも渡さないでください。相手に、相手の公開鍵を送ってもらってください。</string>
     <string name="pair_key_err_not_key">公開鍵ではないようです。</string>
