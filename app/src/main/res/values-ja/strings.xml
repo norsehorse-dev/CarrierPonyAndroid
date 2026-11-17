@@ -170,6 +170,8 @@
     <string name="pair_demo_needs_identity">先にアイデンティティを作成してから、もう一度デモコードをお試しください。</string>
     <string name="pair_couldnt_pair_invite">ペアリングできませんでした。招待と通信状態を確認してください。</string>
     <string name="pair_couldnt_pair">ペアリングできませんでした。通信状態を確認して、もう一度お試しください。</string>
+    <string name="pair_peer_needs_update">この連絡先は古いバージョンの CarrierPony を使っています。バージョン 4.0 以降へのアップデートを依頼してから、もう一度ペアリングしてください。</string>
+    <string name="pair_needs_4_0_note">このコードを使うには、相手に CarrierPony 4.0 以降が必要です。</string>
     <string name="pair_paired_with">%1$s とペアリングしました</string>
     <string name="pair_name_contact">この連絡先に名前を付ける</string>
     <string name="pair_name_hint">あなただけに見えるプライベートなラベルです。いまペアリングした相手が誰か分かっているうちに、名前を付けましょう。</string>
@@ -283,6 +285,9 @@
     <string name="group_empty">まだメッセージはありません。グループに挨拶しましょう。</string>
     <string name="group_rename">グループ名を変更</string>
     <string name="group_add_members">メンバーを追加</string>
+    <string name="group_needs_update_title">先にアップデートが必要です</string>
+    <string name="group_needs_update_body">このグループには、4.0 の新しいアイデンティティを使っている人が含まれることになります。古いバージョンの CarrierPony では、このアイデンティティを認識できません。次の人にバージョン 4.0 以降へのアップデートを依頼してください: %1$s。すでにアップデート済みの場合は、相手がオンラインになった後でもう一度お試しください。</string>
+    <string name="channel_needs_update">このチャンネルの管理者は古いバージョンの CarrierPony を使っています。バージョン 4.0 以降へのアップデートを依頼してから、もう一度購読してください。</string>
     <string name="group_admin">管理者</string>
     <string name="group_remove">削除</string>
     <string name="group_add">追加</string>

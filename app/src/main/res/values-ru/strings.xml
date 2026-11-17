@@ -170,6 +170,8 @@
     <string name="pair_demo_needs_identity">Сначала создайте личность, затем попробуйте демокод снова.</string>
     <string name="pair_couldnt_pair_invite">Не удалось связаться. Проверьте приглашение и соединение.</string>
     <string name="pair_couldnt_pair">Не удалось связаться. Проверьте соединение и попробуйте ещё раз.</string>
+    <string name="pair_peer_needs_update">У этого контакта более старая версия CarrierPony. Попросите его обновиться до версии 4.0 или новее, затем свяжитесь снова.</string>
+    <string name="pair_needs_4_0_note">Чтобы использовать этот код, другому человеку нужен CarrierPony 4.0 или новее.</string>
     <string name="pair_paired_with">Связано с %1$s</string>
     <string name="pair_name_contact">Назовите этот контакт</string>
     <string name="pair_name_hint">Личная метка, которую видите только вы. Вы знаете, с кем только что связались, — дайте этому человеку имя.</string>
@@ -283,6 +285,9 @@
     <string name="group_empty">Сообщений пока нет. Поприветствуйте группу.</string>
     <string name="group_rename">Переименовать группу</string>
     <string name="group_add_members">Добавить участников</string>
+    <string name="group_needs_update_title">Сначала нужно обновление</string>
+    <string name="group_needs_update_body">В этой группе оказался бы человек с новой личностью 4.0, а старые версии CarrierPony её не видят. Попросите этих людей обновиться до версии 4.0 или новее: %1$s. Если они уже обновились, попробуйте ещё раз после того, как они побывают в сети.</string>
+    <string name="channel_needs_update">У администратора этого канала более старая версия CarrierPony. Попросите его обновиться до версии 4.0 или новее, затем подпишитесь снова.</string>
     <string name="group_admin">Администратор</string>
     <string name="group_remove">Удалить</string>
     <string name="group_add">Добавить</string>

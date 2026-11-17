@@ -170,6 +170,8 @@
     <string name="pair_demo_needs_identity">Erstelle zuerst eine Identität und probiere den Demo-Code dann erneut.</string>
     <string name="pair_couldnt_pair_invite">Kopplung fehlgeschlagen. Prüfe die Einladung und deine Verbindung.</string>
     <string name="pair_couldnt_pair">Kopplung fehlgeschlagen. Prüfe deine Verbindung und versuche es erneut.</string>
+    <string name="pair_peer_needs_update">Dieser Kontakt nutzt eine ältere Version von CarrierPony. Bitte ihn, auf Version 4.0 oder neuer zu aktualisieren, und koppelt euch dann erneut.</string>
+    <string name="pair_needs_4_0_note">Die andere Person braucht CarrierPony 4.0 oder neuer, um diesen Code zu verwenden.</string>
     <string name="pair_paired_with">Gekoppelt mit %1$s</string>
     <string name="pair_name_contact">Diesem Kontakt einen Namen geben</string>
     <string name="pair_name_hint">Ein privates Etikett, das nur du siehst. Du weißt, mit wem du dich gerade gekoppelt hast, also gib der Person einen Namen.</string>
@@ -283,6 +285,9 @@
     <string name="group_empty">Noch keine Nachrichten. Begrüße die Gruppe.</string>
     <string name="group_rename">Gruppe umbenennen</string>
     <string name="group_add_members">Mitglieder hinzufügen</string>
+    <string name="group_needs_update_title">Zuerst ist ein Update nötig</string>
+    <string name="group_needs_update_body">Zu dieser Gruppe würde jemand mit einer neuen 4.0-Identität gehören, die ältere Versionen von CarrierPony nicht sehen können. Bitte diese Personen, auf Version 4.0 oder neuer zu aktualisieren: %1$s. Falls sie das schon getan haben, versuche es erneut, sobald sie online waren.</string>
+    <string name="channel_needs_update">Der Admin dieses Kanals nutzt eine ältere Version von CarrierPony. Bitte ihn, auf Version 4.0 oder neuer zu aktualisieren, und abonniere den Kanal dann erneut.</string>
     <string name="group_admin">Admin</string>
     <string name="group_remove">Entfernen</string>
     <string name="group_add">Hinzufügen</string>

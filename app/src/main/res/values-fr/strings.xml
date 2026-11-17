@@ -170,6 +170,8 @@
     <string name="pair_demo_needs_identity">Créez d\'abord une identité, puis réessayez le code de démonstration.</string>
     <string name="pair_couldnt_pair_invite">Jumelage impossible. Vérifiez l\'invitation et votre connexion.</string>
     <string name="pair_couldnt_pair">Jumelage impossible. Vérifiez votre connexion et réessayez.</string>
+    <string name="pair_peer_needs_update">Ce contact utilise une ancienne version de CarrierPony. Demandez-lui de faire la mise à jour vers la version 4.0 ou ultérieure, puis jumelez-vous à nouveau.</string>
+    <string name="pair_needs_4_0_note">L\'autre personne doit avoir CarrierPony 4.0 ou une version ultérieure pour utiliser ce code.</string>
     <string name="pair_paired_with">Jumelé avec %1$s</string>
     <string name="pair_name_contact">Nommer ce contact</string>
     <string name="pair_name_hint">Une étiquette privée que vous seul voyez. Vous savez avec qui vous venez de vous jumeler, alors donnez-lui un nom.</string>
@@ -283,6 +285,9 @@
     <string name="group_empty">Aucun message pour l\'instant. Dites bonjour au groupe.</string>
     <string name="group_rename">Renommer le groupe</string>
     <string name="group_add_members">Ajouter des membres</string>
+    <string name="group_needs_update_title">Mise à jour requise d\'abord</string>
+    <string name="group_needs_update_body">Ce groupe inclurait une personne ayant une nouvelle identité 4.0, que les anciennes versions de CarrierPony ne peuvent pas voir. Demandez à ces personnes de faire la mise à jour vers la version 4.0 ou ultérieure : %1$s. Si c\'est déjà fait, réessayez une fois qu\'elles auront été en ligne.</string>
+    <string name="channel_needs_update">L\'administrateur de ce canal utilise une ancienne version de CarrierPony. Demandez-lui de faire la mise à jour vers la version 4.0 ou ultérieure, puis abonnez-vous à nouveau.</string>
     <string name="group_admin">Admin</string>
     <string name="group_remove">Retirer</string>
     <string name="group_add">Ajouter</string>

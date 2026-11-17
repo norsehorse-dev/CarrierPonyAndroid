@@ -170,6 +170,8 @@
     <string name="pair_demo_needs_identity">Crea primero una identidad y vuelve a probar el código de demostración.</string>
     <string name="pair_couldnt_pair_invite">No se pudo emparejar. Revisa la invitación y tu conexión.</string>
     <string name="pair_couldnt_pair">No se pudo emparejar. Revisa tu conexión e inténtalo de nuevo.</string>
+    <string name="pair_peer_needs_update">Este contacto usa una versión anterior de CarrierPony. Pídele que actualice a la versión 4.0 o posterior y vuelve a emparejar.</string>
+    <string name="pair_needs_4_0_note">La otra persona necesita CarrierPony 4.0 o posterior para usar este código.</string>
     <string name="pair_paired_with">Emparejado con %1$s</string>
     <string name="pair_name_contact">Ponle nombre a este contacto</string>
     <string name="pair_name_hint">Una etiqueta privada que solo tú ves. Sabes con quién acabas de emparejar, así que dale un nombre.</string>
@@ -283,6 +285,9 @@
     <string name="group_empty">Aún no hay mensajes. Saluda al grupo.</string>
     <string name="group_rename">Cambiar nombre del grupo</string>
     <string name="group_add_members">Añadir miembros</string>
+    <string name="group_needs_update_title">Primero hay que actualizar</string>
+    <string name="group_needs_update_body">Este grupo incluiría a alguien con una nueva identidad 4.0, que las versiones anteriores de CarrierPony no pueden ver. Pide a estas personas que actualicen a la versión 4.0 o posterior: %1$s. Si ya lo han hecho, inténtalo de nuevo cuando se hayan conectado.</string>
+    <string name="channel_needs_update">El administrador de este canal usa una versión anterior de CarrierPony. Pídele que actualice a la versión 4.0 o posterior y vuelve a suscribirte.</string>
     <string name="group_admin">Administrador</string>
     <string name="group_remove">Quitar</string>
     <string name="group_add">Añadir</string>
