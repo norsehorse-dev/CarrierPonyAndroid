@@ -203,6 +203,10 @@ private fun Root(
     var groupDetail by rememberSaveable { mutableStateOf<String?>(null) }
     var showingPairing by rememberSaveable { mutableStateOf(demoStart?.screen == "pair") }
     var showingSettings by rememberSaveable { mutableStateOf(false) }
+    // The settings section that is open. Kept here so it survives a screen
+    // opened from Settings (backup, legal pages, add account) and Back from
+    // that screen returns to the same section.
+    var settingsCategory by rememberSaveable { mutableStateOf<com.carrierpony.app.ui.SettingsCategory?>(null) }
     // These screens open a system picker (save a backup, open a backup or key
     // file), so they're saveable like the routes above.
     var showingBackup by rememberSaveable { mutableStateOf(false) }
@@ -287,27 +291,34 @@ private fun Root(
         return
     }
 
-    if (showingSettings) {
-        BackHandler { showingSettings = false }
-        SettingsScreen(
-            app = app,
-            biometricsAvailable = app.appLock.biometricsAvailable(androidx.compose.ui.platform.LocalContext.current),
-            onPair = { showingSettings = false; showingPairing = true },
-            onDone = { showingSettings = false },
-            onBackup = { showingSettings = false; showingBackup = true },
-            onRestore = { showingSettings = false; showingRestore = true },
-            onImport = { showingSettings = false; showingImportKey = true },
-            onPrivacy = { showingSettings = false; showingPrivacy = true },
-            onTerms = { showingSettings = false; showingTerms = true },
-            onLearn = { showingSettings = false; showingLearn = true },
-            onAddAccount = { showingSettings = false; showingAddAccount = true }
-        )
-        return
-    }
-
+    // Checked before Settings, which stays open underneath: Back from this
+    // screen returns to Settings when it was opened from there.
     if (showingAddAccount) {
         BackHandler { showingAddAccount = false }
         AddAccountScreen(app = app, onDone = { showingAddAccount = false })
+        return
+    }
+
+    if (showingSettings) {
+        // Screens opened from Settings leave it open underneath, so Back from
+        // them goes up one level. Only leaving Settings itself closes it.
+        val closeSettings = { showingSettings = false; settingsCategory = null }
+        BackHandler { closeSettings() }
+        SettingsScreen(
+            app = app,
+            biometricsAvailable = app.appLock.biometricsAvailable(androidx.compose.ui.platform.LocalContext.current),
+            onPair = { showingPairing = true },
+            onDone = { closeSettings() },
+            onBackup = { showingBackup = true },
+            onRestore = { showingRestore = true },
+            onImport = { showingImportKey = true },
+            onPrivacy = { showingPrivacy = true },
+            onTerms = { showingTerms = true },
+            onLearn = { showingLearn = true },
+            onAddAccount = { showingAddAccount = true },
+            category = settingsCategory,
+            onCategory = { settingsCategory = it }
+        )
         return
     }
 

@@ -91,7 +91,9 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.ui.graphics.vector.ImageVector
 
-private enum class SettingsCategory { ACCOUNT, MORE, SUPPORT, RESET }
+/** The settings sections that open as their own page. Held by the caller, so
+ *  the open section is still open after a screen launched from it is closed. */
+enum class SettingsCategory { ACCOUNT, MORE, SUPPORT, RESET }
 
 private data class PonyApp(val name: String, val subtitle: String, val url: String)
 
@@ -108,7 +110,9 @@ fun SettingsScreen(
     onPrivacy: (() -> Unit)? = null,  // legal pages — tester-feedback phase
     onTerms: (() -> Unit)? = null,
     onLearn: (() -> Unit)? = null,    // security education — tester-feedback phase
-    onAddAccount: () -> Unit = {}
+    onAddAccount: () -> Unit = {},
+    category: SettingsCategory? = null,
+    onCategory: (SettingsCategory?) -> Unit = {}
 ) {
     val context = LocalContext.current
     val profileName by app.profileName.collectAsState()
@@ -130,16 +134,19 @@ fun SettingsScreen(
     var showingRelay by remember { mutableStateOf(false) }
     var showingNostrRelays by remember { mutableStateOf(false) }
     var showingNotifications by remember { mutableStateOf(false) }
-    var openCategory by remember { mutableStateOf<SettingsCategory?>(null) }
+    val openCategory = category
     var accountsList by remember { mutableStateOf(app.accounts()) }
     var pendingRemove by remember { mutableStateOf<AppModel.AccountSummary?>(null) }
 
+    // Back from any page opened inside Settings goes up one level, not out.
     if (showingRelay) {
+        androidx.activity.compose.BackHandler { showingRelay = false }
         RelayScreen(app = app, onBack = { showingRelay = false })
         return
     }
 
     if (showingNostrRelays) {
+        androidx.activity.compose.BackHandler { showingNostrRelays = false }
         NostrRelaysScreen(app = app, onBack = { showingNostrRelays = false })
         return
     }
@@ -193,7 +200,7 @@ fun SettingsScreen(
         }
     }
 
-    androidx.activity.compose.BackHandler(enabled = openCategory != null) { openCategory = null }
+    androidx.activity.compose.BackHandler(enabled = openCategory != null) { onCategory(null) }
 
     val categoryLangSub = languages.firstOrNull { it.first == app.appLanguage }?.second ?: "English"
 
@@ -212,7 +219,7 @@ fun SettingsScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { if (openCategory != null) openCategory = null else onDone() }) {
+                    IconButton(onClick = { if (openCategory != null) onCategory(null) else onDone() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_done))
                     }
                 }
@@ -223,7 +230,7 @@ fun SettingsScreen(
             when (openCategory) {
                 null -> {
                     Spacer(Modifier.padding(top = 8.dp))
-                    CategoryCard(Icons.Default.Person, stringResource(R.string.settings_account), stringResource(R.string.settings_account_sub)) { accountsList = app.accounts(); openCategory = SettingsCategory.ACCOUNT }
+                    CategoryCard(Icons.Default.Person, stringResource(R.string.settings_account), stringResource(R.string.settings_account_sub)) { accountsList = app.accounts(); onCategory(SettingsCategory.ACCOUNT) }
                     CategoryCard(Icons.Default.Cloud, stringResource(R.string.settings_relay), stringResource(R.string.settings_relay_sub)) { showingRelay = true }
                     CategoryCard(Icons.Default.Notifications, stringResource(R.string.settings_notifications), notificationsSummary()) { showingNotifications = true }
                     NearbyCard(
@@ -250,9 +257,9 @@ fun SettingsScreen(
                     }
                     SealedResyncCard(app)
                     CategoryCard(Icons.Default.Language, stringResource(R.string.settings_language), categoryLangSub) { showingLanguage = true }
-                    CategoryCard(Icons.Default.Apps, stringResource(R.string.settings_more_from), stringResource(R.string.settings_more_sub)) { openCategory = SettingsCategory.MORE }
-                    CategoryCard(Icons.Default.Info, stringResource(R.string.settings_support), stringResource(R.string.settings_support_sub)) { openCategory = SettingsCategory.SUPPORT }
-                    CategoryCard(Icons.Default.Warning, stringResource(R.string.settings_reset), stringResource(R.string.settings_reset_sub), destructive = true) { openCategory = SettingsCategory.RESET }
+                    CategoryCard(Icons.Default.Apps, stringResource(R.string.settings_more_from), stringResource(R.string.settings_more_sub)) { onCategory(SettingsCategory.MORE) }
+                    CategoryCard(Icons.Default.Info, stringResource(R.string.settings_support), stringResource(R.string.settings_support_sub)) { onCategory(SettingsCategory.SUPPORT) }
+                    CategoryCard(Icons.Default.Warning, stringResource(R.string.settings_reset), stringResource(R.string.settings_reset_sub), destructive = true) { onCategory(SettingsCategory.RESET) }
                     Spacer(Modifier.padding(bottom = 24.dp))
                 }
                 SettingsCategory.ACCOUNT -> {
