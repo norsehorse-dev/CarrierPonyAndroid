@@ -40,6 +40,7 @@ import com.carrierpony.app.relay.RelayClient
 import com.carrierpony.app.relay.RelayException
 import com.carrierpony.app.relay.GatewayClient
 import com.carrierpony.core.CPArmor
+import com.carrierpony.core.CPContactKey
 import com.carrierpony.core.CPIdentityGenerator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -66,6 +67,23 @@ sealed class PairingException(message: String) : Exception(message) {
     /** A v6 identity met an app from before 4.0, which cannot hold it as a contact.
      *  The screens show the translated R.string.pair_peer_needs_update for this one. */
     class PeerNeedsUpdate : PairingException("This contact is on an older CarrierPony. Ask them to update to version 4.0 or later, then pair again.")
+}
+
+/** What came of adding a contact from a public key (AppModel.addContactByKey). */
+sealed class AddByKeyResult {
+    /** Added, and a contact request is on its way to them. */
+    class Added(val contact: Contact) : AddByKeyResult()
+    /** This person is already a contact; nothing changed. */
+    class AlreadyContact(val contact: Contact) : AddByKeyResult()
+    data object NotReady : AddByKeyResult()
+    data object OwnKey : AddByKeyResult()
+    data object SecretKey : AddByKeyResult()
+    data object NotAKey : AddByKeyResult()
+    data object Unsupported : AddByKeyResult()
+    /** Nobody with this key has an account on the relay this app uses. */
+    data object NotOnRelay : AddByKeyResult()
+    /** The request could not be sent (offline, relay down). Nothing was added. */
+    data object CouldNotSend : AddByKeyResult()
 }
 
 class AppModel(context: Context) {
@@ -1088,6 +1106,45 @@ class AppModel(context: Context) {
         _store.value?.sendCaps(to = named)
         _store.value?.sendProfile(name = _profileName.value, to = named)
         return named
+    }
+
+    /** Add a contact from a public key they handed over as text or as a file,
+     *  and ask them to add this identity back.
+     *
+     *  The request is sent before anything is stored. The relay refuses a
+     *  deposit to a fingerprint with no account, which is the only way to learn
+     *  that the key belongs to nobody on this relay, and a contact who can never
+     *  be reached is not worth keeping. The contact is added unverified: the key
+     *  arrived over whatever channel the text did, so the safety number is what
+     *  confirms it. Until they accept, they are shown as waiting. */
+    suspend fun addContactByKey(input: ByteArray): AddByKeyResult {
+        val identity = _identity.value ?: return AddByKeyResult.NotReady
+        val store = _store.value ?: return AddByKeyResult.NotReady
+        val key = when (val inspected = withContext(Dispatchers.Default) { CPContactKey.inspect(input) }) {
+            is CPContactKey.Result.Usable -> inspected
+            CPContactKey.Result.SecretKey -> return AddByKeyResult.SecretKey
+            CPContactKey.Result.NotAKey -> return AddByKeyResult.NotAKey
+            CPContactKey.Result.Unsupported -> return AddByKeyResult.Unsupported
+        }
+        val contact = PairingSupport.consistentContact(key.fingerprint, key.armoredPublicKey, TrustLevel.UNVERIFIED)
+            ?.copy(name = key.name)
+            ?: return AddByKeyResult.NotAKey
+        if (contact.fingerprint == identity.fingerprint) return AddByKeyResult.OwnKey
+        contactStore.contact(contact.fingerprint)?.let { return AddByKeyResult.AlreadyContact(it) }
+        try {
+            store.sendContactRequest(name = _profileName.value, to = contact)
+        } catch (e: RelayException) {
+            return if (e.status == 404) AddByKeyResult.NotOnRelay else AddByKeyResult.CouldNotSend
+        } catch (e: Exception) {
+            return AddByKeyResult.CouldNotSend
+        }
+        // Still the same account as when the request went out.
+        if (_identity.value?.fingerprint != identity.fingerprint) return AddByKeyResult.NotReady
+        contactStore.add(contact)
+        setAwaiting(contact.fingerprint.hex, true)
+        store.sendCaps(to = contact)
+        store.sendProfile(name = _profileName.value, to = contact)
+        return AddByKeyResult.Added(contact)
     }
 
     // ── Store wiring ───────────────────────────────────────────────────

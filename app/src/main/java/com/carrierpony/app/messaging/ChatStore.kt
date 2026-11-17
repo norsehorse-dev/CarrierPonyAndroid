@@ -896,6 +896,32 @@ class ChatStore(
         }
     }
 
+    /** Ask someone whose public key I added to add me back. The envelope is
+     *  encrypted to them and signed by a key they do not hold yet, so the op
+     *  carries that key; their app checks the signature against it before it
+     *  shows the request. Also carries my name, if I have set one, and what
+     *  this app supports. Throws if it could not be handed off, so the caller
+     *  can tell "not on this relay" (RelayException 404) from being offline. */
+    suspend fun sendContactRequest(name: String?, to: Contact) {
+        val mine = ownPublicKey() ?: throw IllegalStateException("no identity key")
+        val threadID = Threading.pairwise(identity.hex, to.fingerprint.hex)
+        val body = ControlOp(
+            op = "contact-request", targetMessageID = "", at = now,
+            name = name?.trim()?.takeIf { it.isNotEmpty() },
+            pubkey = mine.armored, caps = PairingCaps.current
+        )
+        val controlMessage = OutgoingMessage(
+            threadID = threadID,
+            text = null,
+            attachments = listOf(OutgoingMessage.Attachment("control", "application/json", body.encoded())),
+            expiresAt = now + defaultTTL
+        )
+        val messageID = UUID.randomUUID().toString().uppercase()
+        mutex.withLock { seenMessageIDs.add(messageID) }
+        val envelope = buildControl(controlMessage, to.publicKey, messageID)
+        deliverToPeer(envelope, to.fingerprint, controlMessage.expiresAt, silent = false)
+    }
+
     /** Responder side of remote pairing: tell the offerer we accepted, carrying our
      *  own key and the invite token. The offerer usually learns this from the relay's
      *  pair/status record, but only while its app sweeps before that record is

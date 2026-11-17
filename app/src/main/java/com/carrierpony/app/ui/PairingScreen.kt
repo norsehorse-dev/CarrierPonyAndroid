@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -89,6 +90,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.carrierpony.app.AddByKeyResult
 import com.carrierpony.app.AppModel
 import com.carrierpony.app.DemoMode
 import com.carrierpony.app.PairingException
@@ -99,6 +101,7 @@ import com.carrierpony.app.pairing.PairingCaps
 import com.carrierpony.app.pairing.PairingPayload
 import com.carrierpony.app.pairing.SafetyNumber
 import com.carrierpony.app.ui.theme.CPTheme
+import com.carrierpony.core.CPContactKey
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.delay
@@ -110,6 +113,7 @@ private sealed class PairRoute {
     data object MyCode : PairRoute()
     data object InviteCreate : PairRoute()
     data object InviteEnter : PairRoute()
+    data object AddByKey : PairRoute()
     data class Paired(val contact: Contact, val subtitle: Int) : PairRoute()
     data class Verify(val contact: Contact) : PairRoute()
 }
@@ -137,6 +141,7 @@ fun PairingScreen(app: AppModel, onFinished: () -> Unit) {
                             is PairRoute.MyCode -> stringResource(R.string.pair_my_code)
                             is PairRoute.InviteCreate -> stringResource(R.string.pair_create_invite_title)
                             is PairRoute.InviteEnter -> stringResource(R.string.pair_enter_invite_title)
+                            is PairRoute.AddByKey -> stringResource(R.string.pair_add_by_key_title)
                             is PairRoute.Paired -> stringResource(R.string.pair_paired)
                             is PairRoute.Verify -> stringResource(R.string.pair_verify)
                         }
@@ -159,7 +164,8 @@ fun PairingScreen(app: AppModel, onFinished: () -> Unit) {
                     onPaired = { contact, subtitle -> route = PairRoute.Paired(contact, subtitle) },
                     onMyCode = { route = PairRoute.MyCode },
                     onInviteCreate = { route = PairRoute.InviteCreate },
-                    onInviteEnter = { route = PairRoute.InviteEnter }
+                    onInviteEnter = { route = PairRoute.InviteEnter },
+                    onAddByKey = { route = PairRoute.AddByKey }
                 )
                 is PairRoute.MyCode -> MyCodeView(app) { contact ->
                     route = PairRoute.Paired(contact, SCANNED_ME_SUBTITLE)
@@ -169,6 +175,9 @@ fun PairingScreen(app: AppModel, onFinished: () -> Unit) {
                 }
                 is PairRoute.InviteEnter -> InviteEnterView(app) { contact ->
                     route = PairRoute.Paired(contact, UNVERIFIED_SUBTITLE)
+                }
+                is PairRoute.AddByKey -> AddByKeyView(app) { contact ->
+                    route = PairRoute.Paired(contact, REQUEST_SENT_SUBTITLE)
                 }
                 is PairRoute.Paired -> PairedContactView(
                     app = app,
@@ -186,6 +195,7 @@ fun PairingScreen(app: AppModel, onFinished: () -> Unit) {
 private val UNVERIFIED_SUBTITLE = R.string.pair_sub_unverified
 private val VERIFIED_SUBTITLE = R.string.pair_sub_verified
 private val SCANNED_ME_SUBTITLE = R.string.pair_sub_scanned_me
+private val REQUEST_SENT_SUBTITLE = R.string.pair_sub_request_sent
 
 // ── Hub ────────────────────────────────────────────────────────────────
 
@@ -195,7 +205,8 @@ private fun PairHub(
     onPaired: (Contact, Int) -> Unit,
     onMyCode: () -> Unit,
     onInviteCreate: () -> Unit,
-    onInviteEnter: () -> Unit
+    onInviteEnter: () -> Unit,
+    onAddByKey: () -> Unit
 ) {
     var scanError by remember { mutableStateOf<String?>(null) }
     var accepting by remember { mutableStateOf(false) }
@@ -273,6 +284,7 @@ private fun PairHub(
         SectionHeader(stringResource(R.string.pair_remotely))
         HubRow(Icons.Default.Email, stringResource(R.string.pair_create_invite), onInviteCreate)
         HubRow(Icons.Default.Share, stringResource(R.string.pair_enter_invite), onInviteEnter)
+        HubRow(Icons.Default.PersonAdd, stringResource(R.string.pair_add_by_key), onAddByKey)
 
         Text(
             text = stringResource(R.string.pair_hub_hint),
@@ -440,6 +452,9 @@ private fun MyCodeView(app: AppModel, onPaired: (Contact) -> Unit) {
             Spacer(Modifier.height(12.dp))
         }
 
+        MyKeyButtons(current.armoredPublicKey, current.fingerprint.hex)
+        Spacer(Modifier.height(16.dp))
+
         when {
             text != null -> {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -461,6 +476,68 @@ private fun MyCodeView(app: AppModel, onPaired: (Contact) -> Unit) {
                 )
             }
         }
+    }
+}
+
+/** The file a shared public key is saved under: the name on the key, or the
+ *  end of its fingerprint when the key has no name. Only letters, digits,
+ *  spaces, dashes and underscores are kept, so it is safe as a file name. */
+internal fun publicKeyFileName(armoredPublicKey: String, fingerprintHex: String): String {
+    val name = com.carrierpony.core.CPKeyInfo.userIDName(armoredPublicKey.toByteArray(Charsets.UTF_8))
+        ?.filter { it.isLetterOrDigit() || it == ' ' || it == '-' || it == '_' }
+        ?.trim()
+        ?.take(40)
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+    return (name ?: "carrierpony-${fingerprintHex.takeLast(8)}") + ".asc"
+}
+
+/** Copy or share this identity's public key as text, for someone who will
+ *  add it with Add by public key. */
+@Composable
+private fun MyKeyButtons(armoredPublicKey: String, fingerprintHex: String) {
+    val clipboard = LocalClipboard.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var copied by remember { mutableStateOf(false) }
+    val strCopy = stringResource(R.string.pair_copy_key)
+    val strShare = stringResource(R.string.pair_share_key)
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(1500)
+            copied = false
+        }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(
+            onClick = {
+                scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("CarrierPony", armoredPublicKey))) }
+                copied = true
+            },
+            modifier = Modifier.weight(1f)
+        ) { Text(if (copied) stringResource(R.string.common_copied) else strCopy, textAlign = TextAlign.Center) }
+        OutlinedButton(
+            onClick = {
+                // Share a real file, not EXTRA_TEXT: file-oriented targets
+                // (Save to Files, Drive) refuse plain text. Copy covers pasting.
+                try {
+                    val file = java.io.File(context.cacheDir, publicKeyFileName(armoredPublicKey, fingerprintHex))
+                    file.writeText(armoredPublicKey)
+                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                        context, "com.carrierpony.app.fileprovider", file
+                    )
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    com.carrierpony.app.lock.startActivityHoldingLock(context, Intent.createChooser(intent, strShare))
+                } catch (e: Exception) {
+                    // No share target or the cache is unwritable: Copy still works.
+                }
+            },
+            modifier = Modifier.weight(1f)
+        ) { Text(strShare, textAlign = TextAlign.Center) }
     }
 }
 
@@ -707,6 +784,139 @@ private fun InviteEnterView(app: AppModel, onPaired: (Contact) -> Unit) {
             onClick = { launchScan(strScanPromptEnter) },
             modifier = Modifier.fillMaxWidth()
         ) { Text(stringResource(R.string.pair_scan_instead)) }
+
+        error?.let {
+            Spacer(Modifier.height(12.dp))
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+    }
+}
+
+// ── Add by public key ──────────────────────────────────────────────────
+
+@Composable
+private fun AddByKeyView(app: AppModel, onAdded: (Contact) -> Unit) {
+    val identity by app.identity.collectAsState()
+    var text by remember { mutableStateOf("") }
+    var working by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val clipboard = LocalClipboard.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val strSecret = stringResource(R.string.pair_key_err_secret)
+    val strNotKey = stringResource(R.string.pair_key_err_not_key)
+    val strUnsupported = stringResource(R.string.pair_key_err_unsupported)
+    val strOwn = stringResource(R.string.pair_key_err_own)
+    val strNotOnRelay = stringResource(R.string.pair_key_err_not_on_relay)
+    val strSend = stringResource(R.string.pair_key_err_send)
+    val strFile = stringResource(R.string.pair_key_err_file)
+    val strNotReady = stringResource(R.string.pair_couldnt_pair)
+
+    suspend fun add(input: ByteArray) {
+        error = null
+        working = true
+        try {
+            when (val result = app.addContactByKey(input)) {
+                is AddByKeyResult.Added -> onAdded(result.contact)
+                is AddByKeyResult.AlreadyContact -> error = context.getString(
+                    R.string.pair_key_err_already,
+                    result.contact.displayName ?: result.contact.fingerprint.hex.takeLast(8)
+                )
+                AddByKeyResult.SecretKey -> { text = ""; error = strSecret }
+                AddByKeyResult.NotAKey -> error = strNotKey
+                AddByKeyResult.Unsupported -> error = strUnsupported
+                AddByKeyResult.OwnKey -> error = strOwn
+                AddByKeyResult.NotOnRelay -> error = strNotOnRelay
+                AddByKeyResult.CouldNotSend -> error = strSend
+                AddByKeyResult.NotReady -> error = strNotReady
+            }
+        } finally {
+            working = false
+        }
+    }
+
+    // A key file can be armored text or binary, so it is handed over as bytes
+    // and not shown in the box.
+    val filePicker = rememberLockSafeLauncher(ActivityResultContracts.OpenDocument()) { uri: android.net.Uri? ->
+        if (uri == null) return@rememberLockSafeLauncher
+        val bytes = try {
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                val buffer = ByteArray(CPContactKey.MAX_INPUT_BYTES + 1)
+                var total = 0
+                while (total < buffer.size) {
+                    val read = stream.read(buffer, total, buffer.size - total)
+                    if (read < 0) break
+                    total += read
+                }
+                buffer.copyOf(total)
+            }
+        } catch (e: Exception) {
+            null
+        }
+        if (bytes == null) {
+            error = strFile
+        } else {
+            scope.launch { add(bytes) }
+        }
+    }
+
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
+        Text(
+            stringResource(R.string.pair_key_intro),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (identity?.fingerprint?.isV6 == true) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                stringResource(R.string.pair_key_needs_4_0_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it; error = null },
+            placeholder = { Text("-----BEGIN PGP PUBLIC KEY BLOCK-----", fontFamily = FontFamily.Monospace) },
+            textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            minLines = 5,
+            maxLines = 8,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(8.dp))
+        Row {
+            OutlinedButton(onClick = {
+                scope.launch {
+                    clipboard.getClipEntry()?.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()?.let {
+                        text = it
+                        error = null
+                    }
+                }
+            }) { Text(stringResource(R.string.common_paste)) }
+            Spacer(Modifier.width(12.dp))
+            OutlinedButton(
+                onClick = { filePicker.launch(arrayOf("*/*")) },
+                enabled = !working
+            ) { Text(stringResource(R.string.pair_key_open_file)) }
+            Spacer(Modifier.weight(1f))
+            OutlinedButton(
+                onClick = { text = ""; error = null },
+                enabled = text.isNotEmpty()
+            ) { Text(stringResource(R.string.common_clear)) }
+        }
+        Spacer(Modifier.height(16.dp))
+        Button(
+            onClick = { scope.launch { add(text.toByteArray(Charsets.UTF_8)) } },
+            enabled = text.trim().isNotEmpty() && !working,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            if (working) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White)
+            } else {
+                Text(stringResource(R.string.pair_key_add), fontWeight = FontWeight.SemiBold)
+            }
+        }
 
         error?.let {
             Spacer(Modifier.height(12.dp))
