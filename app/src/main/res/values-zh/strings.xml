@@ -365,6 +365,9 @@
     <string name="settings_sub_scrubpony">清除文件元数据</string>
     <string name="settings_sub_vaultpony">加密文件保险库</string>
     <string name="settings_sub_passpony">密码管理器</string>
+    <string name="settings_sub_tappony">用 NFC 标签触发 Webhook</string>
+    <string name="settings_sub_hashpony">文件校验和</string>
+    <string name="settings_sub_stegpony">在照片中隐藏消息</string>
     <string name="settings_pony_family">查看完整的 Pony 系列</string>
     <string name="settings_pony_family_sub">所有 NorseHorse 应用集于一处</string>
     <string name="settings_source_repo">GitHub 上的 CarrierPony</string>

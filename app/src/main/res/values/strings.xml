@@ -382,6 +382,9 @@
     <string name="settings_sub_scrubpony">Strip file metadata</string>
     <string name="settings_sub_vaultpony">Encrypted file vaults</string>
     <string name="settings_sub_passpony">Password manager</string>
+    <string name="settings_sub_tappony">NFC tags to webhooks</string>
+    <string name="settings_sub_hashpony">File checksums</string>
+    <string name="settings_sub_stegpony">Hide messages in photos</string>
     <string name="settings_pony_family">See the full pony family</string>
     <string name="settings_pony_family_sub">Every NorseHorse app in one place</string>
     <string name="settings_source_repo">CarrierPony on GitHub</string>

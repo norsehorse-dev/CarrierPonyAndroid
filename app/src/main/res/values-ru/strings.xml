@@ -365,6 +365,9 @@
     <string name="settings_sub_scrubpony">Удаление метаданных файлов</string>
     <string name="settings_sub_vaultpony">Зашифрованные хранилища файлов</string>
     <string name="settings_sub_passpony">Менеджер паролей</string>
+    <string name="settings_sub_tappony">NFC-метки для вебхуков</string>
+    <string name="settings_sub_hashpony">Контрольные суммы файлов</string>
+    <string name="settings_sub_stegpony">Скрытие сообщений в фото</string>
     <string name="settings_pony_family">Посмотреть всё семейство pony</string>
     <string name="settings_pony_family_sub">Все приложения NorseHorse в одном месте</string>
     <string name="settings_source_repo">CarrierPony на GitHub</string>

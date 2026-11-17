@@ -165,7 +165,10 @@ fun SettingsScreen(
         PonyApp("RelayPony", stringResource(R.string.settings_sub_relaypony), "https://relaypony.app"),
         PonyApp("ScrubPony", stringResource(R.string.settings_sub_scrubpony), "https://scrubpony.app"),
         PonyApp("VaultPony", stringResource(R.string.settings_sub_vaultpony), "https://vaultpony.app"),
-        PonyApp("PassPony", stringResource(R.string.settings_sub_passpony), "https://passpony.app")
+        PonyApp("PassPony", stringResource(R.string.settings_sub_passpony), "https://passpony.app"),
+        PonyApp("TapPony", stringResource(R.string.settings_sub_tappony), "https://tappony.app"),
+        PonyApp("HashPony", stringResource(R.string.settings_sub_hashpony), "https://hashpony.app"),
+        PonyApp("StegPony", stringResource(R.string.settings_sub_stegpony), "https://stegpony.app")
     )
 
     fun open(url: String) {
