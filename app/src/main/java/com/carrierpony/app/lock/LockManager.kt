@@ -126,11 +126,15 @@ class LockManager private constructor(context: Context) {
         ) return
         _isLocked.value = true
         sessionPassphrase = null
+        // An imported v6 identity's unlocked ML-KEM key goes with it.
+        com.carrierpony.core.CPCompositeKeys.forgetUnlocked()
     }
 
     fun lockNow() {
         _isLocked.value = true
         sessionPassphrase = null
+        // An imported v6 identity's unlocked ML-KEM key goes with it.
+        com.carrierpony.core.CPCompositeKeys.forgetUnlocked()
     }
 
     /** Hold a passphrase for the current session (e.g. right after import, so
@@ -141,6 +145,7 @@ class LockManager private constructor(context: Context) {
 
     fun clearSessionPassphrase() {
         sessionPassphrase = null
+        com.carrierpony.core.CPCompositeKeys.forgetUnlocked()
     }
 
     /** Prompt biometrics/credential. On success, unlock. (Loading a protected

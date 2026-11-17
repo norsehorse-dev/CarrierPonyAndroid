@@ -406,6 +406,7 @@ class AppModel(context: Context) {
             secretKey = id.secretKey,
             armored = id.armoredPublicKey,
             passphrase = { null },
+            signerKeys = { tContacts.contacts.map { it.publicKey } + PublicKey(id.fingerprint, id.armoredPublicKey) },
             publicKeyResolver = { fingerprint ->
                 if (fingerprint == id.fingerprint) {
                     CPArmor.dearmor(id.armoredPublicKey)?.let { PublicKey(id.fingerprint, id.armoredPublicKey) }
@@ -1220,6 +1221,9 @@ class AppModel(context: Context) {
             secretKey = identity.secretKey,
             armored = identity.armoredPublicKey,
             passphrase = { if (identity.protected) appLock.sessionPassphrase else null },
+            signerKeys = {
+                contactStore.contacts.map { it.publicKey } + PublicKey(identity.fingerprint, identity.armoredPublicKey)
+            },
             publicKeyResolver = { fingerprint ->
                 // Resolve our own key for self-copy verification, else a contact.
                 if (fingerprint == identity.fingerprint) {

@@ -14,15 +14,38 @@ package com.carrierpony.app.crypto
 
 import com.carrierpony.core.CPArmor
 import com.carrierpony.core.CPCryptoError
+import com.carrierpony.core.CPKeyInfo
 import com.carrierpony.core.CPMessenger
+import java.util.concurrent.ConcurrentHashMap
 
 class PonyCryptoEngine(
     override val fingerprint: Fingerprint,
     private val secretKey: ByteArray,
     private val armored: String,
     private val passphrase: () -> String? = { null },
+    /** Every key a message may be signed by: the contacts and the identity's
+     *  own key. Looked through only when a signature names a key that is not
+     *  an identity's primary key, which is what an imported identity with a
+     *  signing subkey produces. */
+    private val signerKeys: () -> List<PublicKey> = { emptyList() },
     private val publicKeyResolver: (Fingerprint) -> PublicKey?
 ) : CryptoEngine {
+
+    /** The key fingerprints inside each public key seen so far, so a ring is
+     *  parsed once and not for every message. */
+    private val ringKeys = ConcurrentHashMap<String, Set<String>>()
+
+    private fun keysOf(key: PublicKey): Set<String> =
+        ringKeys.getOrPut(key.fingerprint.hex + ":" + key.armored.hashCode()) {
+            CPKeyInfo.keyFingerprints(key.armored.toByteArray(Charsets.UTF_8)).toSet()
+        }
+
+    /** The identity whose key ring holds the key a signature names. The core
+     *  still checks that the key is a properly bound signing subkey. */
+    private fun ownerOfSubkey(claimedHex: String): PublicKey? {
+        val wanted = claimedHex.uppercase()
+        return signerKeys().firstOrNull { wanted in keysOf(it) }
+    }
 
     override fun armoredPublicKey(): String = armored
 
@@ -41,8 +64,7 @@ class PonyCryptoEngine(
     override fun decryptAndVerify(message: ByteArray): VerifiedMessage {
         val verified = try {
             CPMessenger.decryptAndVerify(message, secretKey, passphrase()) { claimedHex ->
-                Fingerprint.from(claimedHex)
-                    ?.let(publicKeyResolver)
+                (Fingerprint.from(claimedHex)?.let(publicKeyResolver) ?: ownerOfSubkey(claimedHex))
                     ?.let { CPArmor.dearmor(it.armored) }
             }
         } catch (e: CPCryptoError.NoValidSignature) {
@@ -65,7 +87,12 @@ class PonyCryptoEngine(
     override fun decryptAndVerify(message: ByteArray, signer: PublicKey): VerifiedMessage {
         val verified = try {
             CPMessenger.decryptAndVerify(message, secretKey, passphrase()) { claimedHex ->
-                if (Fingerprint.from(claimedHex) == signer.fingerprint) CPArmor.dearmor(signer.armored) else null
+                // The signer's primary key, or a signing subkey in its ring.
+                if (Fingerprint.from(claimedHex) == signer.fingerprint || claimedHex.uppercase() in keysOf(signer)) {
+                    CPArmor.dearmor(signer.armored)
+                } else {
+                    null
+                }
             }
         } catch (e: CPCryptoError.NoValidSignature) {
             throw CryptoException.NoValidSignature(e.message, e)

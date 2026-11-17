@@ -3,7 +3,8 @@
 //
 // Import an existing OpenPGP private key as this device's identity, ported
 // from iOS Core/App/KeyImport.swift with the same user-facing error copy.
-// CarrierPony's engine is v4 Ed25519 (sign) + Cv25519 (encrypt); other
+// CarrierPony takes the two key shapes it makes itself: v4 Ed25519 (sign) +
+// Cv25519 (encrypt), and v6 Ed25519 with an ML-KEM-768 + X25519 subkey. Other
 // algorithms are rejected clearly. A passphrase-protected key is kept
 // protected: its bytes are stored as-is and its passphrase is held behind the
 // app lock (PassphraseVault).
@@ -19,8 +20,8 @@ import com.carrierpony.core.CPKeyInfo
 class KeyImportException(message: String) : Exception(message) {
     companion object {
         fun malformed() = KeyImportException("That doesn't look like a valid private key.")
-        fun notSupported() = KeyImportException("CarrierPony only supports Ed25519 keys with a Curve25519 encryption subkey. RSA and other key types can't be imported.")
-        fun noEncryptionSubkey() = KeyImportException("This key has no encryption subkey, so it can't receive messages. Import a key that includes a Curve25519 encryption subkey.")
+        fun notSupported() = KeyImportException("CarrierPony only supports Ed25519 keys with a Curve25519 or ML-KEM-768 encryption subkey. RSA and other key types can't be imported.")
+        fun noEncryptionSubkey() = KeyImportException("This key has no encryption subkey CarrierPony can use, so it can't receive messages. Import a key that includes a Curve25519 or ML-KEM-768 encryption subkey.")
         fun wrongPassphrase() = KeyImportException("Wrong passphrase for this key.")
     }
 }

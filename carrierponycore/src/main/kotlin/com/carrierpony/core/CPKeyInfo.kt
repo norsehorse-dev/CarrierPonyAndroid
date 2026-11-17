@@ -50,6 +50,21 @@ object CPKeyInfo {
         primaryFingerprint(armoredPublicKey.toByteArray(Charsets.UTF_8))
 
     /**
+     * The fingerprint of every key in a public key ring, primary first, as
+     * uppercase hex. Empty when the data is not a public key. A receiver uses
+     * this to find whose signing subkey made a signature, since an imported
+     * identity can sign with a subkey and not with its primary key.
+     */
+    fun keyFingerprints(publicKeyData: ByteArray): List<String> =
+        try {
+            CPMessenger.loadPublicRing(publicKeyData).publicKeys.asSequence()
+                .map { bytesToHex(it.fingerprint) }
+                .toList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+
+    /**
      * The name portion of the first user ID on the key ("Name <email>" gives
      * "Name"), or null if the key has no user ID. Accepts secret or public
      * key material, armored or binary.
