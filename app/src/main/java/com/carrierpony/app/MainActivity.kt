@@ -17,6 +17,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -70,6 +71,25 @@ class MainActivity : AppCompatActivity() {
 
     private var notificationsOff by androidx.compose.runtime.mutableStateOf(false)
 
+    /** A public key another app shared or opened with CarrierPony, waiting to
+     *  be shown in Add by public key. Empty means it could not be read. */
+    private var incomingKey by androidx.compose.runtime.mutableStateOf<ByteArray?>(null)
+
+    private fun takeKeyIntent(intent: android.content.Intent?) {
+        if (intent == null || !com.carrierpony.app.ui.IncomingKey.isKeyIntent(intent)) return
+        if (intent.flags and android.content.Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
+        kotlin.concurrent.thread {
+            val bytes = com.carrierpony.app.ui.IncomingKey.read(applicationContext, intent)
+            runOnUiThread { incomingKey = bytes }
+        }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        takeKeyIntent(intent)
+    }
+
     /** True when pushes arrive but their banners are silently dropped: asked
      *  once, denied (or revoked), identity present, hint not yet dismissed. */
     private fun computeNotificationsOff(): Boolean {
@@ -97,6 +117,9 @@ class MainActivity : AppCompatActivity() {
         // lock state instead: re-locking here forgot an open picker and threw
         // away its result. A new process already starts locked.
         if (savedInstanceState == null) app.appLock.lockIfEnabled()
+        // A rebuilt activity still holds the intent it was started with, so
+        // only a fresh start reads the key from it.
+        if (savedInstanceState == null) takeKeyIntent(intent)
         enableEdgeToEdge()
         setContent {
             CarrierPonyTheme {
@@ -106,6 +129,8 @@ class MainActivity : AppCompatActivity() {
                         demoStart = demoStart,
                         onUnlock = { app.unlock(this) },
                         notificationsOff = notificationsOff,
+                        incomingKey = incomingKey,
+                        onIncomingKeyTaken = { incomingKey = null },
                         onEnableNotifications = {
                             startActivity(
                                 android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
@@ -180,6 +205,8 @@ private fun Root(
     demoStart: com.carrierpony.app.demo.DemoStart? = null,
     onUnlock: () -> Unit,
     notificationsOff: Boolean = false,
+    incomingKey: ByteArray? = null,
+    onIncomingKeyTaken: () -> Unit = {},
     onEnableNotifications: () -> Unit = {},
     onDismissNotificationsHint: () -> Unit = {}
 ) {
@@ -250,8 +277,23 @@ private fun Root(
         return
     }
 
+    // A key from another app opens Add by public key, over whatever screen
+    // was showing. It waits here through the lock screen and onboarding.
+    var pairingKey by remember { mutableStateOf<ByteArray?>(null) }
+    if (incomingKey != null) {
+        LaunchedEffect(incomingKey) {
+            pairingKey = incomingKey
+            showingPairing = true
+            onIncomingKeyTaken()
+        }
+    }
+
     if (showingPairing) {
-        PairingScreen(app = app, onFinished = { showingPairing = false })
+        PairingScreen(
+            app = app,
+            incomingKey = pairingKey,
+            onFinished = { showingPairing = false; pairingKey = null }
+        )
         return
     }
 

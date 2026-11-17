@@ -107,7 +107,9 @@ import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private sealed class PairRoute {
     data object Hub : PairRoute()
@@ -121,8 +123,16 @@ private sealed class PairRoute {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PairingScreen(app: AppModel, onFinished: () -> Unit) {
-    var route by remember { mutableStateOf<PairRoute>(PairRoute.Hub) }
+fun PairingScreen(app: AppModel, incomingKey: ByteArray? = null, onFinished: () -> Unit) {
+    var route by remember {
+        mutableStateOf<PairRoute>(if (incomingKey != null) PairRoute.AddByKey else PairRoute.Hub)
+    }
+    // A key another app handed over. It is loaded into the box once, so going
+    // back and opening Add by public key again starts with an empty box.
+    var pendingKey by remember(incomingKey) { mutableStateOf(incomingKey) }
+    LaunchedEffect(incomingKey) {
+        if (incomingKey != null) route = PairRoute.AddByKey
+    }
 
     BackHandler {
         route = when (route) {
@@ -177,7 +187,11 @@ fun PairingScreen(app: AppModel, onFinished: () -> Unit) {
                 is PairRoute.InviteEnter -> InviteEnterView(app) { contact ->
                     route = PairRoute.Paired(contact, UNVERIFIED_SUBTITLE)
                 }
-                is PairRoute.AddByKey -> AddByKeyView(app) { contact ->
+                is PairRoute.AddByKey -> AddByKeyView(
+                    app = app,
+                    incoming = pendingKey,
+                    onIncomingLoaded = { pendingKey = null }
+                ) { contact ->
                     route = PairRoute.Paired(contact, REQUEST_SENT_SUBTITLE)
                 }
                 is PairRoute.Paired -> PairedContactView(
@@ -867,7 +881,12 @@ private fun InviteEnterView(app: AppModel, onPaired: (Contact) -> Unit) {
 // ── Add by public key ──────────────────────────────────────────────────
 
 @Composable
-private fun AddByKeyView(app: AppModel, onAdded: (Contact) -> Unit) {
+private fun AddByKeyView(
+    app: AppModel,
+    incoming: ByteArray? = null,
+    onIncomingLoaded: () -> Unit = {},
+    onAdded: (Contact) -> Unit
+) {
     val identity by app.identity.collectAsState()
     var text by remember { mutableStateOf("") }
     var working by remember { mutableStateOf(false) }
@@ -912,16 +931,7 @@ private fun AddByKeyView(app: AppModel, onAdded: (Contact) -> Unit) {
     val filePicker = rememberLockSafeLauncher(ActivityResultContracts.OpenDocument()) { uri: android.net.Uri? ->
         if (uri == null) return@rememberLockSafeLauncher
         val bytes = try {
-            context.contentResolver.openInputStream(uri)?.use { stream ->
-                val buffer = ByteArray(CPContactKey.MAX_INPUT_BYTES + 1)
-                var total = 0
-                while (total < buffer.size) {
-                    val read = stream.read(buffer, total, buffer.size - total)
-                    if (read < 0) break
-                    total += read
-                }
-                buffer.copyOf(total)
-            }
+            context.contentResolver.openInputStream(uri)?.use { IncomingKey.readCapped(it) }
         } catch (e: Exception) {
             null
         }
@@ -930,6 +940,21 @@ private fun AddByKeyView(app: AppModel, onAdded: (Contact) -> Unit) {
         } else {
             scope.launch { add(bytes) }
         }
+    }
+
+    // A key from another app is checked and shown in the box. Adding it is
+    // still the person's own tap.
+    LaunchedEffect(incoming) {
+        val bytes = incoming ?: return@LaunchedEffect
+        val result = if (bytes.isEmpty()) null else withContext(Dispatchers.Default) { CPContactKey.inspect(bytes) }
+        when (result) {
+            null -> { text = ""; error = strFile }
+            is CPContactKey.Result.Usable -> { text = result.armoredPublicKey; error = null }
+            CPContactKey.Result.SecretKey -> { text = ""; error = strSecret }
+            CPContactKey.Result.NotAKey -> { text = ""; error = strNotKey }
+            CPContactKey.Result.Unsupported -> { text = ""; error = strUnsupported }
+        }
+        onIncomingLoaded()
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
