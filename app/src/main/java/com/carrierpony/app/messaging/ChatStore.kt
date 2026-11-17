@@ -2130,6 +2130,14 @@ class ChatStore(
             android.util.Log.d("CPCHAN", "send group=${groupID.takeLast(8)} isChannel=${group.isChannel} recipients=${recipients.size}")
             for (recipient in recipients) {
                 val silent = recipient == identity
+                // A member not yet known to be listening on its group address gets the
+                // message by the per-contact path instead (GroupDelivery). Decided before
+                // a group address is taken, so none is used up on a member who cannot be
+                // listening. My own other devices are left as they were.
+                if (recipient != identity && groupMemberUsesPeerPath(groupID, group.epoch, recipient)) {
+                    try { deliverToPeer(payload, recipient, expiresAt, silent) } catch (e: Exception) { _lastError.value = describe(e) }
+                    continue
+                }
                 val address = sealedGroupSendAddress(groupID, group.epoch, recipient)
                 if (address != null) {
                     // The relay is authoritative, but Nostr and the direct transports
@@ -2202,6 +2210,9 @@ class ChatStore(
         val (sender, container) = opened
         val decoded = try { CPN1.decode(container) } catch (e: Exception) { diagnostics("group CPN1 decode failed for $groupID: ${e.message}", e); return true }
         val manifest = try { Manifest.decode(decoded.manifest) } catch (e: Exception) { diagnostics("group manifest decode failed for $groupID: ${e.message}", e); return true }
+        // A message from a member in the current epoch shows they hold its key and are
+        // listening, so later messages to them need only the group address.
+        if (sender != identity && manifest.epoch == group.epoch) noteGroupMemberHeard(groupID, group.epoch, sender)
         if (seenMessageIDs.contains(manifest.messageID)) return true
         if (manifest.expiresAt <= now) { seenMessageIDs.add(manifest.messageID); return true }
         android.util.Log.d("CPCHAN", "msg-recv group=${groupID.takeLast(8)} isChannel=${group.isChannel} from=${sender.hex.takeLast(8)} adminOK=${group.isAdmin(sender)}")
@@ -2232,6 +2243,26 @@ class ChatStore(
         seenMessageIDs.add(manifest.messageID)
         appendGroupMessageLocked(message, groupID)
         return true
+    }
+
+    /** Whether a group message to [member] goes by the per-contact path for now,
+     *  recording when I first sent to them in this epoch. False when sealed
+     *  delivery is not set up at all, which leaves the older behaviour in place. */
+    private fun groupMemberUsesPeerPath(groupID: String, epoch: Int, member: Fingerprint): Boolean {
+        val sk = sealedKeys ?: return false
+        val state = sk.group(groupID)?.takeIf { it.epoch == epoch } ?: SealedGroupState(epoch, mutableMapOf(), mutableMapOf())
+        if (!GroupDelivery.usePeerPath(state, member.hex, now)) return false
+        if (member.hex !in state.since) {
+            state.since[member.hex] = now
+            sk.setGroup(groupID, state)
+        }
+        return true
+    }
+
+    private fun noteGroupMemberHeard(groupID: String, epoch: Int, member: Fingerprint) {
+        val sk = sealedKeys ?: return
+        val state = sk.group(groupID)?.takeIf { it.epoch == epoch } ?: SealedGroupState(epoch, mutableMapOf(), mutableMapOf())
+        if (state.heard.add(member.hex)) sk.setGroup(groupID, state)
     }
 
     private fun appendGroupMessageLocked(message: ChatMessage, groupID: String) {

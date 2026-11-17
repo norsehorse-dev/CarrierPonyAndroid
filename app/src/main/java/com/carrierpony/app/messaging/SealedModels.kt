@@ -53,18 +53,28 @@ class SealedPairState(
 
 /** Sealed group delivery state, per group and epoch: my outbound counter to each
  *  member, and the high-water of what I have received from each member. Reset
- *  when the epoch rotates, since the address space changes with the key. */
+ *  when the epoch rotates, since the address space changes with the key.
+ *
+ *  [heard] and [since] are for GroupDelivery: the members a group message has
+ *  arrived from in this epoch, and when I first sent to each member in it. */
 class SealedGroupState(
     val epoch: Int,
     val sendCounters: MutableMap<String, Long>,
-    val recvHighs: MutableMap<String, Long>
+    val recvHighs: MutableMap<String, Long>,
+    val heard: MutableSet<String> = mutableSetOf(),
+    val since: MutableMap<String, Long> = mutableMapOf()
 ) {
     fun toJson(): String {
         val send = org.json.JSONObject()
         for ((k, v) in sendCounters) send.put(k, v)
         val recv = org.json.JSONObject()
         for ((k, v) in recvHighs) recv.put(k, v)
-        return org.json.JSONObject().put("epoch", epoch).put("send", send).put("recv", recv).toString()
+        val first = org.json.JSONObject()
+        for ((k, v) in since) first.put(k, v)
+        val heardList = org.json.JSONArray()
+        for (k in heard) heardList.put(k)
+        return org.json.JSONObject().put("epoch", epoch).put("send", send).put("recv", recv)
+            .put("heard", heardList).put("since", first).toString()
     }
 
     companion object {
@@ -73,10 +83,21 @@ class SealedGroupState(
             SealedGroupState(
                 epoch = j.getInt("epoch"),
                 sendCounters = longMap(j.optJSONObject("send")),
-                recvHighs = longMap(j.optJSONObject("recv"))
+                recvHighs = longMap(j.optJSONObject("recv")),
+                // State written before this field existed: a member I have received
+                // from on their group address was plainly listening.
+                heard = if (j.has("heard")) stringSet(j.optJSONArray("heard"))
+                    else longMap(j.optJSONObject("recv")).keys.toMutableSet(),
+                since = longMap(j.optJSONObject("since"))
             )
         } catch (e: Exception) {
             null
+        }
+
+        private fun stringSet(a: org.json.JSONArray?): MutableSet<String> {
+            val set = mutableSetOf<String>()
+            if (a != null) for (i in 0 until a.length()) (a.opt(i) as? String)?.let { set.add(it) }
+            return set
         }
 
         private fun longMap(o: org.json.JSONObject?): MutableMap<String, Long> {
@@ -87,6 +108,40 @@ class SealedGroupState(
             }
             return m
         }
+    }
+}
+
+/** Which way a group message travels to a member: the group's own sealed
+ *  address, or the per-contact path.
+ *
+ *  A group address is one the recipient registers with the relay only after it
+ *  has received the group key. Until then the address does not exist, and the
+ *  relay accepts a deposit to an address it does not know and drops it, on
+ *  purpose, so that nobody can probe which addresses exist. A member who was
+ *  added while offline, or whose account was not the active one, would lose
+ *  everything said before their next refresh, with no error on either side.
+ *
+ *  The per-contact path is store-and-forward to an address the member already
+ *  has. So a member gets group messages that way until they are known to be
+ *  listening in this epoch, and by the group address from then on.
+ *
+ *  "Known to be listening" means a group message has arrived from them in this
+ *  epoch: they could only have sent it with the key, and an app registers its
+ *  addresses in the same refresh in which it gets the key. A member who never
+ *  posts moves to the group address [PEER_PATH_SECONDS] after my first message
+ *  to them in the epoch, which is as long as a message lives.
+ *
+ *  Nothing is sent twice, and no group address is used up while the member
+ *  cannot be listening on it, so the two sides' counters cannot drift apart
+ *  while one of them is away. */
+object GroupDelivery {
+    const val PEER_PATH_SECONDS = 30L * 86_400
+
+    fun usePeerPath(state: SealedGroupState?, memberHex: String, now: Long): Boolean {
+        if (state == null) return true
+        if (memberHex in state.heard) return false
+        val first = state.since[memberHex] ?: return true
+        return now - first < PEER_PATH_SECONDS
     }
 }
 
