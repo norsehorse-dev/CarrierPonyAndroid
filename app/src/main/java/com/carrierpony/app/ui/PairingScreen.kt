@@ -95,6 +95,7 @@ import com.carrierpony.app.AppModel
 import com.carrierpony.app.DemoMode
 import com.carrierpony.app.PairingException
 import com.carrierpony.app.messaging.Contact
+import com.carrierpony.app.messaging.ContactRequest
 import com.carrierpony.app.messaging.TrustLevel
 import com.carrierpony.app.pairing.Invite
 import com.carrierpony.app.pairing.PairingCaps
@@ -276,7 +277,44 @@ private fun PairHub(
         }
     }
 
+    val requests by app.contactRequests.requestsFlow.collectAsState()
+    val knownContacts by app.contactStore.contactsFlow.collectAsState()
+    // Someone who became a contact some other way no longer needs an answer.
+    val waiting = requests.filter { request -> knownContacts.none { it.fingerprint == request.fingerprint } }
+
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 8.dp)) {
+        if (waiting.isNotEmpty()) {
+            SectionHeader(stringResource(R.string.pair_requests_header))
+            Text(
+                text = stringResource(R.string.pair_request_explain),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
+            for (request in waiting) {
+                ContactRequestRow(
+                    request = request,
+                    enabled = !accepting,
+                    onAccept = {
+                        scanError = null
+                        accepting = true
+                        scope.launch {
+                            try {
+                                onPaired(app.acceptContactRequest(request), UNVERIFIED_SUBTITLE)
+                            } catch (e: PairingException.PeerNeedsUpdate) {
+                                scanError = strPeerNeedsUpdate
+                            } catch (e: Exception) {
+                                scanError = strCouldntPair
+                            } finally {
+                                accepting = false
+                            }
+                        }
+                    },
+                    onDecline = { app.declineContactRequest(request) }
+                )
+            }
+        }
+
         SectionHeader(stringResource(R.string.pair_in_person))
         HubRow(Icons.Default.Person, stringResource(R.string.pair_show_code), onMyCode)
         HubRow(Icons.Default.Check, stringResource(R.string.pair_scan_code)) { launchScan(strScanPrompt) }
@@ -321,6 +359,40 @@ private fun scanOptions(prompt: String): ScanOptions = ScanOptions()
     .setOrientationLocked(true)
     .setCaptureActivity(ScannerActivity::class.java)
     .setPrompt(prompt)
+
+/** One waiting contact request: who is asking, the end of their fingerprint
+ *  to tell two people of the same name apart, and the two answers. */
+@Composable
+private fun ContactRequestRow(
+    request: ContactRequest,
+    enabled: Boolean,
+    onAccept: () -> Unit,
+    onDecline: () -> Unit
+) {
+    val tail = request.fingerprint.hex.takeLast(8).chunked(4).joinToString(" ")
+    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) {
+        Text(
+            text = stringResource(R.string.pair_request_wants, request.name ?: tail),
+            style = MaterialTheme.typography.bodyLarge
+        )
+        Text(
+            text = stringResource(R.string.pair_request_fingerprint, tail),
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(onClick = onAccept, enabled = enabled, modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.pair_request_accept))
+            }
+            OutlinedButton(onClick = onDecline, enabled = enabled, modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.pair_request_decline))
+            }
+        }
+    }
+    HorizontalDivider(modifier = Modifier.padding(start = 20.dp))
+}
 
 @Composable
 private fun SectionHeader(text: String) {

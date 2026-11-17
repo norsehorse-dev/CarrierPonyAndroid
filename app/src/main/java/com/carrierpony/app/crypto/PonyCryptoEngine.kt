@@ -62,6 +62,21 @@ class PonyCryptoEngine(
         return VerifiedMessage(sender, verified.plaintext)
     }
 
+    override fun decryptAndVerify(message: ByteArray, signer: PublicKey): VerifiedMessage {
+        val verified = try {
+            CPMessenger.decryptAndVerify(message, secretKey, passphrase()) { claimedHex ->
+                if (Fingerprint.from(claimedHex) == signer.fingerprint) CPArmor.dearmor(signer.armored) else null
+            }
+        } catch (e: CPCryptoError.NoValidSignature) {
+            throw CryptoException.NoValidSignature(e.message, e)
+        } catch (e: CPCryptoError) {
+            throw CryptoException.DecryptionFailed(e.message, e)
+        }
+        val sender = Fingerprint.from(verified.senderFingerprint)
+        if (sender == null || sender != signer.fingerprint) throw CryptoException.NoValidSignature()
+        return VerifiedMessage(sender, verified.plaintext)
+    }
+
     override fun decryptOnly(message: ByteArray): ByteArray =
         try {
             CPMessenger.decryptOnly(message, secretKey, passphrase())

@@ -93,6 +93,8 @@ fun ConversationListScreen(
     onOpenGroup: (String) -> Unit = {},
     onUnpair: ((Fingerprint) -> Unit)? = null,
     onPair: (() -> Unit)? = null,
+    // How many contact requests are waiting for an answer on the pairing screen.
+    contactRequests: Int = 0,
     onSettings: (() -> Unit)? = null,
     accounts: List<AppModel.AccountSummary> = emptyList(),
     activeFingerprintHex: String? = null,
@@ -214,6 +216,16 @@ fun ConversationListScreen(
                         TextButton(onClick = onEnableNotifications) { Text(stringResource(R.string.common_enable)) }
                         TextButton(onClick = onDismissNotificationsHint) { Text(stringResource(R.string.common_dismiss)) }
                     }
+                }
+            }
+            if (contactRequests > 0 && onPair != null) {
+                Surface(color = MaterialTheme.colorScheme.primaryContainer, onClick = onPair) {
+                    Text(
+                        text = stringResource(R.string.inbox_contact_requests),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
+                    )
                 }
             }
             if (heldCount > 0) {

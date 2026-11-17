@@ -261,6 +261,13 @@
     <string name="pair_key_err_send">Couldn\'t send the request. Check your connection and try again.</string>
     <string name="pair_key_err_file">Couldn\'t read that file.</string>
     <string name="pair_sub_request_sent">Request sent. You can write to them now, and they\'ll see your messages once they accept. This contact is unverified until you compare the safety number.</string>
+    <string name="pair_requests_header">Contact requests</string>
+    <string name="pair_request_wants">%1$s wants to connect</string>
+    <string name="pair_request_fingerprint">Fingerprint ends in %1$s</string>
+    <string name="pair_request_explain">They added you by your public key. Accepting adds them as an unverified contact.</string>
+    <string name="pair_request_accept">Accept</string>
+    <string name="pair_request_decline">Decline</string>
+    <string name="inbox_contact_requests">Someone wants to connect. Tap to review.</string>
     <string name="pair_copy_key">Copy my public key</string>
     <string name="pair_share_key">Share my public key</string>
     <string name="pair_paired_with">Paired with %1$s</string>

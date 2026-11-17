@@ -25,6 +25,8 @@ import com.carrierpony.app.identity.PassphraseVault
 import com.carrierpony.app.lock.LockManager
 import com.carrierpony.app.messaging.ChatStore
 import com.carrierpony.app.messaging.Contact
+import com.carrierpony.app.messaging.ContactRequest
+import com.carrierpony.app.messaging.ContactRequestStore
 import com.carrierpony.app.messaging.ContactStore
 import com.carrierpony.app.messaging.TrustLevel
 import com.carrierpony.app.pairing.PairingCaps
@@ -94,6 +96,8 @@ class AppModel(context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     val contactStore = ContactStore(appContext.filesDir)
+    /** Requests from people who added this identity by its public key. */
+    val contactRequests = ContactRequestStore(appContext.filesDir)
     val appLock = LockManager.get(appContext)
 
     // LAN-direct discovery (2.1 M2): advertise this device on the local
@@ -734,6 +738,7 @@ class AppModel(context: Context) {
             File(appContext.filesDir, "carrierpony-conversations-$fprHex.json").delete()
         }
         contactStore.deleteFile(fprHex)
+        contactRequests.deleteFile(fprHex)
         vault.delete(fprHex)
         defaults.edit()
             .remove(profileKeyFor(fprHex))
@@ -1131,6 +1136,18 @@ class AppModel(context: Context) {
             ?: return AddByKeyResult.NotAKey
         if (contact.fingerprint == identity.fingerprint) return AddByKeyResult.OwnKey
         contactStore.contact(contact.fingerprint)?.let { return AddByKeyResult.AlreadyContact(it) }
+        // Adding someone's key yourself overrides having declined them, and if
+        // their request is already waiting here, this is the same as accepting it.
+        contactRequests.clearDeclined(contact.fingerprint)
+        contactRequests.requests.firstOrNull { it.fingerprint == contact.fingerprint }?.let { waiting ->
+            return try {
+                AddByKeyResult.Added(acceptContactRequest(waiting))
+            } catch (e: PairingException.PeerNeedsUpdate) {
+                AddByKeyResult.Unsupported
+            } catch (e: Exception) {
+                AddByKeyResult.NotReady
+            }
+        }
         try {
             store.sendContactRequest(name = _profileName.value, to = contact)
         } catch (e: RelayException) {
@@ -1147,6 +1164,38 @@ class AppModel(context: Context) {
         return AddByKeyResult.Added(contact)
     }
 
+    /** Accept a contact request: add the person, unverified, and tell them
+     *  about this app and this identity's name. Their first envelope that opens
+     *  clears the waiting mark on their side. A v6 identity holds the same line
+     *  as when pairing: it does not add someone whose app could not add it back.
+     *  The request says what their app supports. */
+    suspend fun acceptContactRequest(request: ContactRequest): Contact {
+        val identity = _identity.value ?: throw PairingException.NotReady()
+        if (!PairingCaps.canPair(identity.fingerprint, request.fingerprint, request.caps)) {
+            throw PairingException.PeerNeedsUpdate()
+        }
+        val contact = PairingSupport.consistentContact(request.fingerprint.hex, request.armoredPublicKey, TrustLevel.UNVERIFIED)
+            ?.copy(name = request.name, caps = request.caps)
+            ?: run {
+                contactRequests.remove(request.fingerprint)
+                throw PairingException.KeyMismatch()
+            }
+        contactStore.add(contact)
+        contactRequests.remove(request.fingerprint)
+        val store = _store.value
+        store?.sendCaps(to = contact)
+        store?.sendProfile(name = _profileName.value, to = contact)
+        // What they sent while waiting was held; it opens now that they are a contact.
+        scope.launch { try { store?.refresh() } catch (e: Exception) { } }
+        return contact
+    }
+
+    /** Decline a contact request. Nothing is sent; the same person asking
+     *  again is ignored from now on. */
+    fun declineContactRequest(request: ContactRequest) {
+        contactRequests.decline(request.fingerprint)
+    }
+
     // ── Store wiring ───────────────────────────────────────────────────
 
     /** This is the one place the concrete PonyCryptoEngine, RelayClient, and
@@ -1154,6 +1203,7 @@ class AppModel(context: Context) {
     private fun buildStore(identity: Identity) {
         // Load this identity's contacts (per-account file) before the stack reads them.
         this.contactStore.activate(identity.fingerprint.hex)
+        this.contactRequests.activate(identity.fingerprint.hex)
         val contactStore = this.contactStore
         val crypto = PonyCryptoEngine(
             fingerprint = identity.fingerprint,
@@ -1190,6 +1240,9 @@ class AppModel(context: Context) {
             sealedKeys = com.carrierpony.app.messaging.SealedKeyStore(appContext, identity.fingerprint.hex),
             pairingSweep = { sweepPendingInvites() },
             pairComplete = { token, pubkey -> completeInviteFromPeer(token, pubkey) },
+            contactRequest = { fingerprint, armored, name, caps ->
+                contactRequests.add(ContactRequest(fingerprint, armored, name, caps, System.currentTimeMillis() / 1000))
+            },
             peerSeen = { fpr -> if (fpr.hex in _awaitingPeers.value) setAwaiting(fpr.hex, false) },
             lanTransport = com.carrierpony.app.messaging.LanDirectTransport(lanDiscovery),
             wanTransport = com.carrierpony.app.messaging.WanDirectTransport(wanBridge),

@@ -100,6 +100,11 @@ class ChatStore(
     // The relay's pair/status record is the primary path; this one keeps working
     // when the offerer's app was closed until that record was gone. Wired by AppModel.
     private val pairComplete: ((String, String) -> Boolean)? = null,
+    // Keep a contact request whose envelope checked out against the key it
+    // carries: (fingerprint, armored key, name, caps). Returns false when it
+    // was not kept. Null on a store that has nowhere to put one (background
+    // refresh); such a store leaves the envelope held for the next real one.
+    private val contactRequest: ((Fingerprint, String, String?, List<String>?) -> Boolean)? = null,
     // Called under the receive lock whenever an envelope from a peer opens, so
     // AppModel can clear the "waiting for them to finish pairing" state. Keep it cheap.
     private val peerSeen: ((Fingerprint) -> Unit)? = null
@@ -377,6 +382,9 @@ class ChatStore(
             // Or the responder of a pairing offer we created, announcing itself
             // before this device has its key.
             if (tryPairCompleteLocked(envelope)) return true
+            // Or someone who added this identity by its public key, asking to be
+            // added back.
+            if (tryContactRequestLocked(envelope)) return true
             // A common cause is the sender not being paired on this device, so
             // their signature can't be verified. Surface it instead of dropping
             // the message silently — and log the precise failure for wire
@@ -1468,6 +1476,9 @@ class ChatStore(
         control.caps?.let { updatePeerCaps(incoming.sender, it) }
         when (control.op) {
             "caps" -> Unit
+            // From someone who is already a contact there is nothing to ask:
+            // both sides have each other. Their caps were taken above.
+            "contact-request" -> Unit
             "mailbox-key" -> {
                 val b64 = control.mailboxKey ?: return
                 val key = try { Base64.Default.decode(b64) } catch (e: Exception) { return }
@@ -1630,6 +1641,42 @@ class ChatStore(
             lastSealedWindowRefresh = 0
             retryHeldLocked()
         }
+        return true
+    }
+
+    /** A contact request from someone this device does not know: they added
+     *  my public key and ask to be added back. The envelope is encrypted to me
+     *  and signed by a key I do not hold, so the op carries that key. Unlike the
+     *  two bootstraps above, the op is believed only if the envelope's signature
+     *  verifies under the key it carries; otherwise anyone could send a request
+     *  that carries somebody else's key and name. Returns true when the envelope
+     *  is dealt with for good (kept as a request, or never going to be one this
+     *  app accepts), false to leave it held. */
+    private fun tryContactRequestLocked(envelope: ByteArray): Boolean {
+        val keep = contactRequest ?: return false
+        val container = try { crypto.decryptOnly(envelope) } catch (e: Exception) { return false }
+        val decoded = try { CPN1.decode(container) } catch (e: Exception) { return false }
+        val manifest = try { Manifest.decode(decoded.manifest) } catch (e: Exception) { return false }
+        if (manifest.type != "control") return false
+        val part = decoded.parts.firstOrNull() ?: return false
+        val op = ControlOp.decode(part) ?: return false
+        if (op.op != "contact-request") return false
+        if (seenMessageIDs.contains(manifest.messageID)) return true
+        seenMessageIDs.add(manifest.messageID)
+        if (manifest.expiresAt <= now) return true
+        val pubkey = op.pubkey ?: return true
+        val key = com.carrierpony.core.CPContactKey.inspect(pubkey) as? com.carrierpony.core.CPContactKey.Result.Usable
+            ?: return true
+        val sender = Fingerprint.from(key.fingerprint) ?: return true
+        if (sender == identity) return true
+        val signer = PublicKey(sender, key.armoredPublicKey)
+        val verified = try { crypto.decryptAndVerify(envelope, signer) } catch (e: Exception) { null }
+        if (verified == null || verified.sender != sender) {
+            diagnostics("contact-request from=${sender.hex.takeLast(8)} refused: not signed by the key it carries", null)
+            return true
+        }
+        val kept = try { keep(sender, key.armoredPublicKey, op.name, op.caps) } catch (e: Exception) { false }
+        diagnostics("contact-request from=${sender.hex.takeLast(8)} kept=$kept", null)
         return true
     }
 

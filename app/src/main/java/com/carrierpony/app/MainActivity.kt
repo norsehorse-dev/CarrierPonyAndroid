@@ -186,6 +186,7 @@ private fun Root(
     val identity by app.identity.collectAsState()
     val store by app.store.collectAsState()
     val contacts by app.contactStore.contactsFlow.collectAsState()
+    val contactRequests by app.contactRequests.requestsFlow.collectAsState()
     val awaitingPeers by app.awaitingPeers.collectAsState()
     val isLocked by app.appLock.isLocked.collectAsState()
     val onboarded by app.onboarded.collectAsState()
@@ -422,6 +423,7 @@ private fun Root(
                     onOpenGroup = { openGroup = it },
                     onUnpair = { app.contactStore.remove(it) },
                     onPair = { showingPairing = true },
+                    contactRequests = contactRequests.count { request -> contacts.none { it.fingerprint == request.fingerprint } },
                     onSettings = { showingSettings = true },
                     accounts = app.accounts(),
                     activeFingerprintHex = app.activeFingerprintHex,

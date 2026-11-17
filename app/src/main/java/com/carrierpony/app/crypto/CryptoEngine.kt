@@ -80,6 +80,16 @@ interface CryptoEngine {
     fun decryptAndVerify(message: ByteArray): VerifiedMessage
 
     /**
+     * Decrypt and verify an envelope against one given key, which need not be
+     * a contact's. For a control op that carries its sender's key (a contact
+     * request): the op is only believed if the envelope was signed by that
+     * same key. Throws as decryptAndVerify does; a signature by any other key
+     * is NoValidSignature.
+     */
+    fun decryptAndVerify(message: ByteArray, signer: PublicKey): VerifiedMessage =
+        throw CryptoException.NotImplemented()
+
+    /**
      * Decrypt to our key and enforce the integrity gate, WITHOUT verifying the
      * signer. Returns the raw plaintext. Only for self-authenticating control
      * ops (channel-subscribe) whose payload carries the sender's own public
