@@ -338,7 +338,10 @@ object CPMessenger {
                 throw CPCryptoError.NoValidSignature("Signature verification failed")
             }
 
-            return CPVerifiedMessage(claimedFingerprint, contents.literal)
+            // The sender is the identity, named by its primary key, also when a
+            // signing subkey made the signature (an imported v6 key). For a key
+            // that signs with its primary the two are the same.
+            return CPVerifiedMessage(CPKeyInfo.bytesToHex(senderRing.publicKey.fingerprint), contents.literal)
         } catch (e: CPCryptoError) {
             throw e
         } catch (e: Exception) {
@@ -404,7 +407,7 @@ object CPMessenger {
      * BouncyCastle as before.
      */
     private fun openEnvelope(message: ByteArray, ring: PGPSecretKeyRing, passphrase: String?): OpenedEnvelope {
-        CPCompositeMessage.open(message, ring)?.let { return OpenedEnvelope(it.stream, it.integrity) }
+        CPCompositeMessage.open(message, ring, passphrase)?.let { return OpenedEnvelope(it.stream, it.integrity) }
 
         val factory = BcPGPObjectFactory(PGPUtil.getDecoderStream(ByteArrayInputStream(message)))
         val encryptedList = findEncryptedDataList(factory)

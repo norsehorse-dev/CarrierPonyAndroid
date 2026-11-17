@@ -93,7 +93,7 @@ object CPCompositeMessage {
      * [CPCryptoError.DecryptionFailed]: a message addressed to a composite key
      * is never retried another way.
      */
-    fun open(message: ByteArray, ring: PGPSecretKeyRing): Opened? {
+    fun open(message: ByteArray, ring: PGPSecretKeyRing, passphrase: String? = null): Opened? {
         val binary = PGPUtil.getDecoderStream(ByteArrayInputStream(message)).readBytes()
         val split = split(binary) ?: return null
 
@@ -101,7 +101,7 @@ object CPCompositeMessage {
             ?: throw CPCryptoError.DecryptionFailed("No matching decryption key found")
         val publicMaterial = CPCompositeKeys.publicMaterial(secretSubkey.publicKey)
             ?: throw CPCryptoError.DecryptionFailed("No matching decryption key found")
-        val secretMaterial = CPCompositeKeys.secretMaterial(secretSubkey)
+        val secretMaterial = CPCompositeKeys.secretMaterial(secretSubkey, passphrase)
         val (x25519Public, _) = CPCompositeKem.splitPublic(publicMaterial)
         val ourFingerprint = secretSubkey.publicKey.fingerprint
 
