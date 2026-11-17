@@ -24,7 +24,8 @@ data class ChannelInvite(
     val f: String,       // admin fingerprint (40 hex, or 64 for v6)
     val k: String,       // admin armored public key
     val t: String?,      // optional invite token (gated channels); null = open
-    val n: String?       // channel name, optional (display only)
+    val n: String?,      // channel name, optional (display only)
+    val caps: List<String>? = null   // what the owner's app supports (PairingCaps); absent before 4.0
 ) {
     val adminFingerprint: Fingerprint? get() = Fingerprint.from(f)
 
@@ -36,6 +37,7 @@ data class ChannelInvite(
         json.put("k", k)
         if (t != null) json.put("t", t)
         if (n != null) json.put("n", n)
+        if (!caps.isNullOrEmpty()) json.put("caps", PairingCaps.toJson(caps))
         return PREFIX + base64url.encode(json.toString().toByteArray(Charsets.UTF_8))
     }
 
@@ -53,7 +55,8 @@ data class ChannelInvite(
             f = adminFingerprint.hex,
             k = adminArmoredKey,
             t = if (token.isNullOrEmpty()) null else token,
-            n = if (name.isNullOrEmpty()) null else name
+            n = if (name.isNullOrEmpty()) null else name,
+            caps = PairingCaps.current
         )
 
         /** Parse a pasted or scanned channel invite. Null for anything malformed. */
@@ -69,7 +72,8 @@ data class ChannelInvite(
                     f = json.getString("f"),
                     k = json.getString("k"),
                     t = if (json.has("t")) json.getString("t") else null,
-                    n = if (json.has("n")) json.getString("n") else null
+                    n = if (json.has("n")) json.getString("n") else null,
+                    caps = PairingCaps.fromJson(json, "caps")
                 )
                 if (invite.adminFingerprint == null) return null
                 if (!channelIdPattern.matches(invite.c)) return null

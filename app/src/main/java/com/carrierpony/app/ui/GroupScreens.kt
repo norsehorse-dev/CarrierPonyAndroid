@@ -363,6 +363,7 @@ fun GroupDetailScreen(store: ChatStore, groupID: String, contacts: List<Contact>
     var showRename by remember { mutableStateOf(false) }
     var renameDraft by remember { mutableStateOf("") }
     var showAddMembers by remember { mutableStateOf(false) }
+    var needsUpdate by remember { mutableStateOf<List<String>>(emptyList()) }
     var showLeaveConfirm by remember { mutableStateOf(false) }
     var showInvite by remember { mutableStateOf<String?>(null) }
     val clipboard = LocalClipboardManager.current
@@ -533,11 +534,28 @@ fun GroupDetailScreen(store: ChatStore, groupID: String, contacts: List<Contact>
             onAdd = { chosen ->
                 showAddMembers = false
                 if (chosen.isNotEmpty()) scope.launch {
-                    if (group.isChannel) store.addSubscribers(chosen, groupID) else store.addMembers(chosen, groupID)
+                    if (group.isChannel) store.addSubscribers(chosen, groupID)
+                    else needsUpdate = store.addMembers(chosen, groupID)
                 }
             }
         )
     }
+
+    if (needsUpdate.isNotEmpty()) {
+        MembersNeedUpdateDialog(names = needsUpdate, onDismiss = { needsUpdate = emptyList() })
+    }
+}
+
+/** Shown when a group cannot be made or grown yet: it would include a v6
+ *  identity, and the people named are on an app from before 4.0. */
+@Composable
+internal fun MembersNeedUpdateDialog(names: List<String>, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.group_needs_update_title)) },
+        text = { Text(stringResource(R.string.group_needs_update_body, names.joinToString(", "))) },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_dismiss)) } }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

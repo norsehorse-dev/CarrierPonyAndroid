@@ -130,6 +130,8 @@ fun ConversationListScreen(
     var showingNewGroup by remember { mutableStateOf(false) }
     var showingNewChannel by remember { mutableStateOf(false) }
     var showingSubscribe by remember { mutableStateOf(false) }
+    var needsUpdate by remember { mutableStateOf<List<String>>(emptyList()) }
+    var channelNeedsUpdate by remember { mutableStateOf(false) }
     var showingComposeMenu by remember { mutableStateOf(false) }
     var pendingUnpair by remember { mutableStateOf<Fingerprint?>(null) }
     var showingAccounts by remember { mutableStateOf(false) }
@@ -322,7 +324,7 @@ fun ConversationListScreen(
             onDismiss = { showingNewGroup = false },
             onCreate = { name, members ->
                 showingNewGroup = false
-                scope.launch { store.createGroup(name, members) }
+                scope.launch { needsUpdate = store.createGroup(name, members) }
             }
         )
     }
@@ -357,13 +359,30 @@ fun ConversationListScreen(
             confirmButton = {
                 TextButton(onClick = {
                     val invite = com.carrierpony.app.pairing.ChannelInvite.decode(pasted.trim())
-                    if (invite == null) bad = true else {
+                    if (invite == null) bad = true
+                    else if (store.channelOwnerNeedsUpdate(invite)) {
+                        showingSubscribe = false
+                        channelNeedsUpdate = true
+                    } else {
                         showingSubscribe = false
                         scope.launch { store.subscribeToChannel(invite) }
                     }
                 }) { Text(stringResource(R.string.channel_subscribe)) }
             },
             dismissButton = { TextButton(onClick = { showingSubscribe = false }) { Text(stringResource(R.string.common_cancel)) } }
+        )
+    }
+
+    if (needsUpdate.isNotEmpty()) {
+        MembersNeedUpdateDialog(names = needsUpdate, onDismiss = { needsUpdate = emptyList() })
+    }
+
+    if (channelNeedsUpdate) {
+        AlertDialog(
+            onDismissRequest = { channelNeedsUpdate = false },
+            title = { Text(stringResource(R.string.group_needs_update_title)) },
+            text = { Text(stringResource(R.string.channel_needs_update)) },
+            confirmButton = { TextButton(onClick = { channelNeedsUpdate = false }) { Text(stringResource(R.string.common_dismiss)) } }
         )
     }
 

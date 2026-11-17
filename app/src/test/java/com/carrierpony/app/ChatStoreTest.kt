@@ -31,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
+import com.carrierpony.app.pairing.ChannelInvite
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.After
@@ -173,7 +174,8 @@ class ChatStoreTest {
         multiDevice: Boolean = true,
         contactNames: MutableMap<String, String?> = mutableMapOf(),
         dir: File = workDir,
-        contactCaps: MutableMap<String, List<String>> = mutableMapOf()
+        contactCaps: MutableMap<String, List<String>> = mutableMapOf(),
+        contactList: List<Contact>? = null
     ): ChatStore {
         val crypto = engine(own, knows)
         val relay = RelayClient("http://127.0.0.1:${server.address.port}", crypto, deviceID)
@@ -181,7 +183,7 @@ class ChatStoreTest {
             identity = Fingerprint.from(own.fingerprint)!!,
             relay = relay,
             crypto = crypto,
-            contacts = { knows.map { contact(it) } },
+            contacts = { contactList ?: knows.map { contact(it) } },
             multiDevice = multiDevice,
             updatePeerName = { fpr, name -> contactNames[fpr.hex] = name },
             updatePeerCaps = { fpr, caps -> contactCaps[fpr.hex] = caps },
@@ -364,6 +366,60 @@ class ChatStoreTest {
         // No caps field is written when there is nothing to say.
         val bare = ChatStore.ControlOp(op = "delete", targetMessageID = "X", at = 1L)
         assertFalse(JSONObject(String(bare.encoded(), Charsets.UTF_8)).has("caps"))
+    }
+
+    // ── Groups and channels with a v6 identity ─────────────────────────
+
+    @Test
+    fun aGroupWithAV6MemberIsRefusedUntilEveryoneIsOnFour() = runBlocking {
+        val six = CPIdentityGenerator.generateV6Identity("Six", "six@carrierpony.com")
+        val bobOld = contact(bob, name = "Bob")
+        val sixContact = contact(six, name = "Six")
+
+        // Bob has not said what his app supports: he is named, and nothing is created.
+        val before = store(alice, knows = listOf(bob, six), deviceID = "a".repeat(32), contactList = listOf(bobOld, sixContact))
+        assertEquals(listOf("Bob"), before.createGroup("Stable", listOf(bobOld, sixContact)))
+        assertTrue(before.groups.value.isEmpty())
+
+        // Without the v6 member the same group was always fine.
+        assertTrue(before.createGroup("Stable", listOf(bobOld)).isEmpty())
+
+        // Once Bob's app has said it supports v6, nobody is named.
+        val bobNew = bobOld.copy(caps = listOf("v6"))
+        val after = store(alice, knows = listOf(bob, six), deviceID = "a".repeat(32), contactList = listOf(bobNew, sixContact))
+        assertTrue(after.createGroup("Stable", listOf(bobNew, sixContact)).isEmpty())
+    }
+
+    @Test
+    fun aV6CreatorCannotAddSomeoneWhoHasNotSaidTheySupportIt() = runBlocking {
+        val six = CPIdentityGenerator.generateV6Identity("Six", "six@carrierpony.com")
+        val bobOld = contact(bob, name = "Bob")
+        val sixStore = store(six, knows = listOf(bob), deviceID = "d".repeat(32), contactList = listOf(bobOld))
+        assertEquals(listOf("Bob"), sixStore.createGroup("Stable", listOf(bobOld)))
+    }
+
+    @Test
+    fun aV6IdentityDoesNotSubscribeToAChannelWhoseOwnerIsBeforeFour() = runBlocking {
+        val six = CPIdentityGenerator.generateV6Identity("Six", "six@carrierpony.com")
+        val channel = "00112233445566778899aabbccddeeff"
+        val current = ChannelInvite.create(channel, Fingerprint.from(alice.fingerprint)!!, alice.armoredPublicKey, null, "News")
+        assertEquals(listOf("v6"), current.caps)
+        val old = current.copy(caps = null)
+
+        val sixStore = store(six, knows = emptyList(), deviceID = "d".repeat(32))
+        assertTrue(sixStore.channelOwnerNeedsUpdate(old))
+        assertFalse(sixStore.channelOwnerNeedsUpdate(current))
+        assertFalse(sixStore.subscribeToChannel(old))
+
+        // A v4 identity subscribes to either.
+        val bobStore = store(bob, knows = emptyList(), deviceID = "b".repeat(32))
+        assertFalse(bobStore.channelOwnerNeedsUpdate(old))
+        assertFalse(bobStore.channelOwnerNeedsUpdate(current))
+
+        // The caps survive the invite's wire form, and an older app's invite has none.
+        assertEquals(listOf("v6"), ChannelInvite.decode(current.encoded())!!.caps)
+        assertNull(ChannelInvite.decode(old.encoded())!!.caps)
+        assertEquals(channel, ChannelInvite.decode(old.encoded())!!.c)
     }
 
     @Test

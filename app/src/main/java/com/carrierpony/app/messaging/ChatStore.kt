@@ -1489,12 +1489,21 @@ class ChatStore(
         return ChannelInvite.create(groupID, identity, mine.armored, token, group.name).encoded()
     }
 
+    /** True when this identity is v6 and the channel's owner is on an app from
+     *  before 4.0, which could neither read the subscribe request nor be read by
+     *  a v6 subscriber. Screens ask this first so they can say why. */
+    fun channelOwnerNeedsUpdate(invite: ChannelInvite): Boolean {
+        val owner = invite.adminFingerprint ?: return false
+        return !PairingCaps.canPair(identity, owner, invite.caps)
+    }
+
     /** Subscriber side: subscribe from an invite. Adds the admin as a contact so
      *  we can verify the posts it sends back, then seals a channel-subscribe to
      *  it. The channel appears once the admin returns its key. */
     suspend fun subscribeToChannel(invite: ChannelInvite): Boolean {
         val admin = PairingSupport.consistentContact(invite.f, invite.k, TrustLevel.UNVERIFIED) ?: return false
         if (admin.fingerprint == identity) return false
+        if (channelOwnerNeedsUpdate(invite)) return false
         // Only add the admin if we do not already know them; never overwrite an
         // existing contact (that renames the existing conversation).
         if (contacts().none { it.fingerprint == admin.fingerprint }) addContact(admin)
@@ -1820,9 +1829,32 @@ class ChatStore(
 
     /** Create a group, generate the epoch-0 key, and distribute the key + roster
      *  to every member. The creator is the first admin. */
-    suspend fun createGroup(name: String, members: List<Contact>) {
-        val gk = groupKeys ?: return
-        val mine = ownPublicKey() ?: return
+    /** The names of the roster's members who must update to 4.0 before it can be
+     *  a group (GroupRules). Empty when the roster is fine. */
+    private fun rosterNeedingUpdate(roster: List<GroupMember>): List<String> {
+        val known = contacts().associateBy { it.fingerprint }
+        val members = roster.map { member ->
+            if (member.fingerprint == identity) {
+                GroupRules.Member(identity, PairingCaps.current, "")
+            } else {
+                val contact = known[member.fingerprint]
+                val label = contact?.displayName ?: member.name ?: member.fingerprint.hex.takeLast(8)
+                GroupRules.Member(member.fingerprint, contact?.caps, label)
+            }
+        }
+        return GroupRules.needingUpdate(members).map { it.label }
+    }
+
+    /** Create a group. Returns the names of anyone who must update first, in
+     *  which case nothing was created; an empty list means it went ahead. */
+    suspend fun createGroup(name: String, members: List<Contact>): List<String> {
+        val blocked = rosterNeedingUpdate(
+            listOf(GroupMember(identity, "", null, true)) +
+                members.map { GroupMember(it.fingerprint, it.publicKey.armored, it.name, false) }
+        )
+        if (blocked.isNotEmpty()) return blocked
+        val gk = groupKeys ?: return emptyList()
+        val mine = ownPublicKey() ?: return emptyList()
         val roster = mutableListOf(GroupMember(identity, mine.armored, contactName(identity), true))
         for (c in members) roster.add(GroupMember(c.fingerprint, c.publicKey.armored, c.name, false))
         val groupID = ChatGroup.newID()
@@ -1839,6 +1871,7 @@ class ChatStore(
         // to an unregistered mailbox, which the relay accepts and drops.
         lastSealedWindowRefresh = 0
         distributeGroupKey(group, key)
+        return emptyList()
     }
 
     /** Create a broadcast channel: like a group, but the creator is the sole admin
@@ -1888,16 +1921,20 @@ class ChatStore(
         for (c in additions) sendGroupKey(payload, c.publicKey, c.fingerprint)
     }
 
-    /** Admin only: add paired contacts, rekey, and redistribute to all. */
-    suspend fun addMembers(contacts: List<Contact>, groupID: String) {
-        val gk = groupKeys ?: return
-        val group = _groups.value[groupID] ?: return
-        if (!group.isAdmin(identity)) return
+    /** Admin only: add paired contacts, rekey, and redistribute to all. Returns
+     *  the names of anyone, already in the group or being added, who must update
+     *  first, in which case nothing changed; an empty list means it went ahead. */
+    suspend fun addMembers(contacts: List<Contact>, groupID: String): List<String> {
+        val group = _groups.value[groupID] ?: return emptyList()
+        if (!group.isAdmin(identity)) return emptyList()
         val present = group.members.map { it.fingerprint.hex }.toSet()
         val additions = contacts
             .filter { it.fingerprint.hex !in present }
             .map { GroupMember(it.fingerprint, it.publicKey.armored, it.name, false) }
-        if (additions.isEmpty()) return
+        if (additions.isEmpty()) return emptyList()
+        val blocked = rosterNeedingUpdate(group.members + additions)
+        if (blocked.isNotEmpty()) return blocked
+        val gk = groupKeys ?: return emptyList()
         val newEpoch = group.epoch + 1
         val updated = group.copy(members = group.members + additions, epoch = newEpoch)
         val key = gk.newKey()
@@ -1908,6 +1945,7 @@ class ChatStore(
         }
         lastSealedWindowRefresh = 0
         distributeGroupKey(updated, key)
+        return emptyList()
     }
 
     /** Admin only: remove a member (not yourself), rekey, and redistribute to the

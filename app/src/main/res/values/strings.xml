@@ -98,6 +98,9 @@
     <string name="group_empty">No messages yet. Say hello to the group.</string>
     <string name="group_rename">Rename group</string>
     <string name="group_add_members">Add members</string>
+    <string name="group_needs_update_title">Update needed first</string>
+    <string name="group_needs_update_body">This group would include someone with a new 4.0 identity, which older versions of CarrierPony can\'t see. Ask these people to update to version 4.0 or later: %1$s. If they already have, try again once they\'ve been online.</string>
+    <string name="channel_needs_update">This channel\'s owner is on an older CarrierPony. Ask them to update to version 4.0 or later, then subscribe again.</string>
     <string name="group_admin">Admin</string>
     <string name="group_remove">Remove</string>
     <string name="group_add">Add</string>
