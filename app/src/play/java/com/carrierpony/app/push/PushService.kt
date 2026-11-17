@@ -57,6 +57,12 @@ class PushService : FirebaseMessagingService() {
         when {
             handledLive -> android.util.Log.i("CarrierPony", "wake handled live (foreground refresh)")
             silent -> android.util.Log.i("CarrierPony", "silent wake; banner suppressed")
+            // The relay says when a wake is for a contact request. That is all
+            // it says: who asked stays inside the envelope.
+            message.data["kind"] == "request" -> {
+                android.util.Log.i("CarrierPony", "posting contact request notification")
+                PushNotifier.postContactRequestNotification(this)
+            }
             else -> {
                 android.util.Log.i("CarrierPony", "posting generic notification")
                 PushNotifier.postGenericNotification(this)

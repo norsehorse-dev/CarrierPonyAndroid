@@ -927,7 +927,10 @@ class ChatStore(
         val messageID = UUID.randomUUID().toString().uppercase()
         mutex.withLock { seenMessageIDs.add(messageID) }
         val envelope = buildControl(controlMessage, to.publicKey, messageID)
-        deliverToPeer(envelope, to.fingerprint, controlMessage.expiresAt, silent = false)
+        // Straight to the relay by fingerprint: there is no sealed address or
+        // direct path to someone who is not a contact yet, and this is the call
+        // that can say the deposit is a contact request.
+        relay.send(envelope, to.fingerprint, controlMessage.expiresAt, silent = false, kind = "request")
     }
 
     /** Responder side of remote pairing: tell the offerer we accepted, carrying our

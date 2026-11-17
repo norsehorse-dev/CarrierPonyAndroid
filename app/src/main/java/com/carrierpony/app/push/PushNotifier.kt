@@ -42,7 +42,16 @@ object PushNotifier {
 
     /** Post the single generic wake banner. Silently skips if POST_NOTIFICATIONS
      *  is not granted (Android 13+). */
-    fun postGenericNotification(context: Context) {
+    fun postGenericNotification(context: Context) =
+        post(context, context.getString(com.carrierpony.app.R.string.push_body))
+
+    /** The banner for a contact request that arrived while the app was in the
+     *  background. It says only that someone asked, never who: the name and
+     *  key stay inside the app. Takes the place of the generic banner. */
+    fun postContactRequestNotification(context: Context) =
+        post(context, context.getString(com.carrierpony.app.R.string.inbox_contact_requests))
+
+    private fun post(context: Context, text: String) {
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -58,7 +67,7 @@ object PushNotifier {
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_email)
             .setContentTitle(context.getString(com.carrierpony.app.R.string.app_name))
-            .setContentText(context.getString(com.carrierpony.app.R.string.push_body))
+            .setContentText(text)
             .setAutoCancel(true)
             .setContentIntent(pending)
             .build()

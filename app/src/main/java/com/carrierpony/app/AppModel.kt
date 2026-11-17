@@ -98,6 +98,9 @@ class AppModel(context: Context) {
     val contactStore = ContactStore(appContext.filesDir)
     /** Requests from people who added this identity by its public key. */
     val contactRequests = ContactRequestStore(appContext.filesDir)
+    // Set when a fetch keeps a new contact request, so a background wake can
+    // word its banner for it.
+    private val requestArrived = java.util.concurrent.atomic.AtomicBoolean(false)
     val appLock = LockManager.get(appContext)
 
     // LAN-direct discovery (2.1 M2): advertise this device on the local
@@ -183,8 +186,15 @@ class AppModel(context: Context) {
                     }
                     else -> {
                         scope.launch {
+                            requestArrived.set(false)
                             withTimeoutOrNull(8_000) { live.refresh() }
-                            if (!silent && !inForeground) PushNotifier.postGenericNotification(appContext)
+                            // A contact request that came in on this fetch gets its own
+                            // wording; a silent wake that carried one still announces it.
+                            val request = requestArrived.getAndSet(false)
+                            if (!inForeground) {
+                                if (request) PushNotifier.postContactRequestNotification(appContext)
+                                else if (!silent) PushNotifier.postGenericNotification(appContext)
+                            }
                         }
                         true
                     }
@@ -1241,7 +1251,9 @@ class AppModel(context: Context) {
             pairingSweep = { sweepPendingInvites() },
             pairComplete = { token, pubkey -> completeInviteFromPeer(token, pubkey) },
             contactRequest = { fingerprint, armored, name, caps ->
-                contactRequests.add(ContactRequest(fingerprint, armored, name, caps, System.currentTimeMillis() / 1000))
+                val kept = contactRequests.add(ContactRequest(fingerprint, armored, name, caps, System.currentTimeMillis() / 1000))
+                if (kept) requestArrived.set(true)
+                kept
             },
             peerSeen = { fpr -> if (fpr.hex in _awaitingPeers.value) setAwaiting(fpr.hex, false) },
             lanTransport = com.carrierpony.app.messaging.LanDirectTransport(lanDiscovery),

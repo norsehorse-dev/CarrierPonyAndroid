@@ -51,7 +51,9 @@ class RelayClient(
 
     // ── Messaging ──────────────────────────────────────────────────────
 
-    suspend fun send(envelope: ByteArray, to: Fingerprint, expiresAt: Long, silent: Boolean = false): SendResponse {
+    suspend fun send(
+        envelope: ByteArray, to: Fingerprint, expiresAt: Long, silent: Boolean = false, kind: String? = null
+    ): SendResponse {
         val body = authBody()
         body.put("to_fpr", to.hex)
         body.put("envelope", Base64.Default.encode(envelope))
@@ -60,6 +62,10 @@ class RelayClient(
         // (no alert), so read receipts, profile syncs and multi-device echoes
         // don't buzz the recipient. Real messages leave this false.
         if (silent) body.put("silent", true)
+        // "request" marks a contact request, so the relay can word the push for
+        // it. The relay learns nothing else from it: this route already shows it
+        // who is writing to whom. A relay that does not know the field ignores it.
+        if (kind != null) body.put("kind", kind)
         return SendResponse.from(post("/v1/send", body))
     }
 
