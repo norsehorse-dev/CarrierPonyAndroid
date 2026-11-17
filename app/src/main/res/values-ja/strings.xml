@@ -74,6 +74,17 @@
     <string name="settings_backup">アイデンティティをバックアップ</string>
     <string name="settings_restore">バックアップから復元</string>
     <string name="settings_import_key">鍵をインポート</string>
+    <string name="settings_this_account">このアカウント</string>
+    <string name="settings_edit_profile_hint">ペアリングやメッセージの相手に表示される名前です</string>
+    <string name="settings_pair_with_hint">対面、招待、公開鍵で連絡先を追加します</string>
+    <string name="settings_backup_hint">アイデンティティの暗号化コピーを保存します</string>
+    <string name="settings_restore_hint">バックアップからアイデンティティを復元します</string>
+    <string name="settings_import_key_hint">お持ちのOpenPGP鍵を使用します</string>
+    <string name="settings_app_lock_hint">指紋または顔でアプリのロックを解除します</string>
+    <string name="settings_send_feedback_hint">メールアプリが開きます</string>
+    <string name="settings_reset_onboarding_hint">初期設定をもう一度表示します。データは消去されません。</string>
+    <string name="settings_sign_out_hint">このアイデンティティとその鍵をこのデバイスから削除します</string>
+    <string name="settings_reset_app_hint">アイデンティティ、連絡先、メッセージ、ファイル、設定を消去します</string>
     <string name="settings_security">セキュリティ</string>
     <string name="settings_app_lock">アプリロック</string>
     <string name="settings_language">言語</string>

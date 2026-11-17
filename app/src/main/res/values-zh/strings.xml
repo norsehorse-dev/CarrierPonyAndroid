@@ -74,6 +74,17 @@
     <string name="settings_backup">备份身份</string>
     <string name="settings_restore">从备份恢复</string>
     <string name="settings_import_key">导入密钥</string>
+    <string name="settings_this_account">此账户</string>
+    <string name="settings_edit_profile_hint">配对或发消息时对方看到的名称</string>
+    <string name="settings_pair_with_hint">当面、通过邀请或通过公钥添加联系人</string>
+    <string name="settings_backup_hint">保存一份加密的身份副本</string>
+    <string name="settings_restore_hint">从备份中找回身份</string>
+    <string name="settings_import_key_hint">使用你已有的 OpenPGP 密钥</string>
+    <string name="settings_app_lock_hint">使用指纹或面部解锁应用</string>
+    <string name="settings_send_feedback_hint">将打开你的邮件应用</string>
+    <string name="settings_reset_onboarding_hint">再次显示引导。不会清除任何数据。</string>
+    <string name="settings_sign_out_hint">从此设备移除此身份及其密钥</string>
+    <string name="settings_reset_app_hint">清除你的身份、联系人、消息、文件和设置</string>
     <string name="settings_security">安全</string>
     <string name="settings_app_lock">应用锁</string>
     <string name="settings_language">语言</string>

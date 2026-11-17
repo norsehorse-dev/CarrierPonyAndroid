@@ -74,6 +74,17 @@
     <string name="settings_backup">Copia de seguridad de la identidad</string>
     <string name="settings_restore">Restaurar desde copia</string>
     <string name="settings_import_key">Importar una clave</string>
+    <string name="settings_this_account">Esta cuenta</string>
+    <string name="settings_edit_profile_hint">El nombre que ven los demás cuando te emparejas o les escribes</string>
+    <string name="settings_pair_with_hint">Añade un contacto en persona, por invitación o con clave pública</string>
+    <string name="settings_backup_hint">Guarda una copia cifrada de tu identidad</string>
+    <string name="settings_restore_hint">Recupera una identidad desde una copia de seguridad</string>
+    <string name="settings_import_key_hint">Usa una clave OpenPGP que ya tengas</string>
+    <string name="settings_app_lock_hint">Desbloquea la app con tu huella o tu cara</string>
+    <string name="settings_send_feedback_hint">Abre tu app de correo</string>
+    <string name="settings_reset_onboarding_hint">Muestra de nuevo la introducción. No se borra nada.</string>
+    <string name="settings_sign_out_hint">Quita esta identidad y sus claves de este dispositivo</string>
+    <string name="settings_reset_app_hint">Borra tu identidad, contactos, mensajes, archivos y ajustes</string>
     <string name="settings_security">Seguridad</string>
     <string name="settings_app_lock">Bloqueo de la app</string>
     <string name="settings_language">Idioma</string>

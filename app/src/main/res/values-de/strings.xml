@@ -74,6 +74,17 @@
     <string name="settings_backup">Identität sichern</string>
     <string name="settings_restore">Aus Sicherung wiederherstellen</string>
     <string name="settings_import_key">Schlüssel importieren</string>
+    <string name="settings_this_account">Dieses Konto</string>
+    <string name="settings_edit_profile_hint">Der Name, den andere beim Koppeln und in Nachrichten sehen</string>
+    <string name="settings_pair_with_hint">Kontakt persönlich, per Einladung oder per öffentlichem Schlüssel hinzufügen</string>
+    <string name="settings_backup_hint">Eine verschlüsselte Kopie deiner Identität speichern</string>
+    <string name="settings_restore_hint">Eine Identität aus einer Sicherung zurückholen</string>
+    <string name="settings_import_key_hint">Einen OpenPGP-Schlüssel verwenden, den du schon hast</string>
+    <string name="settings_app_lock_hint">Die App per Fingerabdruck oder Gesicht entsperren</string>
+    <string name="settings_send_feedback_hint">Öffnet deine E-Mail-App</string>
+    <string name="settings_reset_onboarding_hint">Die Einführung erneut anzeigen. Es wird nichts gelöscht.</string>
+    <string name="settings_sign_out_hint">Diese Identität und ihre Schlüssel von diesem Gerät entfernen</string>
+    <string name="settings_reset_app_hint">Deine Identität, Kontakte, Nachrichten, Dateien und Einstellungen löschen</string>
     <string name="settings_security">Sicherheit</string>
     <string name="settings_app_lock">App-Sperre</string>
     <string name="settings_language">Sprache</string>

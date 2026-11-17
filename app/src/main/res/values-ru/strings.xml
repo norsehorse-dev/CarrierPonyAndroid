@@ -74,6 +74,17 @@
     <string name="settings_backup">Резервная копия личности</string>
     <string name="settings_restore">Восстановить из копии</string>
     <string name="settings_import_key">Импортировать ключ</string>
+    <string name="settings_this_account">Этот аккаунт</string>
+    <string name="settings_edit_profile_hint">Имя, которое видят люди при сопряжении и переписке с вами</string>
+    <string name="settings_pair_with_hint">Добавьте контакт лично, по приглашению или по открытому ключу</string>
+    <string name="settings_backup_hint">Сохраните зашифрованную копию своей личности</string>
+    <string name="settings_restore_hint">Восстановите личность из резервной копии</string>
+    <string name="settings_import_key_hint">Используйте ключ OpenPGP, который у вас уже есть</string>
+    <string name="settings_app_lock_hint">Разблокируйте приложение отпечатком пальца или лицом</string>
+    <string name="settings_send_feedback_hint">Откроется ваше почтовое приложение</string>
+    <string name="settings_reset_onboarding_hint">Пройдите знакомство заново. Ничего не будет удалено.</string>
+    <string name="settings_sign_out_hint">Удалите эту личность и её ключи с этого устройства</string>
+    <string name="settings_reset_app_hint">Удалите свою личность, контакты, сообщения, файлы и настройки</string>
     <string name="settings_security">Безопасность</string>
     <string name="settings_app_lock">Блокировка приложения</string>
     <string name="settings_language">Язык</string>

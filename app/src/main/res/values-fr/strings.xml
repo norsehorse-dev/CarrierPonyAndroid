@@ -74,6 +74,17 @@
     <string name="settings_backup">Sauvegarder l\'identité</string>
     <string name="settings_restore">Restaurer une sauvegarde</string>
     <string name="settings_import_key">Importer une clé</string>
+    <string name="settings_this_account">Ce compte</string>
+    <string name="settings_edit_profile_hint">Le nom que les autres voient lors d\'un jumelage ou dans vos messages</string>
+    <string name="settings_pair_with_hint">Ajoutez un contact en personne, par invitation ou par clé publique</string>
+    <string name="settings_backup_hint">Enregistrez une copie chiffrée de votre identité</string>
+    <string name="settings_restore_hint">Récupérez une identité à partir d\'une sauvegarde</string>
+    <string name="settings_import_key_hint">Utilisez une clé OpenPGP que vous avez déjà</string>
+    <string name="settings_app_lock_hint">Déverrouillez l\'app avec votre empreinte ou votre visage</string>
+    <string name="settings_send_feedback_hint">Ouvre votre application e-mail</string>
+    <string name="settings_reset_onboarding_hint">Revoyez l\'introduction. Rien n\'est effacé.</string>
+    <string name="settings_sign_out_hint">Supprimez cette identité et ses clés de cet appareil</string>
+    <string name="settings_reset_app_hint">Effacez votre identité, vos contacts, messages, fichiers et réglages</string>
     <string name="settings_security">Sécurité</string>
     <string name="settings_app_lock">Verrouillage de l\'app</string>
     <string name="settings_language">Langue</string>
