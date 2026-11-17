@@ -34,3 +34,7 @@
 -dontwarn com.google.crypto.tink.**
 -dontwarn com.google.errorprone.annotations.**
 -dontwarn javax.annotation.**
+
+# OpenPGP API (pick a public key from a key app). The key app's error object
+# is unparcelled by class name, so these names must stay as they are.
+-keep class org.openintents.openpgp.** { *; }

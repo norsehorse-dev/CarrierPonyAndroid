@@ -54,6 +54,8 @@ import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -944,8 +946,7 @@ private fun AddByKeyView(
 
     // A key from another app is checked and shown in the box. Adding it is
     // still the person's own tap.
-    LaunchedEffect(incoming) {
-        val bytes = incoming ?: return@LaunchedEffect
+    suspend fun load(bytes: ByteArray) {
         val result = if (bytes.isEmpty()) null else withContext(Dispatchers.Default) { CPContactKey.inspect(bytes) }
         when (result) {
             null -> { text = ""; error = strFile }
@@ -954,7 +955,64 @@ private fun AddByKeyView(
             CPContactKey.Result.NotAKey -> { text = ""; error = strNotKey }
             CPContactKey.Result.Unsupported -> { text = ""; error = strUnsupported }
         }
+    }
+
+    LaunchedEffect(incoming) {
+        val bytes = incoming ?: return@LaunchedEffect
+        load(bytes)
         onIncomingLoaded()
+    }
+
+    // Pick from a key app: the key app shows its own picker (and, the first
+    // time, its own "allow this app" prompt), then hands back one public key.
+    val keyApps = remember { KeyApps.installed(context) }
+    var keyAppMenu by remember { mutableStateOf(false) }
+    var pickingFrom by remember { mutableStateOf<KeyApp?>(null) }
+    var keyAppScreens by remember { mutableStateOf(0) }
+    // Filled in below, once the launcher exists: the launcher's result runs
+    // pick(), and pick() opens the launcher.
+    val showKeyAppScreen = remember { arrayOfNulls<(android.app.PendingIntent) -> Unit>(1) }
+
+    suspend fun pick(app: KeyApp, request: android.content.Intent) {
+        working = true
+        try {
+            when (val outcome = KeyApps.fetch(context, app.packageName, request)) {
+                is KeyApps.Outcome.Key -> load(outcome.bytes)
+                is KeyApps.Outcome.NeedsUser -> {
+                    // An access prompt and then the picker is two screens. More
+                    // than a few means the key app is going in circles.
+                    if (keyAppScreens >= 4) {
+                        error = context.getString(R.string.pair_key_err_key_app, app.label)
+                    } else {
+                        keyAppScreens += 1
+                        pickingFrom = app
+                        showKeyAppScreen[0]?.invoke(outcome.intent)
+                    }
+                }
+                // Closing the picker comes back as a cancelled screen, not here.
+                // An answer with no key means the key app had none to give.
+                KeyApps.Outcome.NothingChosen,
+                KeyApps.Outcome.Failed -> error = context.getString(R.string.pair_key_err_key_app, app.label)
+            }
+        } finally {
+            working = false
+        }
+    }
+
+    val keyAppLauncher = rememberLockSafeLauncher(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        val app = pickingFrom ?: return@rememberLockSafeLauncher
+        if (result.resultCode != android.app.Activity.RESULT_OK) return@rememberLockSafeLauncher
+        // The screen returns the request to run next. A key app that returns
+        // nothing gets the first request again.
+        val next = result.data?.takeIf { it.action != null } ?: KeyApps.pickRequest()
+        scope.launch { pick(app, next) }
+    }
+    showKeyAppScreen[0] = { intent ->
+        try {
+            keyAppLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(intent.intentSender).build())
+        } catch (e: Exception) {
+            error = context.getString(R.string.pair_key_err_key_app, pickingFrom?.label.orEmpty())
+        }
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
@@ -1001,6 +1059,35 @@ private fun AddByKeyView(
                 onClick = { text = ""; error = null },
                 enabled = text.isNotEmpty()
             ) { Text(stringResource(R.string.common_clear)) }
+        }
+        if (keyApps.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Box {
+                OutlinedButton(
+                    onClick = {
+                        error = null
+                        keyAppScreens = 0
+                        if (keyApps.size == 1) {
+                            scope.launch { pick(keyApps[0], KeyApps.pickRequest()) }
+                        } else {
+                            keyAppMenu = true
+                        }
+                    },
+                    enabled = !working,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(stringResource(R.string.pair_key_pick_app)) }
+                DropdownMenu(expanded = keyAppMenu, onDismissRequest = { keyAppMenu = false }) {
+                    keyApps.forEach { keyApp ->
+                        DropdownMenuItem(
+                            text = { Text(keyApp.label) },
+                            onClick = {
+                                keyAppMenu = false
+                                scope.launch { pick(keyApp, KeyApps.pickRequest()) }
+                            }
+                        )
+                    }
+                }
+            }
         }
         Spacer(Modifier.height(16.dp))
         Button(

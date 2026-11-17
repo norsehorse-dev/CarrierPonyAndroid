@@ -94,6 +94,9 @@ android {
     }
     buildFeatures {
         compose = true
+        // The OpenPGP API contract (src/main/aidl) for picking a contact's
+        // public key from a key app. AGP 8 leaves aidl off by default.
+        aidl = true
     }
 }
 
