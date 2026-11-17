@@ -170,7 +170,7 @@
     <string name="pair_demo_needs_identity">Сначала создайте личность, затем попробуйте демокод снова.</string>
     <string name="pair_couldnt_pair_invite">Не удалось связаться. Проверьте приглашение и соединение.</string>
     <string name="pair_couldnt_pair">Не удалось связаться. Проверьте соединение и попробуйте ещё раз.</string>
-    <string name="pair_peer_needs_update">У этого контакта более старая версия CarrierPony. Попросите его обновиться до версии 4.0 или новее, затем свяжитесь снова.</string>
+    <string name="pair_peer_needs_update">У этого контакта более старая версия CarrierPony. Попросите его обновиться до версии 4.0 или новее, затем выполните сопряжение заново.</string>
     <string name="pair_needs_4_0_note">Чтобы использовать этот код, другому человеку нужен CarrierPony 4.0 или новее.</string>
     <string name="pair_paired_with">Связано с %1$s</string>
     <string name="pair_name_contact">Назовите этот контакт</string>
