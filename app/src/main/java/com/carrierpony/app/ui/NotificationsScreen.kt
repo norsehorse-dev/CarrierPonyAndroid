@@ -18,12 +18,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,7 +44,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.carrierpony.app.AppConfig
 import com.carrierpony.app.R
@@ -99,104 +100,65 @@ fun NotificationsScreen(onBack: () -> Unit) {
         }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState())) {
-            SectionHeading(stringResource(R.string.notif_heading_mode))
             val status = when {
                 mode == PushMode.FCM -> stringResource(R.string.notif_mode_fcm)
                 mode == PushMode.UNIFIED_PUSH && currentLabel != null -> stringResource(R.string.notif_mode_up, currentLabel)
                 currentLabel != null && gatewayUsable -> stringResource(R.string.notif_mode_pending, currentLabel)
                 else -> stringResource(R.string.notif_mode_check)
             }
-            BodyText(status)
+            SettingsPanel(stringResource(R.string.notif_heading_mode)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)
+                ) {
+                    Icon(Icons.Default.Notifications, contentDescription = null, tint = CPTheme.accent, modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(16.dp))
+                    Text(status, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                }
+            }
 
             if (PushSupport.supportsChoice) {
-                SectionHeading(stringResource(R.string.notif_heading_service))
-                if (!gatewayUsable) {
-                    NoteText(stringResource(R.string.notif_gateway_needed))
-                }
-                for (d in distributors) {
+                SettingsPanel(stringResource(R.string.notif_heading_service)) {
+                    for (d in distributors) {
+                        ChoiceRow(
+                            label = d.label,
+                            selected = current == d.packageName,
+                            onSelect = {
+                                PushSupport.useDistributor(context, d.packageName)
+                                tick++
+                            }
+                        )
+                        PanelDivider()
+                    }
                     ChoiceRow(
-                        label = d.label,
-                        selected = current == d.packageName,
+                        label = stringResource(R.string.notif_option_none),
+                        selected = current == null,
                         onSelect = {
-                            PushSupport.useDistributor(context, d.packageName)
+                            PushSupport.useBackgroundCheck(context)
                             tick++
                         }
                     )
                 }
-                ChoiceRow(
-                    label = stringResource(R.string.notif_option_none),
-                    selected = current == null,
-                    onSelect = {
-                        PushSupport.useBackgroundCheck(context)
-                        tick++
-                    }
-                )
-                if (distributors.isEmpty()) {
-                    NoteText(stringResource(R.string.notif_none_installed))
-                }
-                if (current != null) {
-                    NoteText(stringResource(R.string.notif_privacy_up))
-                }
+                if (!gatewayUsable) PanelNote(stringResource(R.string.notif_gateway_needed))
+                if (distributors.isEmpty()) PanelNote(stringResource(R.string.notif_none_installed))
+                if (current != null) PanelNote(stringResource(R.string.notif_privacy_up))
             }
 
-            Spacer(Modifier.padding(top = 12.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        try {
-                            context.startActivity(
-                                Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
-                            )
-                        } catch (e: Exception) {
-                            // No settings activity for this; nothing else to offer.
-                        }
+            SettingsPanel {
+                PanelRow(PanelItem(Icons.Default.Settings, stringResource(R.string.notif_system_settings), end = RowEnd.EXTERNAL) {
+                    try {
+                        context.startActivity(
+                            Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        )
+                    } catch (e: Exception) {
+                        // No settings activity for this; nothing else to offer.
                     }
-                    .padding(horizontal = 20.dp, vertical = 16.dp)
-            ) {
-                Text(
-                    stringResource(R.string.notif_system_settings),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = CPTheme.accent
-                )
+                })
             }
-            HorizontalDivider(Modifier.padding(start = 20.dp))
             Spacer(Modifier.padding(bottom = 24.dp))
         }
     }
-}
-
-@Composable
-private fun SectionHeading(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.SemiBold,
-        color = CPTheme.accent,
-        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 8.dp)
-    )
-}
-
-@Composable
-private fun BodyText(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.bodyLarge,
-        color = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
-    )
-}
-
-@Composable
-private fun NoteText(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-    )
 }
 
 @Composable
@@ -206,11 +168,11 @@ private fun ChoiceRow(label: String, selected: Boolean, onSelect: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
-            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .heightIn(min = 56.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        RadioButton(selected = selected, onClick = null, modifier = Modifier.padding(12.dp))
-        Spacer(Modifier.width(4.dp))
+        RadioButton(selected = selected, onClick = null)
+        Spacer(Modifier.width(16.dp))
         Text(label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
     }
-    HorizontalDivider(Modifier.padding(start = 20.dp))
 }

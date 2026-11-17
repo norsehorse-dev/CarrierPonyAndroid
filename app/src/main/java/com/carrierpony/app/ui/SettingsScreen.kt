@@ -27,6 +27,37 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.MailOutline
+import androidx.compose.material.icons.filled.Policy
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.VpnKey
+import androidx.compose.material.icons.filled.CallSplit
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Password
+import androidx.compose.material.icons.filled.Nfc
+import androidx.compose.material.icons.filled.Tag
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.material3.Surface
+import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
@@ -95,7 +126,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
  *  the open section is still open after a screen launched from it is closed. */
 enum class SettingsCategory { ACCOUNT, MORE, SUPPORT, RESET }
 
-private data class PonyApp(val name: String, val subtitle: String, val url: String)
+private data class PonyApp(val name: String, val subtitle: String, val url: String, val icon: ImageVector)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -158,17 +189,17 @@ fun SettingsScreen(
     }
 
     val ponyApps = listOf(
-        PonyApp("PGPony", stringResource(R.string.settings_sub_pgpony), "https://pgpony.app"),
-        PonyApp("AgePony", stringResource(R.string.settings_sub_agepony), "https://agepony.com"),
-        PonyApp("QuorumPony", stringResource(R.string.settings_sub_quorumpony), "https://quorumpony.com"),
-        PonyApp("BurnPony", stringResource(R.string.settings_sub_burnpony), "https://burnpony.app"),
-        PonyApp("RelayPony", stringResource(R.string.settings_sub_relaypony), "https://relaypony.app"),
-        PonyApp("ScrubPony", stringResource(R.string.settings_sub_scrubpony), "https://scrubpony.app"),
-        PonyApp("VaultPony", stringResource(R.string.settings_sub_vaultpony), "https://vaultpony.app"),
-        PonyApp("PassPony", stringResource(R.string.settings_sub_passpony), "https://passpony.app"),
-        PonyApp("TapPony", stringResource(R.string.settings_sub_tappony), "https://tappony.app"),
-        PonyApp("HashPony", stringResource(R.string.settings_sub_hashpony), "https://hashpony.app"),
-        PonyApp("StegPony", stringResource(R.string.settings_sub_stegpony), "https://stegpony.app")
+        PonyApp("PGPony", stringResource(R.string.settings_sub_pgpony), "https://pgpony.app", Icons.Default.VpnKey),
+        PonyApp("AgePony", stringResource(R.string.settings_sub_agepony), "https://agepony.com", Icons.Default.Lock),
+        PonyApp("QuorumPony", stringResource(R.string.settings_sub_quorumpony), "https://quorumpony.com", Icons.Default.CallSplit),
+        PonyApp("BurnPony", stringResource(R.string.settings_sub_burnpony), "https://burnpony.app", Icons.Default.LocalFireDepartment),
+        PonyApp("RelayPony", stringResource(R.string.settings_sub_relaypony), "https://relaypony.app", Icons.Default.SwapHoriz),
+        PonyApp("ScrubPony", stringResource(R.string.settings_sub_scrubpony), "https://scrubpony.app", Icons.Default.CleaningServices),
+        PonyApp("VaultPony", stringResource(R.string.settings_sub_vaultpony), "https://vaultpony.app", Icons.Default.Inventory2),
+        PonyApp("PassPony", stringResource(R.string.settings_sub_passpony), "https://passpony.app", Icons.Default.Password),
+        PonyApp("TapPony", stringResource(R.string.settings_sub_tappony), "https://tappony.app", Icons.Default.Nfc),
+        PonyApp("HashPony", stringResource(R.string.settings_sub_hashpony), "https://hashpony.app", Icons.Default.Tag),
+        PonyApp("StegPony", stringResource(R.string.settings_sub_stegpony), "https://stegpony.app", Icons.Default.Image)
     )
 
     fun open(url: String) {
@@ -267,111 +298,158 @@ fun SettingsScreen(
                 }
                 SettingsCategory.ACCOUNT -> {
                     val activeHex = app.activeFingerprintHex
-                    for (acct in accountsList) {
-                        val hex = acct.fingerprint.hex
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(enabled = hex != activeHex) { app.switchAccount(hex); onDone() }
-                                .padding(horizontal = 20.dp, vertical = 11.dp)
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    acct.name ?: UiFormat.shortFingerprint(acct.fingerprint),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurface
+                    SettingsPanel(stringResource(R.string.accounts_title)) {
+                        for (acct in accountsList) {
+                            val hex = acct.fingerprint.hex
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = hex != activeHex) { app.switchAccount(hex); onDone() }
+                                    .heightIn(min = 56.dp)
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.AccountCircle,
+                                    contentDescription = null,
+                                    tint = if (hex == activeHex) CPTheme.accent else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(24.dp)
                                 )
-                                Text(
-                                    UiFormat.shortFingerprint(acct.fingerprint),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            if (hex == activeHex) {
-                                Text(
-                                    stringResource(R.string.accounts_active),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = CPTheme.accent
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Icon(Icons.Default.Check, contentDescription = null, tint = CPTheme.accent, modifier = Modifier.size(18.dp))
-                            } else {
-                                if ((accountUnread[hex] ?: 0) > 0) {
-                                    Box(Modifier.size(10.dp).clip(androidx.compose.foundation.shape.CircleShape).background(CPTheme.accent))
-                                    Spacer(Modifier.width(8.dp))
+                                Spacer(Modifier.width(16.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        acct.name ?: UiFormat.shortFingerprint(acct.fingerprint),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        UiFormat.shortFingerprint(acct.fingerprint),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
-                                if (accountsList.size > 1) {
-                                    IconButton(onClick = { pendingRemove = acct }) {
-                                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.accounts_remove), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                                if (hex == activeHex) {
+                                    Text(
+                                        stringResource(R.string.accounts_active),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = CPTheme.accent
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = CPTheme.accent, modifier = Modifier.size(20.dp))
+                                } else {
+                                    if ((accountUnread[hex] ?: 0) > 0) {
+                                        Box(Modifier.size(10.dp).clip(androidx.compose.foundation.shape.CircleShape).background(CPTheme.accent))
+                                        Spacer(Modifier.width(8.dp))
+                                    }
+                                    if (accountsList.size > 1) {
+                                        IconButton(onClick = { pendingRemove = acct }) {
+                                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.accounts_remove), tint = MaterialTheme.colorScheme.error)
+                                        }
                                     }
                                 }
                             }
+                            PanelDivider()
                         }
-                        HorizontalDivider(Modifier.padding(start = 20.dp))
+                        PanelRow(PanelItem(Icons.Default.Add, stringResource(R.string.accounts_add), end = RowEnd.NONE) { onAddAccount() })
                     }
-                    SettingsHeader("")
-                    SettingsRow(stringResource(R.string.accounts_add)) { onAddAccount() }
-                    SettingsHeader("")
-                    SettingsRow(stringResource(R.string.settings_edit_profile)) { showingProfile = true }
-                    SettingsRow(stringResource(R.string.settings_pair_with), onClick = onPair)
-                    if (onBackup != null) SettingsRow(stringResource(R.string.settings_backup), onClick = onBackup)
-                    if (onRestore != null) SettingsRow(stringResource(R.string.settings_restore), onClick = onRestore)
-                    if (onImport != null) SettingsRow(stringResource(R.string.settings_import_key), onClick = onImport)
+                    SettingsPanel(stringResource(R.string.settings_this_account)) {
+                        PanelRows(listOfNotNull(
+                            PanelItem(Icons.Default.Edit, stringResource(R.string.settings_edit_profile), stringResource(R.string.settings_edit_profile_hint), end = RowEnd.NONE) { showingProfile = true },
+                            PanelItem(Icons.Default.PersonAdd, stringResource(R.string.settings_pair_with), stringResource(R.string.settings_pair_with_hint), onClick = onPair),
+                            onBackup?.let { PanelItem(Icons.Default.Backup, stringResource(R.string.settings_backup), stringResource(R.string.settings_backup_hint), onClick = it) },
+                            onRestore?.let { PanelItem(Icons.Default.Restore, stringResource(R.string.settings_restore), stringResource(R.string.settings_restore_hint), onClick = it) },
+                            onImport?.let { PanelItem(Icons.Default.Key, stringResource(R.string.settings_import_key), stringResource(R.string.settings_import_key_hint), onClick = it) }
+                        ))
+                    }
                     if (biometricsAvailable) {
-                        SettingsHeader(stringResource(R.string.settings_security))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp)
-                        ) {
-                            Text(stringResource(R.string.settings_app_lock), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                            Switch(
-                                checked = appLockEnabled,
-                                onCheckedChange = {
-                                    appLockEnabled = it
-                                    app.setAppLockEnabled(it)
+                        SettingsPanel(stringResource(R.string.settings_security)) {
+                            // The whole row is the switch, not only the thumb.
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .toggleable(
+                                        value = appLockEnabled,
+                                        role = Role.Switch,
+                                        onValueChange = {
+                                            appLockEnabled = it
+                                            app.setAppLockEnabled(it)
+                                        }
+                                    )
+                                    .heightIn(min = 56.dp)
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Icon(Icons.Default.Lock, contentDescription = null, tint = CPTheme.accent, modifier = Modifier.size(24.dp))
+                                Spacer(Modifier.width(16.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(stringResource(R.string.settings_app_lock), style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        stringResource(R.string.settings_app_lock_hint),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
-                            )
+                                Spacer(Modifier.width(12.dp))
+                                Switch(checked = appLockEnabled, onCheckedChange = null)
+                            }
                         }
-                        HorizontalDivider(Modifier.padding(start = 20.dp))
                     }
                     Spacer(Modifier.padding(bottom = 24.dp))
                 }
                 SettingsCategory.MORE -> {
-                    SettingsHeader(stringResource(R.string.settings_more_apps))
-                    for (item in ponyApps) {
-                        Column(
-                            Modifier.fillMaxWidth().clickable { open(item.url) }.padding(horizontal = 20.dp, vertical = 10.dp)
-                        ) {
-                            Text(item.name, style = MaterialTheme.typography.bodyLarge)
-                            Text(item.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        HorizontalDivider(Modifier.padding(start = 20.dp))
+                    SettingsPanel(stringResource(R.string.settings_more_apps)) {
+                        PanelRows(
+                            ponyApps.map { item ->
+                                PanelItem(item.icon, item.name, item.subtitle, end = RowEnd.EXTERNAL) { open(item.url) }
+                            } + PanelItem(
+                                Icons.Default.Apps,
+                                stringResource(R.string.settings_pony_family),
+                                stringResource(R.string.settings_pony_family_sub),
+                                end = RowEnd.EXTERNAL
+                            ) { open("https://pony.norsehor.se") }
+                        )
                     }
-                    Column(
-                        Modifier.fillMaxWidth().clickable { open("https://pony.norsehor.se") }.padding(horizontal = 20.dp, vertical = 10.dp)
-                    ) {
-                        Text(stringResource(R.string.settings_pony_family), style = MaterialTheme.typography.bodyLarge)
-                        Text(stringResource(R.string.settings_pony_family_sub), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    SettingsPanel(stringResource(R.string.settings_open_source)) {
+                        PanelRows(listOf(
+                            PanelItem(Icons.Default.Code, stringResource(R.string.settings_source_repo), end = RowEnd.EXTERNAL) {
+                                open("https://github.com/norsehorse-dev/CarrierPonyAndroid")
+                            },
+                            PanelItem(Icons.Default.Code, stringResource(R.string.settings_source_core), end = RowEnd.EXTERNAL) {
+                                open("https://github.com/norsehorse-dev/CarrierPonyAndroid/tree/HEAD/carrierponycore")
+                            }
+                        ))
                     }
-                    HorizontalDivider(Modifier.padding(start = 20.dp))
-                    SettingsHeader(stringResource(R.string.settings_open_source))
-                    SettingsRow(stringResource(R.string.settings_source_repo)) { open("https://github.com/norsehorse-dev/CarrierPonyAndroid") }
-                    SettingsRow(stringResource(R.string.settings_source_core)) { open("https://github.com/norsehorse-dev/CarrierPonyAndroid/tree/HEAD/carrierponycore") }
                     Spacer(Modifier.padding(bottom = 24.dp))
                 }
                 SettingsCategory.SUPPORT -> {
-                    if (onLearn != null) SettingsRow(stringResource(R.string.edu_title), onClick = onLearn)
-                    SettingsRow(stringResource(R.string.settings_send_feedback)) { sendFeedback() }
-                    if (onPrivacy != null) SettingsRow(stringResource(R.string.settings_privacy_policy), onClick = onPrivacy)
-                    if (onTerms != null) SettingsRow(stringResource(R.string.settings_terms), onClick = onTerms)
+                    SettingsPanel {
+                        PanelRows(listOfNotNull(
+                            onLearn?.let { PanelItem(Icons.Default.School, stringResource(R.string.edu_title), onClick = it) },
+                            PanelItem(Icons.Default.MailOutline, stringResource(R.string.settings_send_feedback), stringResource(R.string.settings_send_feedback_hint), end = RowEnd.EXTERNAL) { sendFeedback() }
+                        ))
+                    }
+                    if (onPrivacy != null || onTerms != null) {
+                        SettingsPanel(stringResource(R.string.settings_legal)) {
+                            PanelRows(listOfNotNull(
+                                onPrivacy?.let { PanelItem(Icons.Default.Policy, stringResource(R.string.settings_privacy_policy), onClick = it) },
+                                onTerms?.let { PanelItem(Icons.Default.Description, stringResource(R.string.settings_terms), onClick = it) }
+                            ))
+                        }
+                    }
                     Spacer(Modifier.padding(bottom = 24.dp))
                 }
                 SettingsCategory.RESET -> {
-                    SettingsRow(stringResource(R.string.settings_reset_onboarding)) { confirmResetOnboarding = true }
-                    SettingsRow(stringResource(R.string.settings_reset_app), destructive = true) { confirmResetApp = true }
-                    SettingsHeader("")
-                    SettingsRow(stringResource(R.string.settings_sign_out), destructive = true) { confirmSignOut = true }
+                    SettingsPanel {
+                        PanelRows(listOf(
+                            PanelItem(Icons.Default.Refresh, stringResource(R.string.settings_reset_onboarding), stringResource(R.string.settings_reset_onboarding_hint), end = RowEnd.NONE) { confirmResetOnboarding = true }
+                        ))
+                    }
+                    SettingsPanel {
+                        PanelRows(listOf(
+                            PanelItem(Icons.AutoMirrored.Filled.Logout, stringResource(R.string.settings_sign_out), stringResource(R.string.settings_sign_out_hint), destructive = true, end = RowEnd.NONE) { confirmSignOut = true },
+                            PanelItem(Icons.Default.Warning, stringResource(R.string.settings_reset_app), stringResource(R.string.settings_reset_app_hint), destructive = true, end = RowEnd.NONE) { confirmResetApp = true }
+                        ))
+                    }
                     Spacer(Modifier.padding(bottom = 24.dp))
                 }
             }
@@ -742,39 +820,129 @@ private fun NearbyCard(
     }
 }
 
+// ── Section pages: grouped panels ──────────────────────────────────────
+//
+// A section page (Account, More from NorseHorse, Support, Reset) is a few
+// groups of rows. Each group sits in one rounded panel in the tint the main
+// menu's cards use, with a hairline between rows and, where it has one, a
+// plain heading above. A row is an icon, a title, an optional one-line hint,
+// and a mark for what tapping does: an arrow for another screen, an
+// open-in-new mark for something that leaves the app, nothing for a dialog.
+
+internal enum class RowEnd { ARROW, EXTERNAL, NONE }
+
+internal class PanelItem(
+    val icon: ImageVector,
+    val title: String,
+    val hint: String? = null,
+    val destructive: Boolean = false,
+    val end: RowEnd = RowEnd.ARROW,
+    val enabled: Boolean = true,
+    val onClick: () -> Unit
+)
+
 @Composable
-private fun SettingsHeader(text: String) {
-    if (text.isNotEmpty()) {
+internal fun SettingsPanel(heading: String? = null, content: @Composable ColumnScope.() -> Unit) {
+    if (heading != null) {
         Text(
-            text = text.uppercase(),
-            style = MaterialTheme.typography.labelMedium,
+            text = heading,
+            style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 6.dp)
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 8.dp)
         )
     } else {
-        Spacer(Modifier.padding(top = 12.dp))
+        Spacer(Modifier.height(12.dp))
+    }
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+    ) {
+        Column(content = content)
+    }
+}
+
+/** Rows with a hairline between each pair. */
+@Composable
+internal fun PanelRows(items: List<PanelItem>) {
+    items.forEachIndexed { index, item ->
+        if (index > 0) PanelDivider()
+        PanelRow(item)
     }
 }
 
 @Composable
-private fun SettingsRow(title: String, destructive: Boolean = false, onClick: () -> Unit) {
+internal fun PanelRow(item: PanelItem) {
+    val off = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+    val tint = when {
+        !item.enabled -> off
+        item.destructive -> MaterialTheme.colorScheme.error
+        else -> CPTheme.accent
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 13.dp)
+            .clickable(enabled = item.enabled, onClick = item.onClick)
+            .heightIn(min = 56.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyLarge,
-            color = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-        )
-        Spacer(Modifier.width(8.dp))
+        Icon(item.icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                item.title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = when {
+                    !item.enabled -> off
+                    item.destructive -> MaterialTheme.colorScheme.error
+                    else -> MaterialTheme.colorScheme.onSurface
+                }
+            )
+            if (item.hint != null) {
+                Text(
+                    item.hint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        val mark = when (item.end) {
+            RowEnd.ARROW -> Icons.AutoMirrored.Filled.KeyboardArrowRight
+            RowEnd.EXTERNAL -> Icons.AutoMirrored.Filled.OpenInNew
+            RowEnd.NONE -> null
+        }
+        if (mark != null) {
+            Spacer(Modifier.width(12.dp))
+            Icon(
+                mark,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(if (item.end == RowEnd.EXTERNAL) 18.dp else 20.dp)
+            )
+        }
     }
-    HorizontalDivider(Modifier.padding(start = 20.dp))
 }
 
+/** A line of explanation under a panel. */
+@Composable
+internal fun PanelNote(text: String, color: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurfaceVariant) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = color,
+        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp)
+    )
+}
+
+/** The hairline between two rows of a panel, starting where the titles start. */
+@Composable
+internal fun PanelDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 56.dp),
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+    )
+}
 
 @Composable
 private fun CategoryCard(
@@ -942,69 +1110,60 @@ private fun NostrRelaysScreen(app: AppModel, onBack: () -> Unit) {
         }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState())) {
-            SettingsHeader(stringResource(R.string.nostr_relays_current))
-            if (relays.isEmpty()) {
-                Text(
-                    stringResource(R.string.nostr_relays_empty),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
-                )
-            }
-            for (relay in relays) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 2.dp, bottom = 2.dp)
-                ) {
+            SettingsPanel(stringResource(R.string.nostr_relays_current)) {
+                if (relays.isEmpty()) {
                     Text(
-                        relay,
+                        stringResource(R.string.nostr_relays_empty),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f)
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(16.dp)
                     )
-                    IconButton(onClick = { apply(relays.filterNot { it == relay }) }) {
-                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.common_remove), tint = MaterialTheme.colorScheme.error)
+                }
+                relays.forEachIndexed { index, relay ->
+                    if (index > 0) PanelDivider()
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 16.dp, end = 4.dp)
+                    ) {
+                        Icon(Icons.Default.Public, contentDescription = null, tint = CPTheme.accent, modifier = Modifier.size(24.dp))
+                        Spacer(Modifier.width(16.dp))
+                        Text(
+                            relay,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = { apply(relays.filterNot { it == relay }) }) {
+                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.common_remove), tint = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
-                HorizontalDivider(Modifier.padding(start = 20.dp))
             }
 
-            SettingsHeader(stringResource(R.string.nostr_relays_add))
-            OutlinedTextField(
-                value = newUrl,
-                onValueChange = { newUrl = it },
-                singleLine = true,
-                placeholder = { Text("wss://relay.example.com") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp)
-            )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = validNew) { apply(relays + trimmed); newUrl = "" }
-                    .padding(horizontal = 20.dp, vertical = 13.dp)
-            ) {
-                Text(
-                    stringResource(R.string.nostr_relays_add_action),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = if (validNew) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+            SettingsPanel(stringResource(R.string.nostr_relays_add)) {
+                OutlinedTextField(
+                    value = newUrl,
+                    onValueChange = { newUrl = it },
+                    singleLine = true,
+                    placeholder = { Text("wss://relay.example.com") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    modifier = Modifier.fillMaxWidth().padding(16.dp)
                 )
+                PanelDivider()
+                PanelRow(PanelItem(Icons.Default.Add, stringResource(R.string.nostr_relays_add_action), end = RowEnd.NONE, enabled = validNew) {
+                    apply(relays + trimmed)
+                    newUrl = ""
+                })
             }
-            HorizontalDivider(Modifier.padding(start = 20.dp))
+            PanelNote(stringResource(R.string.nostr_relays_footer))
 
-            Text(
-                stringResource(R.string.nostr_relays_footer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
-            )
-
-            SettingsHeader("")
-            SettingsRow(stringResource(R.string.nostr_relays_reset), destructive = true) {
-                apply(AppConfig.defaultNostrRelays)
-                newUrl = ""
+            SettingsPanel {
+                PanelRow(PanelItem(Icons.Default.Restore, stringResource(R.string.nostr_relays_reset), destructive = true, end = RowEnd.NONE) {
+                    apply(AppConfig.defaultNostrRelays)
+                    newUrl = ""
+                })
             }
+            Spacer(Modifier.padding(bottom = 24.dp))
         }
     }
 }
@@ -1039,80 +1198,96 @@ internal fun RelayScreen(app: AppModel, onBack: () -> Unit, onboarding: Boolean 
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState())) {
 
-            SettingsHeader(stringResource(R.string.relay_current))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    AppConfig.relayBaseURL(context),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    if (AppConfig.usingCustomRelay(context)) stringResource(R.string.relay_custom)
-                    else stringResource(R.string.relay_default),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            SettingsPanel(stringResource(R.string.relay_current)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Icon(Icons.Default.Cloud, contentDescription = null, tint = CPTheme.accent, modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(16.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            AppConfig.relayBaseURL(context),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            if (AppConfig.usingCustomRelay(context)) stringResource(R.string.relay_custom)
+                            else stringResource(R.string.relay_default),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
 
             if (AppConfig.usingCustomRelay(context)) {
-                SettingsHeader(stringResource(R.string.relay_push_header))
                 var gatewayOn by remember { mutableStateOf(AppConfig.gatewayPushEnabled(context)) }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        stringResource(R.string.relay_push_toggle),
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Switch(
-                        checked = gatewayOn,
-                        onCheckedChange = { gatewayOn = it; app.setGatewayPush(it) }
-                    )
+                SettingsPanel(stringResource(R.string.relay_push_header)) {
+                    // The whole row is the switch, not only the thumb.
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .toggleable(
+                                value = gatewayOn,
+                                role = Role.Switch,
+                                onValueChange = { gatewayOn = it; app.setGatewayPush(it) }
+                            )
+                            .heightIn(min = 56.dp)
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Icon(Icons.Default.Notifications, contentDescription = null, tint = CPTheme.accent, modifier = Modifier.size(24.dp))
+                        Spacer(Modifier.width(16.dp))
+                        Text(
+                            stringResource(R.string.relay_push_toggle),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Switch(checked = gatewayOn, onCheckedChange = null)
+                    }
                 }
-                Text(
-                    stringResource(R.string.relay_push_notice),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
-                )
+                PanelNote(stringResource(R.string.relay_push_notice))
             }
 
-            SettingsHeader(stringResource(R.string.relay_custom_section))
-            OutlinedTextField(
-                value = urlText,
-                onValueChange = { urlText = it; testResult = null },
-                singleLine = true,
-                placeholder = { Text("https://relay.example.com") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp)
-            )
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = !testing && valid) {
-                        scope.launch {
-                            testing = true
-                            testResult = probeRelay(urlText)
-                            testing = false
-                        }
-                    }
-                    .padding(horizontal = 20.dp, vertical = 13.dp)
-            ) {
-                Text(
-                    stringResource(R.string.relay_test),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = if (valid) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
+            SettingsPanel(stringResource(R.string.relay_custom_section)) {
+                OutlinedTextField(
+                    value = urlText,
+                    onValueChange = { urlText = it; testResult = null },
+                    singleLine = true,
+                    placeholder = { Text("https://relay.example.com") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    modifier = Modifier.fillMaxWidth().padding(16.dp)
                 )
-                if (testing) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                PanelDivider()
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !testing && valid) {
+                            scope.launch {
+                                testing = true
+                                testResult = probeRelay(urlText)
+                                testing = false
+                            }
+                        }
+                        .heightIn(min = 56.dp)
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    val shade = if (valid) CPTheme.accent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    Icon(Icons.Default.NetworkCheck, contentDescription = null, tint = shade, modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(16.dp))
+                    Text(
+                        stringResource(R.string.relay_test),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = if (valid) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (testing) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                }
+                PanelDivider()
+                PanelRow(PanelItem(Icons.Default.Check, stringResource(R.string.relay_use), end = RowEnd.NONE, enabled = valid) { confirmSave = true })
             }
 
             testResult?.let { r ->
@@ -1121,40 +1296,30 @@ internal fun RelayScreen(app: AppModel, onBack: () -> Unit, onboarding: Boolean 
                     RelayTestResult.BadUrl -> stringResource(R.string.relay_bad_url)
                     is RelayTestResult.Failed -> stringResource(R.string.relay_unreachable, r.reason)
                 }
-                val color = if (r is RelayTestResult.Ok) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.error
-                Text(
-                    msg,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = color,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
-                )
+                PanelNote(msg, if (r is RelayTestResult.Ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
             }
+            PanelNote(stringResource(if (onboarding) R.string.relay_onb_footer else R.string.relay_footer))
 
-            Text(
-                stringResource(if (onboarding) R.string.relay_onb_footer else R.string.relay_footer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
-            )
-
-            SettingsHeader("")
-            SettingsRow(stringResource(R.string.relay_use)) { if (valid) confirmSave = true }
             if (AppConfig.usingCustomRelay(context)) {
-                SettingsRow(stringResource(R.string.relay_reset), destructive = true) {
-                    AppConfig.setRelayBaseURL(context, null)
-                    urlText = ""
-                    testResult = null
-                    if (!onboarding) savedNotice = true
+                SettingsPanel {
+                    PanelRow(PanelItem(Icons.Default.Restore, stringResource(R.string.relay_reset), destructive = true, end = RowEnd.NONE) {
+                        AppConfig.setRelayBaseURL(context, null)
+                        urlText = ""
+                        testResult = null
+                        if (!onboarding) savedNotice = true
+                    })
                 }
             }
 
-            SettingsHeader(stringResource(R.string.relay_selfhost_header))
-            SettingsRow(stringResource(R.string.relay_selfhost_setup)) {
-                openInAppBrowser(context, "https://carrierpony.com/self-host")
-            }
-            SettingsRow(stringResource(R.string.relay_selfhost_source)) {
-                openInAppBrowser(context, "https://github.com/norsehorse-dev/CarrierPony-Relay")
+            SettingsPanel(stringResource(R.string.relay_selfhost_header)) {
+                PanelRows(listOf(
+                    PanelItem(Icons.Default.Description, stringResource(R.string.relay_selfhost_setup), end = RowEnd.EXTERNAL) {
+                        openInAppBrowser(context, "https://carrierpony.com/self-host")
+                    },
+                    PanelItem(Icons.Default.Code, stringResource(R.string.relay_selfhost_source), end = RowEnd.EXTERNAL) {
+                        openInAppBrowser(context, "https://github.com/norsehorse-dev/CarrierPony-Relay")
+                    }
+                ))
             }
             Spacer(Modifier.padding(bottom = 24.dp))
         }

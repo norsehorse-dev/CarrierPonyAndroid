@@ -149,6 +149,17 @@
     <string name="settings_restore">Restore from Backup</string>
     <string name="settings_import_key">Import a Key</string>
     <string name="settings_security">Security</string>
+    <string name="settings_this_account">This account</string>
+    <string name="settings_edit_profile_hint">The name people see when you pair or message them</string>
+    <string name="settings_pair_with_hint">Add a contact in person, by invite, or by public key</string>
+    <string name="settings_backup_hint">Save an encrypted copy of your identity</string>
+    <string name="settings_restore_hint">Bring an identity back from a backup</string>
+    <string name="settings_import_key_hint">Use an OpenPGP key you already have</string>
+    <string name="settings_app_lock_hint">Unlock the app with your fingerprint or face</string>
+    <string name="settings_send_feedback_hint">Opens your email app</string>
+    <string name="settings_reset_onboarding_hint">Show the first-run setup again. Nothing is erased.</string>
+    <string name="settings_sign_out_hint">Remove this identity and its keys from this device</string>
+    <string name="settings_reset_app_hint">Erase your identity, contacts, messages, files and settings</string>
     <string name="settings_app_lock">App Lock</string>
     <string name="settings_language">Language</string>
     <string name="settings_more_apps">More Pony apps</string>
