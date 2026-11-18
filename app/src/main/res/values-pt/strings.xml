@@ -189,6 +189,7 @@
     <string name="pair_key_needs_4_0_note">A outra pessoa precisa do CarrierPony 4.0 ou posterior para ver sua solicitação.</string>
     <string name="pair_key_open_file">Abrir um arquivo</string>
     <string name="pair_key_pick_app">Escolher de um app de chaves</string>
+    <string name="pair_key_pgpony_note">Escolher do PGPony requer o PGPony 4.8.1 ou posterior.</string>
     <string name="pair_key_err_key_app">Não foi possível obter uma chave de %1$s.</string>
     <string name="pair_key_add">Adicionar contato</string>
     <string name="pair_key_err_secret">Essa é uma chave privada. Nunca dê uma chave privada a ninguém. Peça à outra pessoa a chave pública dela.</string>

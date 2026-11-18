@@ -263,6 +263,7 @@
     <string name="pair_key_needs_4_0_note">The other person needs CarrierPony 4.0 or later to see your request.</string>
     <string name="pair_key_open_file">Open a file</string>
     <string name="pair_key_pick_app">Pick from a key app</string>
+    <string name="pair_key_pgpony_note">Picking from PGPony needs PGPony 4.8.1 or later.</string>
     <string name="pair_key_err_key_app">Couldn\'t get a key from %1$s.</string>
     <string name="pair_key_add">Add contact</string>
     <string name="pair_key_err_secret">That is a private key. Never give a private key to anyone. Ask the other person for their public key.</string>

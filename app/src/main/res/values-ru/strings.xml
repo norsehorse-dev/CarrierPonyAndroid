@@ -189,6 +189,7 @@
     <string name="pair_key_needs_4_0_note">Чтобы увидеть ваш запрос, другому человеку нужен CarrierPony 4.0 или новее.</string>
     <string name="pair_key_open_file">Открыть файл</string>
     <string name="pair_key_pick_app">Выбрать из приложения для ключей</string>
+    <string name="pair_key_pgpony_note">Чтобы выбрать из PGPony, нужен PGPony 4.8.1 или новее.</string>
     <string name="pair_key_err_key_app">Не удалось получить ключ из %1$s.</string>
     <string name="pair_key_add">Добавить контакт</string>
     <string name="pair_key_err_secret">Это закрытый ключ. Никогда никому не передавайте закрытый ключ. Попросите у другого человека его открытый ключ.</string>

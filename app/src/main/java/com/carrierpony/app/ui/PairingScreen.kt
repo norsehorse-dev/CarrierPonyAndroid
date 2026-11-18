@@ -1088,6 +1088,14 @@ private fun AddByKeyView(
                     }
                 }
             }
+            if (keyApps.any { it.packageName == KeyApps.PGPONY_PACKAGE }) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    stringResource(R.string.pair_key_pgpony_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
         Spacer(Modifier.height(16.dp))
         Button(

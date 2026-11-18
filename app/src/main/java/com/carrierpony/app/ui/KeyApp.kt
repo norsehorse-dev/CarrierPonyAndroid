@@ -30,6 +30,10 @@ data class KeyApp(val packageName: String, val label: String)
 object KeyApps {
 
     private const val SERVICE = "org.openintents.openpgp.IOpenPgpService2"
+
+    /** PGPony for Android. Its key picker for this request arrived in 4.8.1,
+     *  so the screen says so when PGPony is one of the key apps. */
+    const val PGPONY_PACKAGE = "com.pgpony.android"
     private const val ACTION_GET_KEY_IDS = "org.openintents.openpgp.action.GET_KEY_IDS"
     private const val ACTION_GET_KEY = "org.openintents.openpgp.action.GET_KEY"
     private const val EXTRA_API_VERSION = "api_version"

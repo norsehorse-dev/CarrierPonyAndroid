@@ -189,6 +189,7 @@
     <string name="pair_key_needs_4_0_note">对方需要 CarrierPony 4.0 或更高版本才能看到你的请求。</string>
     <string name="pair_key_open_file">打开文件</string>
     <string name="pair_key_pick_app">从密钥应用中选择</string>
+    <string name="pair_key_pgpony_note">从 PGPony 中选择需要 PGPony 4.8.1 或更高版本。</string>
     <string name="pair_key_err_key_app">无法从 %1$s 获取密钥。</string>
     <string name="pair_key_add">添加联系人</string>
     <string name="pair_key_err_secret">这是私钥。绝不要把私钥交给任何人。请向对方索取对方的公钥。</string>

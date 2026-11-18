@@ -189,6 +189,7 @@
     <string name="pair_key_needs_4_0_note">L\'autre personne doit avoir CarrierPony 4.0 ou une version ultérieure pour voir votre demande.</string>
     <string name="pair_key_open_file">Ouvrir un fichier</string>
     <string name="pair_key_pick_app">Choisir depuis une app de clés</string>
+    <string name="pair_key_pgpony_note">Pour choisir depuis PGPony, il faut PGPony 4.8.1 ou une version ultérieure.</string>
     <string name="pair_key_err_key_app">Impossible d\'obtenir une clé depuis %1$s.</string>
     <string name="pair_key_add">Ajouter le contact</string>
     <string name="pair_key_err_secret">C\'est une clé privée. Ne donnez jamais une clé privée à qui que ce soit. Demandez à l\'autre personne sa clé publique.</string>
