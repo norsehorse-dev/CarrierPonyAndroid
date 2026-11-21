@@ -51,6 +51,13 @@ object PushNotifier {
     fun postContactRequestNotification(context: Context) =
         post(context, context.getString(com.carrierpony.app.R.string.inbox_contact_requests))
 
+    /** Remove the banner. Called when the app is in front and unlocked: it says
+     *  only that something is waiting, and by then the user is looking at it.
+     *  Opening the app from its icon used to leave the banner behind. */
+    fun clear(context: Context) {
+        context.getSystemService(NotificationManager::class.java)?.cancel(1)
+    }
+
     private fun post(context: Context, text: String) {
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED

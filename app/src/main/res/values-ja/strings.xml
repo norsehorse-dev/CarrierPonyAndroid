@@ -456,7 +456,9 @@
     <string name="settings_sms_sub">相手の番号がわかっている場合、インターネットがないときのためにSMSで連絡先へ配信します。メッセージはサイレントなデータSMSに分割されます。通信事業者は、その番号にデータSMSが送られたことを把握し、通常のSMS料金がかかります。デフォルトはオフです。</string>
     <string name="settings_sms_toggle">SMS でも送信</string>
     <string name="chat_awaiting_pairing">%1$s のペアリングはまだ完了していません。相手のアプリが接続すると、メッセージが開けるようになります。</string>
-    <string name="inbox_held_messages">この端末でペアリングが完了していない相手から %1$d 件のメッセージが待機中です。完了すると自動的に開きます。</string>
+    <plurals name="inbox_held_messages">
+        <item quantity="other">%1$d 件のメッセージはまだ開けません。この端末の連絡先に登録されていない相手から届いたものです。その相手とペアリングすると自動的に開きます。</item>
+    </plurals>
 
     <!-- 3.3.0: Settings > Notifications, member and subscriber counts -->
     <string name="settings_notifications">通知</string>

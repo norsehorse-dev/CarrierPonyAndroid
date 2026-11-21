@@ -592,6 +592,36 @@ object CPMessenger {
      * cannot be passphrase-related.
      */
     private fun unlockPrivateKey(secretKey: PGPSecretKey, passphrase: String?): PGPPrivateKey {
+        // Unlocking a protected key runs its passphrase KDF. That ran for every
+        // message opened and every relay login signed, and the relay is polled
+        // every few seconds, so the unlocked key is kept for the process. What
+        // is held is no more than the passphrase the app already holds would
+        // give. An unprotected key costs nothing to read and is not kept.
+        val cacheKey = if (secretKey.s2KUsage.toInt() != 0) unlockedKeyName(secretKey, passphrase) else null
+        if (cacheKey != null) unlockedKeys[cacheKey]?.let { return it }
+        val unlocked = extractPrivateKey(secretKey, passphrase)
+        if (cacheKey != null) unlockedKeys[cacheKey] = unlocked
+        return unlocked
+    }
+
+    private val unlockedKeys = java.util.concurrent.ConcurrentHashMap<String, PGPPrivateKey>()
+
+    /** Drop every unlocked private key held in memory. The app calls this when
+     *  it locks, next to CPCompositeKeys.forgetUnlocked(). */
+    fun forgetUnlocked() {
+        unlockedKeys.clear()
+    }
+
+    /** Names one key under one passphrase, so a changed passphrase never finds
+     *  a key unlocked under the old one. */
+    private fun unlockedKeyName(secretKey: PGPSecretKey, passphrase: String?): String {
+        val hex = { bytes: ByteArray -> bytes.joinToString("") { "%02x".format(it) } }
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+            .digest((passphrase ?: "").toByteArray(Charsets.UTF_8))
+        return hex(secretKey.publicKey.fingerprint) + ":" + hex(digest)
+    }
+
+    private fun extractPrivateKey(secretKey: PGPSecretKey, passphrase: String?): PGPPrivateKey {
         return try {
             secretKey.extractPrivateKey(
                 BcPBESecretKeyDecryptorBuilder(BcPGPDigestCalculatorProvider())

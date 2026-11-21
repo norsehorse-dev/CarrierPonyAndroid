@@ -150,7 +150,9 @@ class ChatStore(
     val heldCount: kotlinx.coroutines.flow.StateFlow<Int> = _heldCount
     private var heldContactsSeen = -1
 
-    private class HeldEnvelope(val id: String, val envelope: String, val heldAt: Long)
+    /** dismissed: the user closed the waiting banner while this one was held.
+     *  It stays held and is still retried; it just no longer counts in the banner. */
+    private class HeldEnvelope(val id: String, val envelope: String, val heldAt: Long, var dismissed: Boolean = false)
 
     private val seenMessageIDs = mutableSetOf<String>()
     private var pollJob: Job? = null
@@ -171,6 +173,9 @@ class ChatStore(
     // failing are skipped on most polls so they can't crowd out new messages.
     private val sealedFailCounts = mutableMapOf<String, Int>()
     private var sealedPollCount = 0
+    /** Nostr events that already opened in this run of the app (see
+     *  ingestNostrEnvelope). Memory only. */
+    private val nostrOpened = HashSet<String>()
     // Single-flight refresh: the pass running now and at most one queued follow-up.
     private val passLock = Any()
     private var passJob: Deferred<Unit>? = null
@@ -1220,6 +1225,13 @@ class ChatStore(
      *  also arrives via the relay is filed once. */
     suspend fun ingestNostrEnvelope(mailbox: String, content: String) = withContext(Dispatchers.Default) {
         val sk = sealedKeys ?: return@withContext
+        // Nostr relays keep events and send them again on every subscribe and
+        // reconnect, and each relay sends its own copy. One that already opened
+        // is dropped here, before any decrypting. One that did not open is not
+        // remembered, so it is tried again when it next arrives.
+        val seenKey = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(content.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+        if (synchronized(nostrOpened) { seenKey in nostrOpened }) return@withContext
         val mapped = sealedAddressMap[mailbox] ?: run {
             android.util.Log.d("CPNOSTR", "INGEST mailbox=${mailbox.takeLast(8)} mapped=no")
             return@withContext
@@ -1233,6 +1245,10 @@ class ChatStore(
         }
         android.util.Log.d("CPNOSTR", "INGEST mailbox=${mailbox.takeLast(8)} opened=$opened newlyFiled=$newlyFiled")
         if (opened) {
+            synchronized(nostrOpened) {
+                if (nostrOpened.size >= 5000) nostrOpened.clear()
+                nostrOpened.add(seenKey)
+            }
             when (mapped) {
                 is SealedRoute.PairRoute -> {
                     val st = sk.pair(mapped.peer.hex)
@@ -1690,7 +1706,18 @@ class ChatStore(
             if (held.any { it.id == id }) return
             held.add(HeldEnvelope(id, envelopeB64, now))
             while (held.size > maxHeld) held.removeAt(0)
-            _heldCount.value = held.size
+            _heldCount.value = held.count { !it.dismissed }
+        }
+        persistHeld()
+    }
+
+    /** Hide the waiting banner for the envelopes held right now. They stay held
+     *  and still open by themselves if pairing finishes. The banner comes back
+     *  only when another envelope is held. */
+    fun dismissHeld() {
+        synchronized(held) {
+            for (h in held) h.dismissed = true
+            _heldCount.value = 0
         }
         persistHeld()
     }
@@ -1710,7 +1737,7 @@ class ChatStore(
         if (done.isEmpty()) return
         synchronized(held) {
             held.removeAll { it.id in done }
-            _heldCount.value = held.size
+            _heldCount.value = held.count { !it.dismissed }
         }
         _lastError.value = null
         persistHeld()
@@ -1720,7 +1747,7 @@ class ChatStore(
     private fun persistHeld() {
         val arr = JSONArray()
         synchronized(held) {
-            for (h in held) arr.put(JSONObject().put("id", h.id).put("envelope", h.envelope).put("heldAt", h.heldAt))
+            for (h in held) arr.put(JSONObject().put("id", h.id).put("envelope", h.envelope).put("heldAt", h.heldAt).put("dismissed", h.dismissed))
         }
         try {
             if (arr.length() == 0) heldURL.delete()
@@ -1736,9 +1763,9 @@ class ChatStore(
                 held.clear()
                 for (i in 0 until arr.length()) {
                     val o = arr.getJSONObject(i)
-                    held.add(HeldEnvelope(o.getString("id"), o.getString("envelope"), o.optLong("heldAt", now)))
+                    held.add(HeldEnvelope(o.getString("id"), o.getString("envelope"), o.optLong("heldAt", now), o.optBoolean("dismissed", false)))
                 }
-                _heldCount.value = held.size
+                _heldCount.value = held.count { !it.dismissed }
             }
         } catch (e: Exception) { }
     }

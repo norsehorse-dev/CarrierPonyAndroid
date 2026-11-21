@@ -230,12 +230,24 @@ fun ConversationListScreen(
             }
             if (heldCount > 0) {
                 Surface(color = MaterialTheme.colorScheme.secondaryContainer) {
-                    Text(
-                        text = stringResource(R.string.inbox_held_messages, heldCount),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = androidx.compose.ui.res.pluralStringResource(R.plurals.inbox_held_messages, heldCount, heldCount),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.weight(1f).padding(vertical = 8.dp)
+                        )
+                        IconButton(onClick = { store.dismissHeld() }) {
+                            Icon(
+                                androidx.compose.material.icons.Icons.Filled.Close,
+                                contentDescription = stringResource(R.string.common_dismiss),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
                 }
             }
             Box(Modifier.fillMaxSize()) {

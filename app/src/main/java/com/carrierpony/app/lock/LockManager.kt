@@ -128,6 +128,8 @@ class LockManager private constructor(context: Context) {
         sessionPassphrase = null
         // An imported v6 identity's unlocked ML-KEM key goes with it.
         com.carrierpony.core.CPCompositeKeys.forgetUnlocked()
+        // And any classic key unlocked with that passphrase.
+        com.carrierpony.core.CPMessenger.forgetUnlocked()
     }
 
     fun lockNow() {
@@ -135,6 +137,8 @@ class LockManager private constructor(context: Context) {
         sessionPassphrase = null
         // An imported v6 identity's unlocked ML-KEM key goes with it.
         com.carrierpony.core.CPCompositeKeys.forgetUnlocked()
+        // And any classic key unlocked with that passphrase.
+        com.carrierpony.core.CPMessenger.forgetUnlocked()
     }
 
     /** Hold a passphrase for the current session (e.g. right after import, so

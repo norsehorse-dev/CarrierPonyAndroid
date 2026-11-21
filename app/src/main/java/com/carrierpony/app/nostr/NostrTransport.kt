@@ -90,6 +90,10 @@ class NostrTransportManager {
      *  id (so a window refresh replaces the filter). Matching events arrive via
      *  onNostrEvent. A large window is one filter with many #t values. */
     fun subscribe(addresses: List<String>) {
+        // The window is handed over on every upkeep pass, changed or not. A relay
+        // answers each new REQ by sending every stored event again, so only ask
+        // when the set of addresses is different.
+        if (activeSubCount > 0 && addresses.toSet() == lastAddresses.toSet()) return
         lastAddresses = addresses
         val cs = clients
         if (cs.isEmpty()) return

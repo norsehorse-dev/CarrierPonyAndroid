@@ -147,7 +147,15 @@ fun ConversationScreen(
 
     val listState = rememberLazyListState()
     LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
+        if (messages.isEmpty()) return@LaunchedEffect
+        // Follow a new message only when the end of the thread is already on
+        // screen, or when it is my own. Reading older messages is not interrupted.
+        val info = listState.layoutInfo
+        val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+        val atEnd = info.totalItemsCount == 0 || lastVisible >= info.totalItemsCount - 2
+        if (atEnd || messages.last().direction == com.carrierpony.app.messaging.MessageDirection.OUTGOING) {
+            listState.animateScrollToItem(messages.size - 1)
+        }
     }
 
     // When the keyboard opens, the list shrinks; keep the newest messages in

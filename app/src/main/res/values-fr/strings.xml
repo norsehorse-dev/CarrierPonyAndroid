@@ -456,7 +456,10 @@
     <string name="settings_sms_sub">Distribuez à un contact par SMS lorsque vous avez son numéro, pour les cas sans Internet. Les messages sont découpés en SMS de données silencieux. Votre opérateur voit que des SMS de données sont allés à ce numéro, et les tarifs SMS habituels s\'appliquent. Désactivé par défaut.</string>
     <string name="settings_sms_toggle">Envoyer aussi par SMS</string>
     <string name="chat_awaiting_pairing">%1$s n\'a pas encore terminé l\'appairage. Vos messages s\'ouvriront de son côté dès que son app se connectera.</string>
-    <string name="inbox_held_messages">%1$d message(s) en attente de quelqu\'un dont l\'appairage n\'est pas terminé sur cet appareil. Ils s\'ouvriront tout seuls une fois terminé.</string>
+    <plurals name="inbox_held_messages">
+        <item quantity="one">%1$d message ne peut pas encore être ouvert. Il vient d\'une personne qui n\'est pas dans vos contacts sur cet appareil. Il s\'ouvrira tout seul si vous vous associez avec elle.</item>
+        <item quantity="other">%1$d messages ne peuvent pas encore être ouverts. Ils viennent d\'une personne qui n\'est pas dans vos contacts sur cet appareil. Ils s\'ouvriront tout seuls si vous vous associez avec elle.</item>
+    </plurals>
 
     <!-- 3.3.0: Settings > Notifications, member and subscriber counts -->
     <string name="settings_notifications">Notifications</string>

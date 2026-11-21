@@ -155,6 +155,7 @@ class MainActivity : AppCompatActivity() {
         app.appLock.enforceExternalGrace()
         // Demo data (screenshots) stays off the network entirely.
         if (!com.carrierpony.app.demo.Demo.isActive(this)) app.startMessaging()
+        if (!app.appLock.isLocked.value) com.carrierpony.app.push.PushNotifier.clear(this)
         requestNotificationPermissionOnce()
     }
 
@@ -216,6 +217,10 @@ private fun Root(
     val contactRequests by app.contactRequests.requestsFlow.collectAsState()
     val awaitingPeers by app.awaitingPeers.collectAsState()
     val isLocked by app.appLock.isLocked.collectAsState()
+    val bannerContext = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(isLocked) {
+        if (!isLocked) com.carrierpony.app.push.PushNotifier.clear(bannerContext)
+    }
     val onboarded by app.onboarded.collectAsState()
     val accountUnread by app.accountUnread.collectAsState()
 

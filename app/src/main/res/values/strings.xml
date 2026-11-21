@@ -456,7 +456,10 @@
     <string name="chat_sms_number">SMS number</string>
     <string name="chat_sms_number_body">Messages to this contact can also go over SMS to this number when the other paths are down. It is stored only on this device. Include the country code.</string>
     <string name="chat_awaiting_pairing">%1$s hasn\'t finished pairing yet. Your messages will open on their side once their app checks in.</string>
-    <string name="inbox_held_messages">%1$d waiting from someone whose pairing hasn\'t finished on this device. They open on their own once it does.</string>
+    <plurals name="inbox_held_messages">
+        <item quantity="one">%1$d message can\'t be opened yet. It is from someone who isn\'t in your contacts on this device. It opens by itself if you pair with them.</item>
+        <item quantity="other">%1$d messages can\'t be opened yet. They are from someone who isn\'t in your contacts on this device. They open by themselves if you pair with them.</item>
+    </plurals>
 
     <!-- 3.3.0: Settings > Notifications -->
     <string name="settings_notifications">Notifications</string>
