@@ -253,6 +253,8 @@ class AppModel(context: Context) {
     fun stopMessaging() {
         inForeground = false
         AppVisibility.foreground = false
+        // Unsent text is on disk before the app can be killed in the background.
+        _store.value?.saveDraftsNow()
         _store.value?.stop()
         otherPollLoop?.cancel()
         otherPollLoop = null

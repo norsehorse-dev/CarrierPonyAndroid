@@ -145,7 +145,11 @@ fun GroupConversationScreen(store: ChatStore, groupID: String, contacts: List<Co
     val context = LocalContext.current
     val listState = rememberLazyListState()
 
-    var draft by remember { mutableStateOf("") }
+    // The unsent text lives in the store so it survives the lock screen,
+    // leaving the thread and a process kill.
+    val draftKey = remember(groupID) { ChatStore.groupDraftKey(groupID) }
+    var draft by remember(draftKey) { mutableStateOf(store.draft(draftKey)) }
+    androidx.compose.runtime.DisposableEffect(draftKey) { onDispose { store.saveDraftsNow() } }
     var pending by remember { mutableStateOf<List<OutgoingMessage.Attachment>>(emptyList()) }
 
     // Group vanished (left/deleted): pop back out.
@@ -278,7 +282,7 @@ fun GroupConversationScreen(store: ChatStore, groupID: String, contacts: List<Co
                     }
                     OutlinedTextField(
                         value = draft,
-                        onValueChange = { draft = it },
+                        onValueChange = { draft = it; store.setDraft(draftKey, it) },
                         modifier = Modifier.weight(1f),
                         placeholder = { Text(stringResource(R.string.chat_placeholder)) }
                     )
@@ -288,7 +292,7 @@ fun GroupConversationScreen(store: ChatStore, groupID: String, contacts: List<Co
                         onClick = {
                             val text = draft
                             val atts = pending
-                            draft = ""; pending = emptyList()
+                            draft = ""; store.setDraft(draftKey, ""); pending = emptyList()
                             scope.launch { store.sendGroupMessage(groupID, text, atts) }
                         }
                     ) {

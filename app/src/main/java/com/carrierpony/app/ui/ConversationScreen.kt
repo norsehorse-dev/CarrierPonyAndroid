@@ -127,7 +127,11 @@ fun ConversationScreen(
     val messages = conversation?.sortedMessages ?: emptyList()
     val title = contact.displayName ?: conversation?.peerName ?: UiFormat.shortFingerprint(contact.fingerprint)
 
-    var draft by remember { mutableStateOf("") }
+    // The unsent text lives in the store so it survives the lock screen,
+    // leaving the thread and a process kill.
+    val draftKey = remember(contact.fingerprint) { ChatStore.draftKey(contact.fingerprint) }
+    var draft by remember(draftKey) { mutableStateOf(store.draft(draftKey)) }
+    androidx.compose.runtime.DisposableEffect(draftKey) { onDispose { store.saveDraftsNow() } }
     var pending by remember { mutableStateOf<List<OutgoingMessage.Attachment>>(emptyList()) }
     var showingMenu by remember { mutableStateOf(false) }
     var showingNicknamePrompt by remember { mutableStateOf(false) }
@@ -401,7 +405,7 @@ fun ConversationScreen(
                     }
                     OutlinedTextField(
                         value = draft,
-                        onValueChange = { draft = it },
+                        onValueChange = { draft = it; store.setDraft(draftKey, it) },
                         placeholder = { Text(stringResource(R.string.chat_placeholder)) },
                         maxLines = 5,
                         shape = RoundedCornerShape(20.dp),
@@ -421,6 +425,7 @@ fun ConversationScreen(
                                 val text = draft.trim()
                                 val attachments = pending
                                 draft = ""
+                                store.setDraft(draftKey, "")
                                 pending = emptyList()
                                 scope.launch {
                                     store.send(

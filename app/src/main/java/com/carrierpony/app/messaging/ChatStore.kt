@@ -154,6 +154,13 @@ class ChatStore(
      *  It stays held and is still retried; it just no longer counts in the banner. */
     private class HeldEnvelope(val id: String, val envelope: String, val heldAt: Long, var dismissed: Boolean = false)
 
+    /** Text typed but not sent, per conversation, so it survives the lock screen,
+     *  leaving the thread and a process kill. Keyed by draftKey / groupDraftKey.
+     *  Stored like the conversations file (AtRest), one file per identity. */
+    private val draftsURL = File(storageDir, "carrierpony-drafts-${identity.hex}.json")
+    private val drafts = mutableMapOf<String, String>()
+    private var draftsSaveJob: Job? = null
+
     private val seenMessageIDs = mutableSetOf<String>()
     private var pollJob: Job? = null
     private val mutex = Mutex()
@@ -186,6 +193,14 @@ class ChatStore(
          *  picker offers these plus Off, and a peer can only set one of them. */
         val DISAPPEARING_PRESETS: List<Long> = listOf(3_600L, 21_600L, 86_400L, 604_800L, 2_419_200L)
 
+        private const val DRAFT_SAVE_DELAY_MS = 700L
+
+        /** Draft key for a one-to-one conversation. */
+        fun draftKey(peer: Fingerprint): String = "p:" + peer.hex
+
+        /** Draft key for a group. */
+        fun groupDraftKey(groupID: String): String = "g:$groupID"
+
         /** Diagnostics sink. A no-op by default (JVM tests); the app wires it
          *  to logcat so wire-level failures are visible via
          *  `adb logcat -s CarrierPony`. */
@@ -196,6 +211,7 @@ class ChatStore(
         load()
         loadHeld()
         loadTimers()
+        loadDrafts()
     }
 
     // ── Lifecycle ──────────────────────────────────────────────────────
@@ -247,6 +263,9 @@ class ChatStore(
         heldURL.delete()
         _disappearingTimers.value = emptyMap()
         timersURL.delete()
+        draftsSaveJob?.cancel()
+        synchronized(drafts) { drafts.clear() }
+        draftsURL.delete()
     }
 
     fun clearError() {
@@ -622,6 +641,7 @@ class ChatStore(
             }
             _conversations.value = _conversations.value - threadID
             persistLocked()
+            setDraft(draftKey(conversation.peer), "")
         }
     }
 
@@ -1612,6 +1632,7 @@ class ChatStore(
             _groups.value = _groups.value - groupID
             _groupMessages.value = _groupMessages.value - groupID
             persistLocked()
+            setDraft(groupDraftKey(groupID), "")
         }
     }
 
@@ -1697,6 +1718,63 @@ class ChatStore(
         val kept = try { keep(sender, key.armoredPublicKey, op.name, op.caps) } catch (e: Exception) { false }
         diagnostics("contact-request from=${sender.hex.takeLast(8)} kept=$kept", null)
         return true
+    }
+
+    // ── Drafts ───────────────────────────────────────────────────────
+
+    /** The unsent text for a conversation, or "" when there is none. */
+    fun draft(key: String): String = synchronized(drafts) { drafts[key] ?: "" }
+
+    /** Remember the unsent text for a conversation. An empty text removes it.
+     *  Written to disk shortly after typing stops; saveDraftsNow() writes at once. */
+    fun setDraft(key: String, text: String) {
+        val changed = synchronized(drafts) {
+            if (text.isEmpty()) drafts.remove(key) != null
+            else if (drafts[key] == text) false
+            else { drafts[key] = text; true }
+        }
+        if (!changed) return
+        draftsSaveJob?.cancel()
+        draftsSaveJob = scope.launch(Dispatchers.IO) {
+            delay(DRAFT_SAVE_DELAY_MS)
+            persistDrafts()
+        }
+    }
+
+    /** Write drafts to disk now. Called when a thread closes and when the app
+     *  goes to the background, so a kill right after loses nothing. */
+    fun saveDraftsNow() {
+        val waiting = draftsSaveJob ?: return
+        if (!waiting.isActive) return
+        waiting.cancel()
+        persistDrafts()
+    }
+
+    private fun persistDrafts() {
+        synchronized(draftsURL) {
+            val json = JSONObject()
+            synchronized(drafts) { for ((k, v) in drafts) json.put(k, v) }
+            try {
+                if (json.length() == 0) draftsURL.delete()
+                else { draftsURL.parentFile?.mkdirs(); AtRest.writeText(draftsURL, json.toString()) }
+            } catch (e: Exception) { }
+        }
+    }
+
+    private fun loadDrafts() {
+        val text = try { draftsURL.takeIf { it.exists() }?.let { AtRest.readText(it) } } catch (e: Exception) { null } ?: return
+        try {
+            val json = JSONObject(text)
+            synchronized(drafts) {
+                drafts.clear()
+                val keys = json.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    val value = json.optString(key)
+                    if (value.isNotEmpty()) drafts[key] = value
+                }
+            }
+        } catch (e: Exception) { }
     }
 
     // ── Held envelopes ─────────────────────────────────────────────────
@@ -2107,6 +2185,7 @@ class ChatStore(
             _groups.value = _groups.value - groupID
             _groupMessages.value = _groupMessages.value - groupID
             persistLocked()
+            setDraft(groupDraftKey(groupID), "")
         }
     }
 

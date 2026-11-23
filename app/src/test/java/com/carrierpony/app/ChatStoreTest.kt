@@ -684,6 +684,31 @@ class ChatStoreTest {
     }
 
     @Test
+    fun draftsSurviveRestartAndPurgeRemovesThem() = runBlocking {
+        val aliceStore = store(alice, knows = listOf(bob), deviceID = "a".repeat(32))
+        val key = ChatStore.draftKey(Fingerprint.from(bob.fingerprint)!!)
+        val groupKey = ChatStore.groupDraftKey("group-1")
+        aliceStore.setDraft(key, "half a reply")
+        aliceStore.setDraft(groupKey, "to the group")
+        aliceStore.saveDraftsNow()
+
+        val reborn = store(alice, knows = listOf(bob), deviceID = "a".repeat(32))
+        assertEquals("half a reply", reborn.draft(key))
+        assertEquals("to the group", reborn.draft(groupKey))
+
+        reborn.setDraft(groupKey, "")
+        reborn.saveDraftsNow()
+        val third = store(alice, knows = listOf(bob), deviceID = "a".repeat(32))
+        assertEquals("", third.draft(groupKey))
+        assertEquals("half a reply", third.draft(key))
+
+        third.purge()
+        assertEquals("", third.draft(key))
+        assertTrue(File(workDir, "carrierpony-drafts-${Fingerprint.from(alice.fingerprint)!!.hex}.json").exists().not())
+        assertEquals("", store(alice, knows = listOf(bob), deviceID = "a".repeat(32)).draft(key))
+    }
+
+    @Test
     fun timersSurviveRestartAndPurgeRemovesThem() = runBlocking {
         val aliceStore = store(alice, knows = listOf(bob), deviceID = "a".repeat(32))
         val bobFpr = Fingerprint.from(bob.fingerprint)!!
