@@ -108,6 +108,7 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sms
@@ -124,7 +125,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 
 /** The settings sections that open as their own page. Held by the caller, so
  *  the open section is still open after a screen launched from it is closed. */
-enum class SettingsCategory { ACCOUNT, MORE, SUPPORT, RESET }
+enum class SettingsCategory { ACCOUNT, MORE, SUPPORT, ABOUT, RESET }
 
 private data class PonyApp(val name: String, val subtitle: String, val url: String, val icon: ImageVector)
 
@@ -248,6 +249,7 @@ fun SettingsScreen(
                             SettingsCategory.ACCOUNT -> stringResource(R.string.settings_account)
                             SettingsCategory.MORE -> stringResource(R.string.settings_more_from)
                             SettingsCategory.SUPPORT -> stringResource(R.string.settings_support)
+                            SettingsCategory.ABOUT -> stringResource(R.string.settings_about)
                             SettingsCategory.RESET -> stringResource(R.string.settings_reset)
                         }
                     )
@@ -293,6 +295,7 @@ fun SettingsScreen(
                     CategoryCard(Icons.Default.Language, stringResource(R.string.settings_language), categoryLangSub) { showingLanguage = true }
                     CategoryCard(Icons.Default.Apps, stringResource(R.string.settings_more_from), stringResource(R.string.settings_more_sub)) { onCategory(SettingsCategory.MORE) }
                     CategoryCard(Icons.Default.Info, stringResource(R.string.settings_support), stringResource(R.string.settings_support_sub)) { onCategory(SettingsCategory.SUPPORT) }
+                    CategoryCard(Icons.Outlined.Info, stringResource(R.string.settings_about), stringResource(R.string.settings_about_sub)) { onCategory(SettingsCategory.ABOUT) }
                     CategoryCard(Icons.Default.Warning, stringResource(R.string.settings_reset), stringResource(R.string.settings_reset_sub), destructive = true) { onCategory(SettingsCategory.RESET) }
                     Spacer(Modifier.padding(bottom = 24.dp))
                 }
@@ -435,6 +438,35 @@ fun SettingsScreen(
                                 onTerms?.let { PanelItem(Icons.Default.Description, stringResource(R.string.settings_terms), onClick = it) }
                             ))
                         }
+                    }
+                    Spacer(Modifier.padding(bottom = 24.dp))
+                }
+                SettingsCategory.ABOUT -> {
+                    // Version and build come from the installed package, never a
+                    // hard-coded string. Tapping a row copies the line for a report.
+                    val info = remember {
+                        try { context.packageManager.getPackageInfo(context.packageName, 0) } catch (e: Exception) { null }
+                    }
+                    val versionLine = stringResource(
+                        R.string.about_version_value,
+                        info?.versionName ?: "?",
+                        info?.let { androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(it) } ?: 0L
+                    )
+                    val buildLine = stringResource(
+                        if (context.resources.getBoolean(R.bool.build_is_foss)) R.string.about_build_foss
+                        else R.string.about_build_play
+                    )
+                    val copied = stringResource(R.string.common_copied)
+                    val copyLine = "CarrierPony Android $versionLine, $buildLine"
+                    SettingsPanel {
+                        PanelRows(listOf(
+                            PanelItem(Icons.Default.Tag, stringResource(R.string.about_version), versionLine, end = RowEnd.NONE) {
+                                copyMessageText(context, copyLine, copied)
+                            },
+                            PanelItem(Icons.Default.Inventory2, stringResource(R.string.about_build), buildLine, end = RowEnd.NONE) {
+                                copyMessageText(context, copyLine, copied)
+                            }
+                        ))
                     }
                     Spacer(Modifier.padding(bottom = 24.dp))
                 }

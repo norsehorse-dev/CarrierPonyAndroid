@@ -485,4 +485,9 @@
         <item quantity="one">%d Abonnent</item>
         <item quantity="other">%d Abonnenten</item>
     </plurals>
+    <string name="settings_about">Über die App</string>
+    <string name="settings_about_sub">Version und Build</string>
+    <string name="about_version">Version</string>
+    <string name="about_build">Build</string>
+    <string name="about_build_foss">F-Droid und Direktinstallation</string>
 </resources>

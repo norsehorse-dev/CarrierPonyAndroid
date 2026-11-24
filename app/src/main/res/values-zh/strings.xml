@@ -483,4 +483,9 @@
     <plurals name="channel_subscribers_count">
         <item quantity="other">%d 名订阅者</item>
     </plurals>
+    <string name="settings_about">关于</string>
+    <string name="settings_about_sub">版本与构建</string>
+    <string name="about_version">版本</string>
+    <string name="about_build">构建</string>
+    <string name="about_build_foss">F-Droid 和直接安装</string>
 </resources>

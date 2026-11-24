@@ -487,4 +487,9 @@
         <item quantity="many">%d abonnés</item>
         <item quantity="other">%d abonnés</item>
     </plurals>
+    <string name="settings_about">À propos</string>
+    <string name="settings_about_sub">Version et build</string>
+    <string name="about_version">Version</string>
+    <string name="about_build">Build</string>
+    <string name="about_build_foss">F-Droid et installation directe</string>
 </resources>

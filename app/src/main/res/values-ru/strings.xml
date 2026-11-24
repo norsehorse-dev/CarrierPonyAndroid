@@ -491,4 +491,9 @@
         <item quantity="many">%d подписчиков</item>
         <item quantity="other">%d подписчика</item>
     </plurals>
+    <string name="settings_about">О приложении</string>
+    <string name="settings_about_sub">Версия и сборка</string>
+    <string name="about_version">Версия</string>
+    <string name="about_build">Сборка</string>
+    <string name="about_build_foss">F-Droid и прямая установка</string>
 </resources>

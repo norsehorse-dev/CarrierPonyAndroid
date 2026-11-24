@@ -483,4 +483,9 @@
     <plurals name="channel_subscribers_count">
         <item quantity="other">%d 人の購読者</item>
     </plurals>
+    <string name="settings_about">アプリについて</string>
+    <string name="settings_about_sub">バージョンとビルド</string>
+    <string name="about_version">バージョン</string>
+    <string name="about_build">ビルド</string>
+    <string name="about_build_foss">F-Droid と直接インストール</string>
 </resources>
