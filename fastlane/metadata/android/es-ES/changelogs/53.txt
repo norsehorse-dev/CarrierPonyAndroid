@@ -1,0 +1,1 @@
+Corrección. El texto que habías escrito pero no enviado ya no desaparece al salir de la app, cuando la app se bloquea o al volver a la lista de chats. Cada conversación conserva su texto sin enviar hasta que lo envías.

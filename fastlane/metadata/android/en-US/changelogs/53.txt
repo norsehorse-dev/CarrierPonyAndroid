@@ -1,0 +1,1 @@
+Fix. Text you typed but had not sent no longer disappears when you leave the app, when the app locks, or when you go back to the chat list. Each conversation keeps its unsent text until you send it.

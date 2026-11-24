@@ -1,0 +1,1 @@
+Correction. Le texte que vous avez saisi sans l'envoyer ne disparaît plus lorsque vous quittez l'application, lorsque l'application se verrouille ou lorsque vous revenez à la liste des discussions. Chaque conversation conserve son texte non envoyé jusqu'à ce que vous l'envoyiez.

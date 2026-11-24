@@ -1,0 +1,1 @@
+Correção. O texto que você digitou e ainda não enviou não some mais quando você sai do app, quando o app é bloqueado ou quando você volta para a lista de conversas. Cada conversa guarda o texto não enviado até você enviar.

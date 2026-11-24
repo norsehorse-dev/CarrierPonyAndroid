@@ -1,0 +1,1 @@
+Fehlerbehebung. Text, den du getippt, aber noch nicht gesendet hast, verschwindet nicht mehr, wenn du die App verlässt, wenn die App sich sperrt oder wenn du zur Chatliste zurückgehst. Jede Unterhaltung behält ihren ungesendeten Text, bis du ihn sendest.
